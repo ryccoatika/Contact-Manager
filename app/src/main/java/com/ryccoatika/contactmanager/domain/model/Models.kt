@@ -10,6 +10,8 @@ data class RawContact(
     val rawContactId: Long,
     val accountType: String?,
     val accountName: String?,
+    val givenName: String? = null,
+    val familyName: String? = null,
     val phones: List<LabeledValue> = emptyList(),
     val emails: List<LabeledValue> = emptyList(),
     val organization: String? = null,
