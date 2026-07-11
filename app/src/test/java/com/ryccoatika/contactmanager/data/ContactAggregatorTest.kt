@@ -9,15 +9,18 @@ class ContactAggregatorTest {
         dataId: Long, rawId: Long, contactId: Long, mime: String?,
         data1: String?, name: String = "Contact $contactId",
         accType: String? = "com.google", accName: String? = "a@gmail.com",
+        data2: String? = null, data3: String? = null, typeLabel: String? = null,
     ) = DataRow(
         dataId = dataId, rawContactId = rawId, contactId = contactId,
-        mimeType = mime, data1 = data1, typeLabel = null,
+        mimeType = mime, data1 = data1, data2 = data2, data3 = data3,
+        typeLabel = typeLabel,
         accountType = accType, accountName = accName,
         displayName = name, photoThumbUri = null, starred = false,
     )
 
     private val PHONE = "vnd.android.cursor.item/phone_v2"
     private val EMAIL = "vnd.android.cursor.item/email_v2"
+    private val NAME = "vnd.android.cursor.item/name"
 
     @Test
     fun `groups rows into one contact with one raw contact`() {
@@ -74,5 +77,37 @@ class ContactAggregatorTest {
             row(1, 10, 100, PHONE, "+62899", name = ""),
         ))
         assertEquals("+62899", contacts[0].displayName)
+    }
+
+    @Test
+    fun `structured name row fills given and family name`() {
+        val contacts = ContactAggregator.aggregate(listOf(
+            row(1, 10, 100, NAME, "Budi Santoso", data2 = "Budi", data3 = "Santoso"),
+            row(2, 10, 100, PHONE, "+62812111"),
+        ))
+        assertEquals("Budi", contacts[0].rawContacts[0].givenName)
+        assertEquals("Santoso", contacts[0].rawContacts[0].familyName)
+    }
+
+    @Test
+    fun `missing or blank structured name parts yield null given and family name`() {
+        val contacts = ContactAggregator.aggregate(listOf(
+            row(1, 10, 100, NAME, "Budi", data2 = "Budi", data3 = ""),
+            row(2, 11, 101, PHONE, "+62812111"),
+        ))
+        assertEquals("Budi", contacts[0].rawContacts[0].givenName)
+        assertEquals(null, contacts[0].rawContacts[0].familyName)
+        assertEquals(null, contacts[1].rawContacts[0].givenName)
+        assertEquals(null, contacts[1].rawContacts[0].familyName)
+    }
+
+    @Test
+    fun `type label carried through to phones and emails`() {
+        val contacts = ContactAggregator.aggregate(listOf(
+            row(1, 10, 100, PHONE, "+62812111", typeLabel = "Mobile"),
+            row(2, 10, 100, EMAIL, "x@y.com", typeLabel = "Work"),
+        ))
+        assertEquals("Mobile", contacts[0].rawContacts[0].phones[0].typeLabel)
+        assertEquals("Work", contacts[0].rawContacts[0].emails[0].typeLabel)
     }
 }

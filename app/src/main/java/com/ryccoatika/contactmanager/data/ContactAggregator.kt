@@ -4,6 +4,7 @@ import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.Note
 import android.provider.ContactsContract.CommonDataKinds.Organization
 import android.provider.ContactsContract.CommonDataKinds.Phone
+import android.provider.ContactsContract.CommonDataKinds.StructuredName
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
@@ -15,6 +16,8 @@ data class DataRow(
     val contactId: Long,
     val mimeType: String?,
     val data1: String?,
+    val data2: String?,
+    val data3: String?,
     val typeLabel: String?,
     val accountType: String?,
     val accountName: String?,
@@ -33,10 +36,13 @@ object ContactAggregator {
     private fun buildContact(contactId: Long, rows: List<DataRow>): Contact {
         val rawContacts = rows.groupBy { it.rawContactId }.map { (rawId, rawRows) ->
             val first = rawRows.first()
+            val nameRow = rawRows.firstOrNull { it.mimeType == StructuredName.CONTENT_ITEM_TYPE }
             RawContact(
                 rawContactId = rawId,
                 accountType = first.accountType,
                 accountName = first.accountName,
+                givenName = nameRow?.data2?.takeIf { it.isNotBlank() },
+                familyName = nameRow?.data3?.takeIf { it.isNotBlank() },
                 phones = rawRows.filter { it.mimeType == Phone.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
                     .distinctBy { it.data1 }
                     .map { LabeledValue(it.dataId, it.data1!!, it.typeLabel) },

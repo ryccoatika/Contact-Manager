@@ -56,6 +56,8 @@ class ContactsRepository @Inject constructor(
             Data.CONTACT_ID,
             Data.MIMETYPE,
             Data.DATA1,
+            Data.DATA2,
+            Data.DATA3,
             ContactsContract.RawContacts.ACCOUNT_TYPE,
             ContactsContract.RawContacts.ACCOUNT_NAME,
             Data.DISPLAY_NAME_PRIMARY,
@@ -71,19 +73,26 @@ class ContactsRepository @Inject constructor(
             val iContact = c.getColumnIndexOrThrow(Data.CONTACT_ID)
             val iMime = c.getColumnIndexOrThrow(Data.MIMETYPE)
             val iData1 = c.getColumnIndexOrThrow(Data.DATA1)
+            val iData2 = c.getColumnIndexOrThrow(Data.DATA2)
+            val iData3 = c.getColumnIndexOrThrow(Data.DATA3)
             val iAccType = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
             val iAccName = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)
             val iName = c.getColumnIndexOrThrow(Data.DISPLAY_NAME_PRIMARY)
             val iPhoto = c.getColumnIndexOrThrow(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
             val iStar = c.getColumnIndexOrThrow(ContactsContract.Contacts.STARRED)
             while (c.moveToNext()) {
+                val mimeType = c.getString(iMime)
+                val data2 = c.getString(iData2)
+                val data3 = c.getString(iData3)
                 rows += DataRow(
                     dataId = c.getLong(iId),
                     rawContactId = c.getLong(iRaw),
                     contactId = c.getLong(iContact),
-                    mimeType = c.getString(iMime),
+                    mimeType = mimeType,
                     data1 = c.getString(iData1),
-                    typeLabel = null,
+                    data2 = data2,
+                    data3 = data3,
+                    typeLabel = PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3),
                     accountType = c.getString(iAccType),
                     accountName = c.getString(iAccName),
                     displayName = c.getString(iName),
