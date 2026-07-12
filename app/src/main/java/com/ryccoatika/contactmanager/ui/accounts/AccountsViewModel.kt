@@ -120,13 +120,16 @@ class AccountsViewModel @Inject constructor(
                 _events.emit("No contacts to move.")
                 return@launch
             }
-            batchManager.moveContacts(
+            val started = batchManager.moveContacts(
                 rawContactIds = rawIds,
                 targetType = target.type,
                 targetName = target.name,
                 label = "Moving ${rawIds.size} to ${target.name ?: "this device"}",
             )
-            _events.emit("Move started — progress is shown on the contacts screen.")
+            _events.emit(
+                if (started) "Move started — progress is shown on the contacts screen."
+                else "Another operation is still running — try again when it finishes.",
+            )
         }
     }
 }

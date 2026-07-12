@@ -119,7 +119,9 @@ fun HomeScreen(
         viewModel.batchProgress.collect { progress ->
             if (progress?.finished == true) {
                 viewModel.onBatchFinishedShown()
-                snackbarHostState.showSnackbar(progress.error ?: "${progress.label} — done")
+                snackbarHostState.showSnackbar(
+                    progress.error ?: "Moved ${progress.total} contact${if (progress.total == 1) "" else "s"}",
+                )
             }
         }
     }
@@ -189,7 +191,18 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(progress.label, style = MaterialTheme.typography.bodyMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    progress.label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${progress.done}/${progress.total}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Spacer(Modifier.height(4.dp))
                             LinearProgressIndicator(
                                 progress = {
@@ -199,7 +212,11 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        TextButton(onClick = viewModel::cancelBatch) { Text("Cancel") }
+                        Spacer(Modifier.width(4.dp))
+                        // IconButton keeps the 48dp minimum touch target.
+                        IconButton(onClick = viewModel::cancelBatch) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancel batch operation")
+                        }
                     }
                 }
             }
