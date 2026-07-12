@@ -4,6 +4,8 @@ import android.content.Context
 import android.database.ContentObserver
 import android.provider.ContactsContract
 import android.provider.ContactsContract.Data
+import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
+import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.model.Contact
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.withContext
 
 interface ContactsSource {
@@ -29,14 +32,28 @@ interface ContactsSource {
 class ContactsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val simIntegration: SimAccountsIntegration,
+    private val simRepository: SimRepository,
 ) : ContactsSource {
 
-    /** Emits full contact list on subscription and again on every provider change (debounced). */
+    /**
+     * Emits the full contact list on subscription and again on every provider
+     * change (debounced) or SIM write. SIM storage has no ContentObserver, so
+     * icc entries are re-read on each tick and merged below the aggregator.
+     */
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-    override fun observeContacts(): Flow<List<Contact>> = contentChanges()
-        .debounce(300)
-        .mapLatest { queryAllContacts() }
-        .flowOn(ioDispatcher)
+    override fun observeContacts(): Flow<List<Contact>> =
+        merge(contentChanges().debounce(300), simRepository.changes)
+            .mapLatest {
+                val contacts = queryAllContacts()
+                val simContacts = simIntegration.simContacts(contacts)
+                if (simContacts.isEmpty()) {
+                    contacts
+                } else {
+                    (contacts + simContacts).sortedBy { it.displayName.lowercase() }
+                }
+            }
+            .flowOn(ioDispatcher)
 
     private fun contentChanges(): Flow<Unit> = callbackFlow {
         val observer = object : ContentObserver(null) {
