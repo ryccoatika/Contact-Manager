@@ -6,6 +6,8 @@ import com.ryccoatika.contactmanager.data.ContactsRepository
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriteRepository
 import com.ryccoatika.contactmanager.data.ContactsWriter
+import com.ryccoatika.contactmanager.data.DataStoreDuplicatePrefs
+import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.SimAwareContactsWriter
 import com.ryccoatika.contactmanager.data.sim.DataStoreSimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.DefaultSimSubscriptionsSource
@@ -38,6 +40,8 @@ abstract class DataModule {
     @Binds
     @ContactsContractWriter
     abstract fun bindContactsContractWriter(impl: ContactsWriteRepository): ContactsWriter
+
+    @Binds abstract fun bindDuplicatePrefs(impl: DataStoreDuplicatePrefs): DuplicatePrefs
 
     @Binds abstract fun bindSimContactSource(impl: IccSimSource): SimContactSource
     @Binds abstract fun bindSimCapabilityCache(impl: DataStoreSimCapabilityCache): SimCapabilityCache
