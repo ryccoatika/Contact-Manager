@@ -174,7 +174,8 @@ private fun RawContactCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val readOnly = AccountClassifier.classify(raw.accountType) == AccountCapability.READ_ONLY
+    val capability = AccountClassifier.classify(raw.accountType)
+    val readOnly = capability == AccountCapability.READ_ONLY
     val accountLabel = AccountVisuals.label(raw.accountType, raw.accountName)
 
     OutlinedCard(Modifier.fillMaxWidth()) {
@@ -186,6 +187,18 @@ private fun RawContactCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(accountLabel, style = MaterialTheme.typography.titleSmall)
+                if (capability == AccountCapability.SIM) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "SIM",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
