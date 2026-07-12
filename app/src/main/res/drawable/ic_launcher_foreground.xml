@@ -4,22 +4,28 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- head -->
-    <path
-        android:pathData="M50,44 m-13,0 a13,13 0 1,1 26,0 a13,13 0 1,1 -26,0"
-        android:fillColor="#FFFAF7F2" />
-    <!-- shoulders (rounded capsule top) -->
-    <path
-        android:pathData="M28,80 C 28,67.5 37.8,61 50,61 C 62.2,61 72,67.5 72,80 C 72,81.7 70.7,83 69,83 L 31,83 C 29.3,83 28,81.7 28,80 Z"
-        android:fillColor="#FFFAF7F2" />
-    <!-- account dots arcing beside the head -->
-    <path
-        android:pathData="M72,28 m-4.5,0 a4.5,4.5 0 1,1 9,0 a4.5,4.5 0 1,1 -9,0"
-        android:fillColor="#FFE58A6B" />
-    <path
-        android:pathData="M80,40.5 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
-        android:fillColor="#FFEBC46B" />
-    <path
-        android:pathData="M83,53.5 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0"
-        android:fillColor="#FF8FD8D2" />
+    <group
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- head -->
+        <path
+            android:pathData="M50,44 m-13,0 a13,13 0 1,1 26,0 a13,13 0 1,1 -26,0"
+            android:fillColor="#FFFAF7F2" />
+        <!-- shoulders (rounded capsule top) -->
+        <path
+            android:pathData="M28,80 C 28,67.5 37.8,61 50,61 C 62.2,61 72,67.5 72,80 C 72,81.7 70.7,83 69,83 L 31,83 C 29.3,83 28,81.7 28,80 Z"
+            android:fillColor="#FFFAF7F2" />
+        <!-- account dots arcing beside the head -->
+        <path
+            android:pathData="M72,28 m-4.5,0 a4.5,4.5 0 1,1 9,0 a4.5,4.5 0 1,1 -9,0"
+            android:fillColor="#FFE58A6B" />
+        <path
+            android:pathData="M80,40.5 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+            android:fillColor="#FFEBC46B" />
+        <path
+            android:pathData="M83,53.5 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0"
+            android:fillColor="#FF8FD8D2" />
+    </group>
 </vector>
