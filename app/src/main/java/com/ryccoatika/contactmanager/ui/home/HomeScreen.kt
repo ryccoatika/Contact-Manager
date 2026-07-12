@@ -25,7 +25,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.PeopleAlt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,10 +62,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -71,6 +76,7 @@ fun HomeScreen(
     onContactClick: (Long) -> Unit,
     onAddClick: () -> Unit,
     onAccountsClick: () -> Unit,
+    onDuplicatesClick: () -> Unit,
     pendingFilterAccountKey: String? = null,
     onPendingFilterConsumed: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
@@ -80,7 +86,9 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showMovePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showMergePicker by remember { mutableStateOf(false) }
     var pendingMove by remember { mutableStateOf<Pair<ContactAccount, MovePlan>?>(null) }
+    var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
 
     LaunchedEffect(pendingFilterAccountKey) {
         if (pendingFilterAccountKey != null) {
@@ -115,6 +123,17 @@ fun HomeScreen(
                 TopAppBar(
                     title = { Text("Contacts") },
                     actions = {
+                        IconButton(onClick = onDuplicatesClick) {
+                            BadgedBox(
+                                badge = {
+                                    if (state.duplicateCount > 0) {
+                                        Badge { Text("${state.duplicateCount}") }
+                                    }
+                                },
+                            ) {
+                                Icon(Icons.Default.PeopleAlt, contentDescription = "Duplicates")
+                            }
+                        }
                         IconButton(onClick = onAccountsClick) {
                             Icon(Icons.Default.Group, contentDescription = "Accounts")
                         }
@@ -129,6 +148,11 @@ fun HomeScreen(
                     TextButton(onClick = { showMovePicker = true }) { Text("Move to…") }
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = { showMergePicker = true },
+                        enabled = state.selectedContactIds.size >= 2,
+                    ) { Text("Merge") }
                 }
             }
         },
@@ -273,6 +297,84 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingMove = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (showMergePicker) {
+        val selectedContacts = state.contacts.filter { it.contactId in state.selectedContactIds }
+        val memberRaws = selectedContacts.flatMap { contact -> contact.rawContacts.map { contact to it } }
+        ModalBottomSheet(onDismissRequest = { showMergePicker = false }) {
+            Text(
+                "Merge ${state.selectedContactIds.size} selected into",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            memberRaws
+                // Read-only raw contacts can't receive data, so they can't be targets.
+                .filter { (_, raw) ->
+                    AccountClassifier.classify(raw.accountType) != AccountCapability.READ_ONLY
+                }
+                .forEach { (contact, raw) ->
+                    ListItem(
+                        modifier = Modifier.clickable {
+                            showMergePicker = false
+                            pendingMergeTarget = contact to raw
+                        },
+                        headlineContent = { Text(contact.displayName) },
+                        supportingContent = {
+                            Text(AccountVisuals.label(raw.accountType, raw.accountName))
+                        },
+                        leadingContent = {
+                            Box(
+                                Modifier.size(12.dp).clip(CircleShape)
+                                    .background(AccountVisuals.color(raw.accountType, raw.accountName)),
+                            )
+                        },
+                    )
+                }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    pendingMergeTarget?.let { (targetContact, targetRaw) ->
+        val sources = state.contacts
+            .filter { it.contactId in state.selectedContactIds }
+            .flatMap { contact -> contact.rawContacts.map { contact to it } }
+            .filter { (_, raw) -> raw.rawContactId != targetRaw.rawContactId }
+        val readOnly = sources.filter { (_, raw) ->
+            AccountClassifier.classify(raw.accountType) == AccountCapability.READ_ONLY
+        }
+        AlertDialog(
+            onDismissRequest = { pendingMergeTarget = null },
+            title = { Text("Merge ${sources.size + 1} entries?") },
+            text = {
+                Text(
+                    buildString {
+                        append(
+                            "${sources.size} entries will be merged into ${targetContact.displayName} " +
+                                "(${AccountVisuals.label(targetRaw.accountType, targetRaw.accountName)}) and removed.",
+                        )
+                        if (readOnly.isNotEmpty()) {
+                            append("\n\n")
+                            append(
+                                readOnly.joinToString { (contact, raw) ->
+                                    "${contact.displayName} (${AccountVisuals.label(raw.accountType, raw.accountName)})"
+                                },
+                            )
+                            append(" will be linked (managed by app).")
+                        }
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingMergeTarget = null
+                    viewModel.mergeSelected(targetRaw)
+                }) { Text("Merge") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMergeTarget = null }) { Text("Cancel") }
             },
         )
     }

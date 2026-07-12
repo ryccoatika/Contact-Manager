@@ -8,8 +8,10 @@ import com.ryccoatika.contactmanager.data.BatchProgress
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
+import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.MovePlanner
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -37,6 +39,7 @@ data class HomeUiState(
     val query: String = "",
     val loading: Boolean = true,
     val selectedContactIds: Set<Long> = emptySet(),
+    val duplicateCount: Int = 0,
 ) {
     val selectionMode: Boolean get() = selectedContactIds.isNotEmpty()
 }
@@ -47,6 +50,7 @@ class HomeViewModel @Inject constructor(
     private val accountsSource: AccountsSource,
     private val writer: ContactsWriter,
     private val batchManager: BatchOperationManager,
+    duplicatePrefs: DuplicatePrefs,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -64,9 +68,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { accounts.value = accountsSource.getAccounts() }
     }
 
+    /** Contacts paired with their duplicate-group count (dismissed groups excluded). */
+    private val contactsWithDuplicateCount = combine(
+        contactsSource.observeContacts(), duplicatePrefs.observeDismissedKeys(),
+    ) { contacts, dismissed ->
+        contacts to DuplicateFinder.find(contacts, dismissed).size
+    }
+
     val uiState: StateFlow<HomeUiState> = combine(
-        contactsSource.observeContacts(), accounts, query, selectedAccountKey, selectedContactIds,
-    ) { contacts, accounts, query, accountKey, selected ->
+        contactsWithDuplicateCount, accounts, query, selectedAccountKey, selectedContactIds,
+    ) { (contacts, duplicateCount), accounts, query, accountKey, selected ->
         HomeUiState(
             contacts = contacts.filtered(query, accountKey),
             accounts = accounts,
@@ -74,6 +85,7 @@ class HomeViewModel @Inject constructor(
             query = query,
             loading = false,
             selectedContactIds = selected,
+            duplicateCount = duplicateCount,
         )
     }.flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
@@ -124,15 +136,34 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Merges every raw contact of the selection into [target]; read-only members
+     * are copied + linked by the writer instead of deleted.
+     */
+    fun mergeSelected(target: RawContact) {
+        val sources = selectedRawContacts().filter { it.rawContactId != target.rawContactId }
+        clearSelection()
+        viewModelScope.launch {
+            when (val result = writer.mergeContacts(target, sources)) {
+                is ContactOpResult.Success -> _events.emit("Merged ${sources.size} entries into one contact.")
+                is ContactOpResult.Failure -> _events.emit(result.message)
+            }
+        }
+    }
+
     fun cancelBatch() = batchManager.cancel()
 
     fun onBatchFinishedShown() = batchManager.clearFinished()
 
-    /** Raw contacts of the selection minus read-only ones (app-managed, undeletable). */
-    private fun movableSelectedRawContacts(): List<RawContact> =
+    /** Every raw contact of the current selection, read-only included. */
+    private fun selectedRawContacts(): List<RawContact> =
         uiState.value.contacts
             .filter { it.contactId in selectedContactIds.value }
             .flatMap { it.rawContacts }
+
+    /** Raw contacts of the selection minus read-only ones (app-managed, undeletable). */
+    private fun movableSelectedRawContacts(): List<RawContact> =
+        selectedRawContacts()
             .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
 
     private fun List<Contact>.filtered(query: String, accountKey: String?): List<Contact> {

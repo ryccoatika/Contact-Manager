@@ -5,6 +5,7 @@ import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
+import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -115,11 +116,22 @@ class HomeViewModelTest {
 
     private val googleTarget = ContactAccount("b@gmail.com", "com.google", AccountCapability.FULL_CRUD, 0)
 
+    private val dismissedKeys = MutableStateFlow<Set<String>>(emptySet())
+
+    private val fakePrefs = object : DuplicatePrefs {
+        override fun observeDismissedKeys(): Flow<Set<String>> = dismissedKeys
+        override suspend fun dismissedKeys(): Set<String> = dismissedKeys.value
+        override suspend fun dismiss(key: String) {
+            dismissedKeys.value = dismissedKeys.value + key
+        }
+    }
+
     private fun vm(writer: FakeWriter = FakeWriter()) = HomeViewModel(
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
         writer = writer,
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+        duplicatePrefs = fakePrefs,
         defaultDispatcher = dispatcher,
     )
 
@@ -222,6 +234,39 @@ class HomeViewModelTest {
         assertEquals(1, messages.size)
         job.cancel()
         eventsJob.cancel()
+    }
+
+    @Test fun `duplicateCount counts groups and honors dismissed keys`() = runTest(dispatcher) {
+        val vm = vm()
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, vm.uiState.value.duplicateCount)
+        contactsFlow.value = contactsFlow.value + contact(4, "Andi Second", raw(40, "com.google", "+62812111"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.duplicateCount)
+        dismissedKeys.value = setOf("1-4")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, vm.uiState.value.duplicateCount)
+        job.cancel()
+    }
+
+    @Test fun `mergeSelected passes target and every other selected raw as source`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val target = contactsFlow.value.first { it.contactId == 1L }.rawContacts.single()
+        vm.mergeSelected(target)
+        dispatcher.scheduler.advanceUntilIdle()
+        val (mergedTarget, sources) = writer.merged!!
+        assertEquals(10L, mergedTarget.rawContactId)
+        // Read-only raws stay in the sources: the writer links instead of deleting them.
+        assertEquals(listOf(30L, 31L), sources.map { it.rawContactId })
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
     }
 
     @Test fun `deleteSelected deletes non read-only raw ids`() = runTest(dispatcher) {
