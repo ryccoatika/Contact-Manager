@@ -81,6 +81,19 @@ class EditorViewModelTest {
         }
 
         override suspend fun deleteRawContacts(rawContactIds: List<Long>): ContactOpResult = result
+
+        override suspend fun copyRawContact(
+            rawContactId: Long,
+            targetType: String?,
+            targetName: String?,
+        ): ContactOpResult = result
+
+        override suspend fun moveRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult = result
     }
 
     private fun newVm(writer: ContactsWriter = FakeWriter()) = EditorViewModel(
