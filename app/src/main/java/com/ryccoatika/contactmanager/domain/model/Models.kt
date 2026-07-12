@@ -33,6 +33,23 @@ data class ContactAccount(
     val type: String?,
     val capability: AccountCapability,
     val contactCount: Int = 0,
+    /** False for read-only accounts and SIMs whose write probe failed. */
+    val writable: Boolean = true,
 ) {
     val key: String get() = "$type/$name"
 }
+
+/** One entry on the SIM card (EF_ADN record). */
+data class SimContact(
+    val indexOnIcc: Int?,        // null when the icc provider does not expose an index
+    val name: String,
+    val number: String,
+    val subscriptionId: Int?,    // null on single-SIM/legacy path
+)
+
+/** Probe result for one SIM: what the icc provider actually allows. */
+data class SimCapabilities(
+    val canRead: Boolean,
+    val canWrite: Boolean,
+    val maxNameLength: Int = 14,
+)

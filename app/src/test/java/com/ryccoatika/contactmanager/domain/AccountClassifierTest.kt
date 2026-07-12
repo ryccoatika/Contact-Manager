@@ -37,4 +37,9 @@ class AccountClassifierTest {
 
     @Test fun `unknown but contains sim keyword is sim`() =
         assertEquals(AccountCapability.SIM, AccountClassifier.classify("vnd.xiaomi.contact.usim"))
+
+    @Test fun `icc pseudo account is sim`() {
+        assertEquals(AccountCapability.SIM, AccountClassifier.classify("icc/-1"))
+        assertEquals(AccountCapability.SIM, AccountClassifier.classify("icc/2"))
+    }
 }
