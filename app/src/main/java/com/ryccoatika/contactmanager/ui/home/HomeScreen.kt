@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,19 +15,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.PeopleAlt
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -50,15 +57,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -69,6 +83,8 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -193,6 +209,14 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("Search ${state.contacts.size} contacts") },
                 singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (state.query.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.setQuery("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                },
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -223,17 +247,53 @@ fun HomeScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
+            } else if (state.contacts.isEmpty()) {
+                EmptyState(
+                    query = state.query,
+                    accountFiltered = state.selectedAccountKey != null,
+                )
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.contacts, key = { it.contactId }) { contact ->
-                        ContactRow(
-                            contact = contact,
-                            selected = contact.contactId in state.selectedContactIds,
-                            onClick = {
-                                if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
-                                else onContactClick(contact.contactId)
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                val sections by remember { derivedStateOf { sectionsOf(state.contacts) } }
+                val letterIndex by remember {
+                    derivedStateOf {
+                        buildMap {
+                            var index = 0
+                            sections.forEach { section ->
+                                put(section.letter, index)
+                                index += section.contacts.size + 1
+                            }
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxSize()) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                        sections.forEach { section ->
+                            stickyHeader(key = "header-${section.letter}") {
+                                SectionHeader(section.letter)
+                            }
+                            items(section.contacts, key = { it.contactId }) { contact ->
+                                ContactRow(
+                                    contact = contact,
+                                    selected = contact.contactId in state.selectedContactIds,
+                                    onClick = {
+                                        if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
+                                        else onContactClick(contact.contactId)
+                                    },
+                                    onLongClick = { viewModel.toggleSelect(contact.contactId) },
+                                )
+                            }
+                        }
+                    }
+                    if (state.contacts.size > FAST_SCROLL_MIN_CONTACTS) {
+                        AlphabetRail(
+                            onLetterSelected = { letter ->
+                                nearestSectionIndex(letter, letterIndex)?.let { index ->
+                                    scope.launch { listState.animateScrollToItem(index) }
+                                }
                             },
-                            onLongClick = { viewModel.toggleSelect(contact.contactId) },
+                            modifier = Modifier.align(Alignment.CenterEnd),
                         )
                     }
                 }
@@ -401,6 +461,120 @@ fun HomeScreen(
     }
 }
 
+/** Fast-scroll only earns its screen space on long lists. */
+private const val FAST_SCROLL_MIN_CONTACTS = 30
+
+private val RAIL_LETTERS = ('A'..'Z').toList() + '#'
+
+private data class ContactSection(val letter: Char, val contacts: List<Contact>)
+
+/** First-letter sections in list order: A–Z first, non-letter names under "#" at the end. */
+private fun sectionsOf(contacts: List<Contact>): List<ContactSection> {
+    val grouped = contacts.groupBy { contact ->
+        val first = contact.displayName.trim().firstOrNull()?.uppercaseChar()
+        if (first?.isLetter() == true) first else '#'
+    }
+    val letters = grouped.keys.filter { it != '#' }.sorted()
+    return (letters + listOfNotNull('#'.takeIf { it in grouped }))
+        .map { ContactSection(it, grouped.getValue(it)) }
+}
+
+/**
+ * List index of the section for [letter], falling back to the alphabetically
+ * closest populated section so dragging over empty letters still tracks.
+ */
+private fun nearestSectionIndex(letter: Char, letterIndex: Map<Char, Int>): Int? {
+    if (letterIndex.isEmpty()) return null
+    letterIndex[letter]?.let { return it }
+    if (letter == '#') return letterIndex.values.max()
+    val closest = letterIndex.keys.filter { it != '#' }.minByOrNull { abs(it - letter) }
+    return letterIndex[closest ?: '#']
+}
+
+@Composable
+private fun SectionHeader(letter: Char) {
+    Surface(Modifier.fillMaxWidth()) {
+        Text(
+            letter.toString(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/** Slim A–Z + # rail on the right edge; tap or drag to jump between sections. */
+@Composable
+private fun AlphabetRail(
+    onLetterSelected: (Char) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var railHeightPx by remember { mutableIntStateOf(0) }
+    fun letterAt(y: Float): Char? {
+        if (railHeightPx <= 0) return null
+        val index = (y / railHeightPx * RAIL_LETTERS.size).toInt()
+        return RAIL_LETTERS[index.coerceIn(0, RAIL_LETTERS.lastIndex)]
+    }
+    Column(
+        modifier = modifier
+            .width(28.dp)
+            .padding(end = 4.dp)
+            .onSizeChanged { railHeightPx = it.height }
+            .pointerInput(Unit) {
+                detectTapGestures { offset -> letterAt(offset.y)?.let(onLetterSelected) }
+            }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, _ ->
+                    change.consume()
+                    letterAt(change.position.y)?.let(onLetterSelected)
+                }
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RAIL_LETTERS.forEach { letter ->
+            Text(
+                letter.toString(),
+                fontSize = 10.sp,
+                lineHeight = 11.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(query: String, accountFiltered: Boolean) {
+    val (title, hint) = when {
+        query.isNotBlank() -> "No matches for \"${query.trim()}\"" to
+            "Try a different name, number or email."
+        accountFiltered -> "No contacts in this account" to
+            "Pick another account or move contacts into it."
+        else -> "No contacts yet" to "Tap + to add your first contact."
+    }
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            if (query.isNotBlank()) Icons.Default.SearchOff else Icons.Default.Contacts,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            hint,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContactRow(
@@ -410,7 +584,9 @@ private fun ContactRow(
     onLongClick: () -> Unit,
 ) {
     ListItem(
-        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        modifier = Modifier
+            .heightIn(min = 64.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         headlineContent = { Text(contact.displayName) },
         leadingContent = {
             if (selected) SelectedAvatar() else ContactAvatar(contact)
