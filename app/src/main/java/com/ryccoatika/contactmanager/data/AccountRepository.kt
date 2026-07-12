@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.data
 
 import android.content.Context
 import android.provider.ContactsContract.RawContacts
+import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
@@ -10,6 +11,7 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -30,6 +32,19 @@ class AccountRepository @Inject constructor(
      * pseudo-accounts on devices whose provider does not surface SIM contacts itself.
      */
     override suspend fun getAccounts(): List<ContactAccount> = withContext(ioDispatcher) {
+        try {
+            getAccountsOrThrow()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Never throws: a revoked permission or provider hiccup degrades to
+            // an empty account list instead of crashing the caller.
+            Log.w(TAG, "Account query failed; returning empty list", e)
+            emptyList()
+        }
+    }
+
+    private suspend fun getAccountsOrThrow(): List<ContactAccount> {
         val counts = HashMap<Pair<String?, String?>, Int>()
         context.contentResolver.query(
             RawContacts.CONTENT_URI,
@@ -51,6 +66,10 @@ class AccountRepository @Inject constructor(
                 writable = capability != AccountCapability.READ_ONLY,
             )
         }.sortedByDescending { it.contactCount }
-        providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
+        return providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
+    }
+
+    private companion object {
+        const val TAG = "AccountsRepo"
     }
 }

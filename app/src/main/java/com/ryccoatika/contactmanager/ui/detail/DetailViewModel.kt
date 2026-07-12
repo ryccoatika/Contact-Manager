@@ -22,6 +22,12 @@ sealed interface DetailEvent {
     data class ShowMessage(val message: String) : DetailEvent
 }
 
+/** [contact] is null while [loading]; null after load means it no longer exists. */
+data class DetailUiState(
+    val loading: Boolean = true,
+    val contact: Contact? = null,
+)
+
 @HiltViewModel
 class DetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -31,15 +37,17 @@ class DetailViewModel @Inject constructor(
 
     private val contactId: Long = checkNotNull(savedStateHandle["contactId"])
 
-    val uiState: StateFlow<Contact?> = contactsSource.observeContacts()
-        .map { contacts -> contacts.find { it.contactId == contactId } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val uiState: StateFlow<DetailUiState> = contactsSource.observeContacts()
+        .map { contacts ->
+            DetailUiState(loading = false, contact = contacts.find { it.contactId == contactId })
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailUiState())
 
     private val _events = MutableSharedFlow<DetailEvent>()
     val events: SharedFlow<DetailEvent> = _events
 
     fun deleteRawContact(rawContactId: Long) {
-        val wasLastRawContact = uiState.value?.rawContacts?.size == 1
+        val wasLastRawContact = uiState.value.contact?.rawContacts?.size == 1
         viewModelScope.launch {
             when (val result = writer.deleteRawContacts(listOf(rawContactId))) {
                 is ContactOpResult.Success ->

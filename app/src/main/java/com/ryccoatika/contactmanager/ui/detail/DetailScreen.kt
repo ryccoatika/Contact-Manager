@@ -60,7 +60,7 @@ fun DetailScreen(
     onEditRawContact: (Long) -> Unit,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
-    val contact by viewModel.uiState.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingDelete by remember { mutableStateOf<RawContact?>(null) }
 
@@ -71,6 +71,12 @@ fun DetailScreen(
                 is DetailEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
             }
         }
+    }
+
+    // Contact deleted elsewhere (another app, sync) while this screen is open:
+    // leave instead of showing a blank page.
+    LaunchedEffect(state) {
+        if (!state.loading && state.contact == null) onBack()
     }
 
     Scaffold(
@@ -86,7 +92,7 @@ fun DetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        val current = contact
+        val current = state.contact
         if (current == null) {
             Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.ContentObserver
 import android.provider.ContactsContract
 import android.provider.ContactsContract.Data
+import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.di.IoDispatcher
@@ -11,6 +12,7 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -46,7 +48,14 @@ class ContactsRepository @Inject constructor(
         merge(contentChanges().debounce(300), simRepository.changes)
             .mapLatest {
                 val contacts = queryAllContacts()
-                val simContacts = simIntegration.simContacts(contacts)
+                val simContacts = try {
+                    simIntegration.simContacts(contacts)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "SIM contact read failed; skipping SIM entries", e)
+                    emptyList()
+                }
                 if (simContacts.isEmpty()) {
                     contacts
                 } else {
@@ -66,7 +75,23 @@ class ContactsRepository @Inject constructor(
         awaitClose { context.contentResolver.unregisterContentObserver(observer) }
     }.conflate()
 
+    /**
+     * Never throws: this feeds the long-lived observer flow, so a revoked
+     * permission or a provider hiccup must degrade to an empty list instead
+     * of crashing every collector.
+     */
     private suspend fun queryAllContacts(): List<Contact> = withContext(ioDispatcher) {
+        try {
+            queryAllContactsOrThrow()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Contact query failed; emitting empty list", e)
+            emptyList()
+        }
+    }
+
+    private fun queryAllContactsOrThrow(): List<Contact> {
         val projection = arrayOf(
             Data._ID,
             Data.RAW_CONTACT_ID,
@@ -118,6 +143,10 @@ class ContactsRepository @Inject constructor(
                 )
             }
         }
-        ContactAggregator.aggregate(rows)
+        return ContactAggregator.aggregate(rows)
+    }
+
+    private companion object {
+        const val TAG = "ContactsRepo"
     }
 }

@@ -258,6 +258,25 @@ class EditorViewModelTest {
         assertEquals(listOf(""), vm.uiState.value.phones)
     }
 
+    @Test fun `form is not dirty until a field changes`() = runTest(dispatcher) {
+        val vm = editVm()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.uiState.value.dirty)
+        vm.setName("Changed")
+        assertTrue(vm.uiState.value.dirty)
+        vm.setName("Budi Santoso")
+        assertFalse(vm.uiState.value.dirty)
+    }
+
+    @Test fun `create form is not dirty while loading or untouched`() = runTest(dispatcher) {
+        val vm = newVm()
+        assertFalse(vm.uiState.value.dirty)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.uiState.value.dirty)
+        vm.setPhone(0, "0812")
+        assertTrue(vm.uiState.value.dirty)
+    }
+
     // --- SIM mode ---------------------------------------------------------
 
     @Test fun `create mode offers writable sim accounts but not read-only ones`() = runTest(dispatcher) {

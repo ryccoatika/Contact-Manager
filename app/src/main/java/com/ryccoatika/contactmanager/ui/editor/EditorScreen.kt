@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui.editor
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,6 +54,10 @@ fun EditorScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    val requestClose = {
+        if (state.dirty && !state.saving) showDiscardConfirm = true else onBack()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -62,12 +68,31 @@ fun EditorScreen(
         }
     }
 
+    BackHandler(enabled = state.dirty && !state.saving) { showDiscardConfirm = true }
+
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            title = { Text("Discard changes?") },
+            text = { Text("Your edits have not been saved.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardConfirm = false
+                    onBack()
+                }) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirm = false }) { Text("Keep editing") }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(if (state.isEdit) "Edit contact" else "New contact") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = requestClose) {
                         Icon(Icons.Default.Close, contentDescription = "Cancel")
                     }
                 },

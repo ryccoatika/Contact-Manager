@@ -33,6 +33,15 @@ sealed interface EditorEvent {
     data class ShowMessage(val message: String) : EditorEvent
 }
 
+/** Form fields captured after load; the dirty check compares against it. */
+data class EditorFormSnapshot(
+    val name: String = "",
+    val phones: List<String> = listOf(""),
+    val emails: List<String> = listOf(""),
+    val organization: String = "",
+    val note: String = "",
+)
+
 data class EditorUiState(
     val isEdit: Boolean = false,
     val loading: Boolean = true,
@@ -49,8 +58,15 @@ data class EditorUiState(
     val simMode: Boolean = false,
     val simMaxNameLength: Int = 14,
     val simError: String? = null,
+    /** null until the form is loaded, so a half-loaded form is never "dirty". */
+    val loadedSnapshot: EditorFormSnapshot? = null,
 ) {
     val simNameTooLong: Boolean get() = simMode && name.length > simMaxNameLength
+
+    /** True when the user has unsaved edits worth a discard confirmation. */
+    val dirty: Boolean
+        get() = loadedSnapshot != null &&
+            loadedSnapshot != EditorFormSnapshot(name, phones, emails, organization, note)
 
     val canSave: Boolean
         get() = !saving && !loading && !simNameTooLong && (
@@ -93,7 +109,9 @@ class EditorViewModel @Inject constructor(
             simCapsByKey = writable
                 .filter { it.capability == AccountCapability.SIM }
                 .associate { it.key to simCapsOf(it.type) }
-            _uiState.update { it.copy(loading = false, accounts = writable) }
+            _uiState.update {
+                it.copy(loading = false, accounts = writable, loadedSnapshot = EditorFormSnapshot())
+            }
             writable.firstOrNull()?.let(::selectAccount)
         }
     }
@@ -109,17 +127,26 @@ class EditorViewModel @Inject constructor(
                 .ifBlank { contact.displayName }
             val simMode = AccountClassifier.classify(raw.accountType) == AccountCapability.SIM
             val simCaps = if (simMode) simCapsOf(raw.accountType) else null
+            val phones = raw.phones.map { phone -> phone.value }.ifEmpty { listOf("") }
+            val emails = raw.emails.map { email -> email.value }.ifEmpty { listOf("") }
             _uiState.update {
                 it.copy(
                     loading = false,
                     name = name,
-                    phones = raw.phones.map { phone -> phone.value }.ifEmpty { listOf("") },
-                    emails = raw.emails.map { email -> email.value }.ifEmpty { listOf("") },
+                    phones = phones,
+                    emails = emails,
                     organization = raw.organization.orEmpty(),
                     note = raw.note.orEmpty(),
                     fixedAccountLabel = "${raw.accountName ?: "Device"} (${raw.accountType ?: "local"})",
                     simMode = simMode,
                     simMaxNameLength = simCaps?.maxNameLength ?: it.simMaxNameLength,
+                    loadedSnapshot = EditorFormSnapshot(
+                        name = name,
+                        phones = phones,
+                        emails = emails,
+                        organization = raw.organization.orEmpty(),
+                        note = raw.note.orEmpty(),
+                    ),
                 )
             }
         }
