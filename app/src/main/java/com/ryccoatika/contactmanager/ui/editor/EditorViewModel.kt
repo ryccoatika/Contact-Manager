@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
@@ -60,6 +61,8 @@ data class EditorUiState(
     val simError: String? = null,
     /** null until the form is loaded, so a half-loaded form is never "dirty". */
     val loadedSnapshot: EditorFormSnapshot? = null,
+    /** Defaults true so the one-time phone-permission prompt never flashes before load. */
+    val phonePermissionAsked: Boolean = true,
 ) {
     val simNameTooLong: Boolean get() = simMode && name.length > simMaxNameLength
 
@@ -83,6 +86,7 @@ class EditorViewModel @Inject constructor(
     private val accountsSource: AccountsSource,
     private val writer: ContactsWriter,
     private val simRepository: SimRepository,
+    private val appPrefs: AppPrefs,
 ) : ViewModel() {
 
     private val rawContactId: Long? = savedStateHandle["rawContactId"]
@@ -109,8 +113,14 @@ class EditorViewModel @Inject constructor(
             simCapsByKey = writable
                 .filter { it.capability == AccountCapability.SIM }
                 .associate { it.key to simCapsOf(it.type) }
+            val phonePermissionAsked = appPrefs.phonePermissionAsked()
             _uiState.update {
-                it.copy(loading = false, accounts = writable, loadedSnapshot = EditorFormSnapshot())
+                it.copy(
+                    loading = false,
+                    accounts = writable,
+                    loadedSnapshot = EditorFormSnapshot(),
+                    phonePermissionAsked = phonePermissionAsked,
+                )
             }
             writable.firstOrNull()?.let(::selectAccount)
         }
@@ -159,6 +169,11 @@ class EditorViewModel @Inject constructor(
         } else {
             SimCapabilities(canRead = true, canWrite = true)
         }
+
+    fun markPhonePermissionAsked() {
+        _uiState.update { it.copy(phonePermissionAsked = true) }
+        viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
+    }
 
     fun setName(value: String) = _uiState.update { it.copy(name = value, simError = null) }
 

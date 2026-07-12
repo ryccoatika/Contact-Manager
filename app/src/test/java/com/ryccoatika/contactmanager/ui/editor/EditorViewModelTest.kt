@@ -6,6 +6,7 @@ import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
@@ -137,6 +138,7 @@ class EditorViewModelTest {
         accountsSource = fakeAccounts,
         writer = writer,
         simRepository = simRepository,
+        appPrefs = FakeAppPrefs(),
     )
 
     private fun editVm(rawContactId: Long = 10, writer: ContactsWriter = FakeWriter()) = EditorViewModel(
@@ -145,6 +147,7 @@ class EditorViewModelTest {
         accountsSource = fakeAccounts,
         writer = writer,
         simRepository = simRepository,
+        appPrefs = FakeAppPrefs(),
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }

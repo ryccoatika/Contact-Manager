@@ -44,7 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,6 +137,12 @@ fun EditorScreen(
                     Spacer(Modifier.height(16.dp))
                 }
             } else {
+                if (!state.phonePermissionAsked &&
+                    state.accounts.any { SimRouting.isSimAccount(it.type) }
+                ) {
+                    PhonePermissionPrompt(onAsked = viewModel::markPhonePermissionAsked)
+                    Spacer(Modifier.height(8.dp))
+                }
                 AccountPicker(state, viewModel)
                 Spacer(Modifier.height(16.dp))
             }
