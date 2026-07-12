@@ -6,15 +6,41 @@ import com.ryccoatika.contactmanager.data.ContactsRepository
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriteRepository
 import com.ryccoatika.contactmanager.data.ContactsWriter
+import com.ryccoatika.contactmanager.data.SimAwareContactsWriter
+import com.ryccoatika.contactmanager.data.sim.DataStoreSimCapabilityCache
+import com.ryccoatika.contactmanager.data.sim.DefaultSimSubscriptionsSource
+import com.ryccoatika.contactmanager.data.sim.IccSimAccountsIntegration
+import com.ryccoatika.contactmanager.data.sim.IccSimSource
+import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
+import com.ryccoatika.contactmanager.data.sim.SimCapabilityCache
+import com.ryccoatika.contactmanager.data.sim.SimContactSource
+import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Qualifier
+
+/** The raw ContactsContract writer, used as the inner delegate of the SIM-aware decorator. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ContactsContractWriter
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class DataModule {
     @Binds abstract fun bindContactsSource(impl: ContactsRepository): ContactsSource
     @Binds abstract fun bindAccountsSource(impl: AccountRepository): AccountsSource
-    @Binds abstract fun bindContactsWriter(impl: ContactsWriteRepository): ContactsWriter
+
+    /** SIM-aware decorator; ContactsWriteRepository stays the ContactsContract inner impl. */
+    @Binds abstract fun bindContactsWriter(impl: SimAwareContactsWriter): ContactsWriter
+
+    @Binds
+    @ContactsContractWriter
+    abstract fun bindContactsContractWriter(impl: ContactsWriteRepository): ContactsWriter
+
+    @Binds abstract fun bindSimContactSource(impl: IccSimSource): SimContactSource
+    @Binds abstract fun bindSimCapabilityCache(impl: DataStoreSimCapabilityCache): SimCapabilityCache
+    @Binds abstract fun bindSimSubscriptionsSource(impl: DefaultSimSubscriptionsSource): SimSubscriptionsSource
+    @Binds abstract fun bindSimAccountsIntegration(impl: IccSimAccountsIntegration): SimAccountsIntegration
 }
