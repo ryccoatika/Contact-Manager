@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactsSource
+import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import com.ryccoatika.contactmanager.domain.FieldLoss
 import com.ryccoatika.contactmanager.domain.MovePlanner
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -16,11 +18,13 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class AccountsUiState(
     val accounts: List<ContactAccount> = emptyList(),
     val loading: Boolean = true,
+    val refreshing: Boolean = false,
 )
 
 /** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
@@ -35,6 +39,8 @@ class AccountsViewModel @Inject constructor(
     private val accountsSource: AccountsSource,
     private val contactsSource: ContactsSource,
     private val batchManager: BatchOperationManager,
+    private val simRepository: SimRepository,
+    private val simSubscriptionsSource: SimSubscriptionsSource,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccountsUiState())
@@ -49,6 +55,23 @@ class AccountsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _uiState.value = AccountsUiState(accounts = accountsSource.getAccounts(), loading = false)
+        }
+    }
+
+    /**
+     * Pull-to-refresh: re-probes every active SIM subscription (fixing stale
+     * capability caches after a SIM swap) and re-fetches the account list.
+     */
+    fun refresh() {
+        if (_uiState.value.refreshing) return
+        _uiState.update { it.copy(refreshing = true) }
+        viewModelScope.launch {
+            simSubscriptionsSource.activeSubscriptions().forEach { subscription ->
+                simRepository.refreshCapabilities(subscription.subscriptionId)
+            }
+            _uiState.update {
+                it.copy(accounts = accountsSource.getAccounts(), loading = false, refreshing = false)
+            }
         }
     }
 

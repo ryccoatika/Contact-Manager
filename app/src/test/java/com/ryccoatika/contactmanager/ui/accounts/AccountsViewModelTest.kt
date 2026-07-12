@@ -6,10 +6,16 @@ import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
+import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
+import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
+import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.sim.SimSubscription
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -102,10 +108,16 @@ class AccountsViewModelTest {
         ): ContactOpResult = ContactOpResult.Success
     }
 
+    private val simSource = FakeSimContactSource(
+        capsBySub = mapOf<Int?, SimCapabilities>(1 to SimCapabilities(canRead = true, canWrite = true)),
+    )
+
     private fun vm(writer: FakeWriter = FakeWriter()) = AccountsViewModel(
         accountsSource = fakeAccounts,
         contactsSource = fakeContacts,
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+        simRepository = SimRepository(simSource, InMemorySimCapabilityCache()),
+        simSubscriptionsSource = FakeSimSubscriptionsSource(listOf(SimSubscription(1, "SIM 1"))),
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
@@ -138,5 +150,20 @@ class AccountsViewModelTest {
         vm.moveAllContacts(source = deviceAccount, target = googleAccount)
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(writer.movedIds.isEmpty())
+    }
+
+    @Test fun `refresh re-probes every active sim subscription and reloads accounts`() = runTest(dispatcher) {
+        val vm = vm()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, simSource.probes)
+        vm.refresh()
+        assertTrue(vm.uiState.value.refreshing)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, simSource.probes)
+        assertFalse(vm.uiState.value.refreshing)
+        assertEquals(
+            listOf(googleAccount, whatsappAccount, deviceAccount),
+            vm.uiState.value.accounts,
+        )
     }
 }
