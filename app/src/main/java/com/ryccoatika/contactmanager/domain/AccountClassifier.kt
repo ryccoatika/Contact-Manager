@@ -29,8 +29,12 @@ object AccountClassifier {
         "USIM Account",
     )
 
+    /** Account type prefix of icc/adn pseudo-accounts ("icc/<subscriptionId or -1>"). */
+    private const val ICC_TYPE_PREFIX = "icc/"
+
     fun classify(accountType: String?): AccountCapability = when {
         accountType == null -> AccountCapability.FULL_CRUD
+        accountType.startsWith(ICC_TYPE_PREFIX) -> AccountCapability.SIM
         accountType in SIM_TYPES -> AccountCapability.SIM
         accountType.contains("sim", ignoreCase = true) -> AccountCapability.SIM
         accountType in FULL_CRUD_TYPES -> AccountCapability.FULL_CRUD
