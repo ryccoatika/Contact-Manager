@@ -3,19 +3,31 @@ package com.ryccoatika.contactmanager.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.BatchOperationManager
+import com.ryccoatika.contactmanager.data.BatchProgress
+import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
+import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
+import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.MovePlan
+import com.ryccoatika.contactmanager.domain.MovePlanner
+import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.RawContact
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
@@ -24,32 +36,44 @@ data class HomeUiState(
     val selectedAccountKey: String? = null,
     val query: String = "",
     val loading: Boolean = true,
-)
+    val selectedContactIds: Set<Long> = emptySet(),
+) {
+    val selectionMode: Boolean get() = selectedContactIds.isNotEmpty()
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val contactsSource: ContactsSource,
     private val accountsSource: AccountsSource,
+    private val writer: ContactsWriter,
+    private val batchManager: BatchOperationManager,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
     private val selectedAccountKey = MutableStateFlow<String?>(null)
     private val accounts = MutableStateFlow<List<ContactAccount>>(emptyList())
+    private val selectedContactIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    private val _events = MutableSharedFlow<String>()
+    val events: SharedFlow<String> = _events
+
+    val batchProgress: StateFlow<BatchProgress?> = batchManager.progress
 
     init {
         viewModelScope.launch { accounts.value = accountsSource.getAccounts() }
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        contactsSource.observeContacts(), accounts, query, selectedAccountKey,
-    ) { contacts, accounts, query, accountKey ->
+        contactsSource.observeContacts(), accounts, query, selectedAccountKey, selectedContactIds,
+    ) { contacts, accounts, query, accountKey, selected ->
         HomeUiState(
             contacts = contacts.filtered(query, accountKey),
             accounts = accounts,
             selectedAccountKey = accountKey,
             query = query,
             loading = false,
+            selectedContactIds = selected,
         )
     }.flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
@@ -57,6 +81,59 @@ class HomeViewModel @Inject constructor(
     fun setQuery(q: String) { query.value = q }
 
     fun selectAccount(key: String?) { selectedAccountKey.value = key }
+
+    fun toggleSelect(contactId: Long) {
+        selectedContactIds.update { if (contactId in it) it - contactId else it + contactId }
+    }
+
+    fun clearSelection() { selectedContactIds.value = emptySet() }
+
+    /** Plan for moving the movable part of the selection into [target]. */
+    fun planMove(target: ContactAccount): MovePlan =
+        MovePlanner.plan(movableSelectedRawContacts(), target.type, target.name)
+
+    fun moveSelectedTo(target: ContactAccount) {
+        val movable = movableSelectedRawContacts()
+        clearSelection()
+        if (movable.isEmpty()) {
+            viewModelScope.launch {
+                _events.emit("Selected contacts are managed by their apps and can't be moved.")
+            }
+            return
+        }
+        batchManager.moveContacts(
+            rawContactIds = movable.map { it.rawContactId },
+            targetType = target.type,
+            targetName = target.name,
+            label = "Moving ${movable.size} to ${target.name ?: "this device"}",
+        )
+    }
+
+    fun deleteSelected() {
+        val ids = movableSelectedRawContacts().map { it.rawContactId }
+        clearSelection()
+        viewModelScope.launch {
+            if (ids.isEmpty()) {
+                _events.emit("Selected contacts are managed by their apps and can't be deleted.")
+                return@launch
+            }
+            when (val result = writer.deleteRawContacts(ids)) {
+                is ContactOpResult.Success -> _events.emit("Deleted ${ids.size} contact entries.")
+                is ContactOpResult.Failure -> _events.emit(result.message)
+            }
+        }
+    }
+
+    fun cancelBatch() = batchManager.cancel()
+
+    fun onBatchFinishedShown() = batchManager.clearFinished()
+
+    /** Raw contacts of the selection minus read-only ones (app-managed, undeletable). */
+    private fun movableSelectedRawContacts(): List<RawContact> =
+        uiState.value.contacts
+            .filter { it.contactId in selectedContactIds.value }
+            .flatMap { it.rawContacts }
+            .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
 
     private fun List<Contact>.filtered(query: String, accountKey: String?): List<Contact> {
         var result = this
