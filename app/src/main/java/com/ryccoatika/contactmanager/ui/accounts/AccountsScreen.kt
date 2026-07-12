@@ -34,6 +34,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,13 +85,21 @@ fun AccountsScreen(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn(Modifier.padding(padding).fillMaxSize()) {
-                items(state.accounts, key = { it.key }) { account ->
-                    AccountRow(
-                        account = account,
-                        onClick = { onAccountClick(account.key) },
-                        onMoveAll = { moveSource = account },
-                    )
+            // Pull down to re-probe SIM capabilities (stale after a SIM swap)
+            // and re-fetch the account list.
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = viewModel::refresh,
+                modifier = Modifier.padding(padding).fillMaxSize(),
+            ) {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(state.accounts, key = { it.key }) { account ->
+                        AccountRow(
+                            account = account,
+                            onClick = { onAccountClick(account.key) },
+                            onMoveAll = { moveSource = account },
+                        )
+                    }
                 }
             }
         }
