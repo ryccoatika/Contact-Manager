@@ -1,6 +1,7 @@
 package com.ryccoatika.contactmanager.ui.permission
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -32,27 +33,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 private val CONTACT_PERMISSIONS = arrayOf(
     Manifest.permission.READ_CONTACTS,
     Manifest.permission.WRITE_CONTACTS,
 )
 
+private fun allGranted(context: Context): Boolean = CONTACT_PERMISSIONS.all {
+    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+}
+
 /** Shows [content] only when contact permissions are granted; otherwise rationale screen. */
 @Composable
 fun PermissionGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(CONTACT_PERMISSIONS.all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        })
-    }
+    var granted by remember { mutableStateOf(allGranted(context)) }
     var denied by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
         granted = result.values.all { it }
         denied = !granted
+    }
+
+    // Re-check on every resume so a grant made in system settings (after a
+    // permanent denial) unlocks the app without a restart.
+    LifecycleResumeEffect(Unit) {
+        granted = allGranted(context)
+        onPauseOrDispose { }
     }
 
     if (granted) {

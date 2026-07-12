@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -96,16 +97,17 @@ class DetailViewModelTest {
         val vm = vm(contactId = 2)
         val job = launch { vm.uiState.collect {} }
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(2L, vm.uiState.value?.contactId)
-        assertEquals(2, vm.uiState.value?.rawContacts?.size)
+        assertEquals(2L, vm.uiState.value.contact?.contactId)
+        assertEquals(2, vm.uiState.value.contact?.rawContacts?.size)
         job.cancel()
     }
 
-    @Test fun `uiState is null for unknown contact id`() = runTest(dispatcher) {
+    @Test fun `uiState reports missing contact after load for unknown id`() = runTest(dispatcher) {
         val vm = vm(contactId = 99)
         val job = launch { vm.uiState.collect {} }
         dispatcher.scheduler.advanceUntilIdle()
-        assertNull(vm.uiState.value)
+        assertFalse(vm.uiState.value.loading)
+        assertNull(vm.uiState.value.contact)
         job.cancel()
     }
 
