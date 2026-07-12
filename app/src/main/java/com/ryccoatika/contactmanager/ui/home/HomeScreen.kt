@@ -225,7 +225,11 @@ fun HomeScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             state.accounts
-                .filter { it.capability == AccountCapability.FULL_CRUD }
+                .filter {
+                    // Full-CRUD accounts plus SIMs that passed the write probe.
+                    it.capability == AccountCapability.FULL_CRUD ||
+                        (it.capability == AccountCapability.SIM && it.writable)
+                }
                 .forEach { account ->
                     ListItem(
                         modifier = Modifier.clickable {

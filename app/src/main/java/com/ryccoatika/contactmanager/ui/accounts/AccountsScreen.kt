@@ -58,9 +58,9 @@ fun AccountsScreen(
     viewModel: AccountsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingMove by viewModel.pendingMove.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var moveSource by remember { mutableStateOf<ContactAccount?>(null) }
-    var pendingMove by remember { mutableStateOf<Pair<ContactAccount, ContactAccount>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
@@ -104,12 +104,12 @@ fun AccountsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             state.accounts
-                .filter { it.capability == AccountCapability.FULL_CRUD && it.key != source.key }
+                .filter { it.key != source.key && isMoveTarget(it) }
                 .forEach { target ->
                     ListItem(
                         modifier = Modifier.clickable {
                             moveSource = null
-                            pendingMove = source to target
+                            viewModel.requestMoveAll(source, target)
                         },
                         headlineContent = { Text(AccountVisuals.label(target.type, target.name)) },
                         supportingContent = { Text(target.name ?: "On this device") },
@@ -125,28 +125,49 @@ fun AccountsScreen(
         }
     }
 
-    pendingMove?.let { (source, target) ->
+    pendingMove?.let { pending ->
+        val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
         AlertDialog(
-            onDismissRequest = { pendingMove = null },
-            title = { Text("Move ${source.contactCount} contacts?") },
+            onDismissRequest = viewModel::dismissPendingMove,
+            title = {
+                Text(
+                    if (lostFields.isEmpty()) {
+                        "Move ${pending.source.contactCount} contacts?"
+                    } else {
+                        "Some fields will be lost"
+                    },
+                )
+            },
             text = {
                 Text(
-                    "All contacts in ${AccountVisuals.label(source.type, source.name)} will be " +
-                        "moved to ${AccountVisuals.label(target.type, target.name)}.",
+                    buildString {
+                        append("All contacts in ${AccountVisuals.label(pending.source.type, pending.source.name)} ")
+                        append("will be moved to ${AccountVisuals.label(pending.target.type, pending.target.name)}.")
+                        if (lostFields.isNotEmpty()) {
+                            append(
+                                "\n\n${pending.losses.size} of them will lose: " +
+                                    lostFields.joinToString() + ".",
+                            )
+                        }
+                    },
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    pendingMove = null
-                    viewModel.moveAllContacts(source, target)
-                }) { Text("Move") }
+                TextButton(onClick = viewModel::confirmPendingMove) {
+                    Text(if (lostFields.isEmpty()) "Move" else "Move anyway")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pendingMove = null }) { Text("Cancel") }
+                TextButton(onClick = viewModel::dismissPendingMove) { Text("Cancel") }
             },
         )
     }
 }
+
+/** Full-CRUD accounts plus SIMs that passed the write probe. */
+private fun isMoveTarget(account: ContactAccount): Boolean =
+    account.capability == AccountCapability.FULL_CRUD ||
+        (account.capability == AccountCapability.SIM && account.writable)
 
 @Composable
 private fun AccountRow(
