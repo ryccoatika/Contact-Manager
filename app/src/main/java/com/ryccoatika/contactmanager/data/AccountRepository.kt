@@ -2,8 +2,10 @@ package com.ryccoatika.contactmanager.data
 
 import android.content.Context
 import android.provider.ContactsContract.RawContacts
+import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -19,11 +21,13 @@ interface AccountsSource {
 class AccountRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val simIntegration: SimAccountsIntegration,
 ) : AccountsSource {
 
     /**
      * Accounts derived from RawContacts rows (catches WhatsApp-style accounts that
-     * AccountManager restricts), with per-account contact counts.
+     * AccountManager restricts), with per-account contact counts, plus icc/adn SIM
+     * pseudo-accounts on devices whose provider does not surface SIM contacts itself.
      */
     override suspend fun getAccounts(): List<ContactAccount> = withContext(ioDispatcher) {
         val counts = HashMap<Pair<String?, String?>, Int>()
@@ -37,13 +41,16 @@ class AccountRepository @Inject constructor(
                 counts[key] = (counts[key] ?: 0) + 1
             }
         }
-        counts.map { (key, count) ->
+        val providerAccounts = counts.map { (key, count) ->
+            val capability = AccountClassifier.classify(key.first)
             ContactAccount(
                 name = key.second,
                 type = key.first,
-                capability = AccountClassifier.classify(key.first),
+                capability = capability,
                 contactCount = count,
+                writable = capability != AccountCapability.READ_ONLY,
             )
         }.sortedByDescending { it.contactCount }
+        providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
     }
 }
