@@ -113,12 +113,17 @@ class HomeViewModel @Inject constructor(
             }
             return
         }
-        batchManager.moveContacts(
+        val started = batchManager.moveContacts(
             rawContactIds = movable.map { it.rawContactId },
             targetType = target.type,
             targetName = target.name,
             label = "Moving ${movable.size} to ${target.name ?: "this device"}",
         )
+        if (!started) {
+            viewModelScope.launch {
+                _events.emit("Another operation is still running — try again when it finishes.")
+            }
+        }
     }
 
     fun deleteSelected() {

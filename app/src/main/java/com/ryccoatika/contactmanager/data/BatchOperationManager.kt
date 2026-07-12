@@ -34,13 +34,14 @@ class BatchOperationManager @Inject constructor(
 
     private var job: Job? = null
 
+    /** Starts the move; false when another batch is still running (nothing started). */
     fun moveContacts(
         rawContactIds: List<Long>,
         targetType: String?,
         targetName: String?,
         label: String,
-    ) {
-        if (job?.isActive == true) return
+    ): Boolean {
+        if (job?.isActive == true) return false
         _progress.value = BatchProgress(0, rawContactIds.size, label, finished = false)
         job = scope.launch {
             val result = writer.moveRawContacts(rawContactIds, targetType, targetName) { done, total ->
@@ -54,6 +55,7 @@ class BatchOperationManager @Inject constructor(
                 error = (result as? ContactOpResult.Failure)?.message,
             )
         }
+        return true
     }
 
     fun cancel() {
