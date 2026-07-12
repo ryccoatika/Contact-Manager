@@ -57,6 +57,19 @@ class DetailViewModelTest {
             deletedIds += rawContactIds
             return deleteResult
         }
+
+        override suspend fun copyRawContact(
+            rawContactId: Long,
+            targetType: String?,
+            targetName: String?,
+        ): ContactOpResult = ContactOpResult.Success
+
+        override suspend fun moveRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult = ContactOpResult.Success
     }
 
     private fun vm(contactId: Long, writer: ContactsWriter = FakeWriter()) = DetailViewModel(
