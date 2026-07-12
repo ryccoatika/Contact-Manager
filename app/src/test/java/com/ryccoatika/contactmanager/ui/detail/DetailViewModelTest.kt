@@ -70,6 +70,17 @@ class DetailViewModelTest {
             targetName: String?,
             onProgress: (done: Int, total: Int) -> Unit,
         ): ContactOpResult = ContactOpResult.Success
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult = ContactOpResult.Success
     }
 
     private fun vm(contactId: Long, writer: ContactsWriter = FakeWriter()) = DetailViewModel(

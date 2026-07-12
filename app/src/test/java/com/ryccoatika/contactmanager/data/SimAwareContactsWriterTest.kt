@@ -30,6 +30,9 @@ class SimAwareContactsWriterTest {
         var copied: Triple<Long, String?, String?>? = null
         val moved = mutableListOf<Long>()
         var moveTarget: Pair<String?, String?>? = null
+        var linked: List<Long>? = null
+        var separated: List<Long>? = null
+        var merged: Pair<RawContact, List<RawContact>>? = null
         var result: ContactOpResult = ContactOpResult.Success
 
         override suspend fun createContact(
@@ -69,6 +72,24 @@ class SimAwareContactsWriterTest {
             moved += rawContactIds
             moveTarget = targetType to targetName
             rawContactIds.forEachIndexed { i, _ -> onProgress(i + 1, rawContactIds.size) }
+            return result
+        }
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult {
+            linked = rawContactIds
+            return result
+        }
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult {
+            separated = rawContactIds
+            return result
+        }
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult {
+            merged = target to sources
             return result
         }
     }
@@ -296,6 +317,64 @@ class SimAwareContactsWriterTest {
         env.writer.moveRawContacts(listOf(10L, 20L), "com.google", "a@gmail.com") { _, _ -> }
         assertEquals(listOf(10L, 20L), env.delegate.moved)
         assertEquals("com.google" to "a@gmail.com", env.delegate.moveTarget)
+    }
+
+    // --- link / keepSeparate / merge ----------------------------------------
+
+    @Test fun `link with provider ids delegates`() = runTest {
+        val env = Env()
+        val result = env.writer.linkContacts(listOf(10L, 20L))
+        assertEquals(ContactOpResult.Success, result)
+        assertEquals(listOf(10L, 20L), env.delegate.linked)
+    }
+
+    @Test fun `link with a sim id fails without touching the delegate`() = runTest {
+        val env = Env()
+        val result = env.writer.linkContacts(listOf(10L, simId))
+        assertEquals(
+            ContactOpResult.Failure("SIM contacts can't be linked — move them to an account first"),
+            result,
+        )
+        assertNull(env.delegate.linked)
+    }
+
+    @Test fun `keepSeparate with provider ids delegates`() = runTest {
+        val env = Env()
+        env.writer.keepSeparate(listOf(10L, 20L))
+        assertEquals(listOf(10L, 20L), env.delegate.separated)
+    }
+
+    @Test fun `keepSeparate with a sim id fails without touching the delegate`() = runTest {
+        val env = Env()
+        val result = env.writer.keepSeparate(listOf(simId, 20L))
+        assertTrue(result is ContactOpResult.Failure)
+        assertNull(env.delegate.separated)
+    }
+
+    @Test fun `merge with provider raw contacts delegates target and sources`() = runTest {
+        val env = Env()
+        val target = providerContact.rawContacts.single()
+        val source = RawContact(rawContactId = 20, accountType = "com.google", accountName = "b")
+        val result = env.writer.mergeContacts(target, listOf(source))
+        assertEquals(ContactOpResult.Success, result)
+        assertEquals(target to listOf(source), env.delegate.merged)
+    }
+
+    @Test fun `merge with a sim source fails without touching the delegate`() = runTest {
+        val env = Env()
+        val target = providerContact.rawContacts.single()
+        val simRaw = RawContact(rawContactId = simId, accountType = "icc/-1", accountName = "SIM")
+        val result = env.writer.mergeContacts(target, listOf(simRaw))
+        assertTrue(result is ContactOpResult.Failure)
+        assertNull(env.delegate.merged)
+    }
+
+    @Test fun `merge into a sim target fails without touching the delegate`() = runTest {
+        val env = Env()
+        val simRaw = RawContact(rawContactId = simId, accountType = "icc/-1", accountName = "SIM")
+        val result = env.writer.mergeContacts(simRaw, providerContact.rawContacts)
+        assertTrue(result is ContactOpResult.Failure)
+        assertNull(env.delegate.merged)
     }
 
     // --- change notifications ---------------------------------------------

@@ -6,6 +6,7 @@ import android.content.OperationApplicationException
 import android.database.Cursor
 import android.os.RemoteException
 import android.provider.ContactsContract
+import android.provider.ContactsContract.AggregationExceptions
 import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.GroupMembership
 import android.provider.ContactsContract.CommonDataKinds.Note
@@ -16,6 +17,9 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredName
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.RawContacts
 import com.ryccoatika.contactmanager.di.IoDispatcher
+import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.RawContact
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -55,6 +59,22 @@ interface ContactsWriter {
         targetName: String?,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): ContactOpResult
+
+    /** Aggregates all [rawContactIds] into one contact (KEEP_TOGETHER per pair, reversible). */
+    suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult
+
+    /** Forces all [rawContactIds] apart (KEEP_SEPARATE per pair). */
+    suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult
+
+    /**
+     * Physically merges [sources] into [target]: copies their data rows (deduped
+     * against the target by mimetype + data1, photos skipped when the target
+     * already has one), then deletes the writable sources — copy-then-delete, so
+     * a mid-flight failure can duplicate data but never lose it. Read-only
+     * sources (app-managed, e.g. WhatsApp) can't be deleted: their data is
+     * copied and the raw contact is KEEP_TOGETHER-linked to the target instead.
+     */
+    suspend fun mergeContacts(target: RawContact, sources: List<RawContact>): ContactOpResult
 }
 
 @Singleton
@@ -149,6 +169,120 @@ class ContactsWriteRepository @Inject constructor(
                 firstCause,
             )
         }
+    }
+
+    override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+        withContext(ioDispatcher) {
+            runCatchingOp("link contacts") {
+                applyChunked(aggregationOps(rawContactIds, AggregationExceptions.TYPE_KEEP_TOGETHER))
+            }
+        }
+
+    override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+        withContext(ioDispatcher) {
+            runCatchingOp("separate contacts") {
+                applyChunked(aggregationOps(rawContactIds, AggregationExceptions.TYPE_KEEP_SEPARATE))
+            }
+        }
+
+    override suspend fun mergeContacts(
+        target: RawContact,
+        sources: List<RawContact>,
+    ): ContactOpResult = withContext(ioDispatcher) {
+        runCatchingOp("merge contacts") {
+            if (sources.isEmpty()) return@runCatchingOp
+            val ops = ArrayList<ContentProviderOperation>()
+            // Copy first, delete last: a failure in between duplicates data, never loses it.
+            ops += mergeCopyOps(target.rawContactId, sources.map { it.rawContactId })
+            val (readOnly, writable) = sources.partition {
+                AccountClassifier.classify(it.accountType) == AccountCapability.READ_ONLY
+            }
+            if (writable.isNotEmpty()) ops += deleteOps(writable.map { it.rawContactId })
+            if (readOnly.isNotEmpty()) {
+                // App-managed rows can't be deleted; keep them aggregated with the target.
+                ops += aggregationOps(
+                    listOf(target.rawContactId) + readOnly.map { it.rawContactId },
+                    AggregationExceptions.TYPE_KEEP_TOGETHER,
+                )
+            }
+            applyChunked(ops)
+        }
+    }
+
+    /** One AggregationExceptions update per unordered pair of [rawContactIds]. */
+    private fun aggregationOps(rawContactIds: List<Long>, type: Int): List<ContentProviderOperation> {
+        val ids = rawContactIds.distinct()
+        val ops = ArrayList<ContentProviderOperation>()
+        for (i in ids.indices) {
+            for (j in i + 1 until ids.size) {
+                ops += ContentProviderOperation.newUpdate(AggregationExceptions.CONTENT_URI)
+                    .withValue(AggregationExceptions.TYPE, type)
+                    .withValue(AggregationExceptions.RAW_CONTACT_ID1, ids[i])
+                    .withValue(AggregationExceptions.RAW_CONTACT_ID2, ids[j])
+                    .build()
+            }
+        }
+        return ops
+    }
+
+    /**
+     * Inserts copying every data row of [sourceRawContactIds] into the merge
+     * target, skipping rows the target already has (same mimetype + data1),
+     * group memberships (group ids are account-local), and photos when the
+     * target already has one.
+     */
+    private fun mergeCopyOps(
+        targetRawContactId: Long,
+        sourceRawContactIds: List<Long>,
+    ): List<ContentProviderOperation> {
+        val seen = HashSet<Pair<String, String?>>()
+        var hasPhoto = false
+        context.contentResolver.query(
+            Data.CONTENT_URI,
+            arrayOf(Data.MIMETYPE, Data.DATA1),
+            "${Data.RAW_CONTACT_ID}=?",
+            arrayOf(targetRawContactId.toString()),
+            null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val mimeType = c.getString(0) ?: continue
+                if (mimeType == Photo.CONTENT_ITEM_TYPE) hasPhoto = true
+                else seen += mimeType to c.getString(1)
+            }
+        }
+
+        val ops = ArrayList<ContentProviderOperation>()
+        context.contentResolver.query(
+            Data.CONTENT_URI,
+            arrayOf(Data.MIMETYPE, *GENERIC_DATA_COLUMNS),
+            "${Data.RAW_CONTACT_ID} IN (${sourceRawContactIds.joinToString(",")})",
+            null,
+            null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val mimeType = c.getString(0) ?: continue
+                if (mimeType == GroupMembership.CONTENT_ITEM_TYPE) continue
+                val builder = ContentProviderOperation.newInsert(Data.CONTENT_URI)
+                    .withValue(Data.RAW_CONTACT_ID, targetRawContactId)
+                    .withValue(Data.MIMETYPE, mimeType)
+                if (mimeType == Photo.CONTENT_ITEM_TYPE) {
+                    if (hasPhoto) continue
+                    val blob = c.getBlob(c.getColumnIndexOrThrow(Photo.PHOTO)) ?: continue
+                    builder.withValue(Photo.PHOTO, blob)
+                    hasPhoto = true
+                } else {
+                    if (!seen.add(mimeType to c.getString(1))) continue
+                    GENERIC_DATA_COLUMNS.forEachIndexed { i, column ->
+                        val index = i + 1 // offset by the MIMETYPE column
+                        if (!c.isNull(index) && c.getType(index) != Cursor.FIELD_TYPE_BLOB) {
+                            builder.withValue(column, c.getString(index))
+                        }
+                    }
+                }
+                ops += builder.build()
+            }
+        }
+        return ops
     }
 
     private fun deleteOps(rawContactIds: List<Long>): List<ContentProviderOperation> =

@@ -63,6 +63,7 @@ class HomeViewModelTest {
         val deletedIds = mutableListOf<List<Long>>()
         val movedIds = mutableListOf<Long>()
         var moveTarget: Pair<String?, String?>? = null
+        var merged: Pair<RawContact, List<RawContact>>? = null
 
         override suspend fun createContact(
             accountType: String?,
@@ -94,6 +95,20 @@ class HomeViewModelTest {
         ): ContactOpResult {
             movedIds += rawContactIds
             moveTarget = targetType to targetName
+            return ContactOpResult.Success
+        }
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult {
+            merged = target to sources
             return ContactOpResult.Success
         }
     }

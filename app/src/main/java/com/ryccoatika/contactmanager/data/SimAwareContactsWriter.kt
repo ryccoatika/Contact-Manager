@@ -184,6 +184,32 @@ class SimAwareContactsWriter @Inject constructor(
         }
     }
 
+    // --- aggregation & merge ---------------------------------------------
+
+    /** SIM entries live outside ContactsContract, so aggregation can't touch them. */
+    override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+        if (rawContactIds.any(SimRouting::isSimRawContactId)) simAggregationFailure()
+        else delegate.linkContacts(rawContactIds)
+
+    override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+        if (rawContactIds.any(SimRouting::isSimRawContactId)) simAggregationFailure()
+        else delegate.keepSeparate(rawContactIds)
+
+    override suspend fun mergeContacts(
+        target: RawContact,
+        sources: List<RawContact>,
+    ): ContactOpResult =
+        if (SimRouting.isSimRawContactId(target.rawContactId) ||
+            sources.any { SimRouting.isSimRawContactId(it.rawContactId) }
+        ) {
+            simAggregationFailure()
+        } else {
+            delegate.mergeContacts(target, sources)
+        }
+
+    private fun simAggregationFailure() =
+        ContactOpResult.Failure("SIM contacts can't be linked — move them to an account first")
+
     // --- SIM primitives -------------------------------------------------
 
     private suspend fun insertToSim(subId: Int?, name: String, number: String): ContactOpResult {
