@@ -47,9 +47,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +95,17 @@ fun AccountsScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
             ) {
                 LazyColumn(Modifier.fillMaxSize()) {
+                    val simPseudoPresent = state.accounts.any { SimRouting.isSimAccount(it.type) }
+                    if (simPseudoPresent && !state.phonePermissionAsked) {
+                        item(key = "phone-permission-prompt") {
+                            PhonePermissionPrompt(
+                                onAsked = viewModel::markPhonePermissionAsked,
+                                // Granting unlocks carrier labels; re-probe right away.
+                                onGranted = viewModel::refresh,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
+                    }
                     items(state.accounts, key = { it.key }) { account ->
                         AccountRow(
                             account = account,

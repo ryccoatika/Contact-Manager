@@ -3,6 +3,7 @@ package com.ryccoatika.contactmanager.ui.accounts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.sim.SimRepository
@@ -25,6 +26,8 @@ data class AccountsUiState(
     val accounts: List<ContactAccount> = emptyList(),
     val loading: Boolean = true,
     val refreshing: Boolean = false,
+    /** Defaults true so the one-time phone-permission prompt never flashes before load. */
+    val phonePermissionAsked: Boolean = true,
 )
 
 /** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
@@ -41,6 +44,7 @@ class AccountsViewModel @Inject constructor(
     private val batchManager: BatchOperationManager,
     private val simRepository: SimRepository,
     private val simSubscriptionsSource: SimSubscriptionsSource,
+    private val appPrefs: AppPrefs,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccountsUiState())
@@ -54,8 +58,17 @@ class AccountsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _uiState.value = AccountsUiState(accounts = accountsSource.getAccounts(), loading = false)
+            _uiState.value = AccountsUiState(
+                accounts = accountsSource.getAccounts(),
+                loading = false,
+                phonePermissionAsked = appPrefs.phonePermissionAsked(),
+            )
         }
+    }
+
+    fun markPhonePermissionAsked() {
+        _uiState.update { it.copy(phonePermissionAsked = true) }
+        viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
     }
 
     /**

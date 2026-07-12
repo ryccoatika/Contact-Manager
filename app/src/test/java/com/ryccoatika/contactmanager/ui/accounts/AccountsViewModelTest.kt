@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.BatchOperationManager
+import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
@@ -118,6 +119,7 @@ class AccountsViewModelTest {
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
         simRepository = SimRepository(simSource, InMemorySimCapabilityCache()),
         simSubscriptionsSource = FakeSimSubscriptionsSource(listOf(SimSubscription(1, "SIM 1"))),
+        appPrefs = FakeAppPrefs(),
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
