@@ -8,9 +8,15 @@ import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.SimContactValidator
+import com.ryccoatika.contactmanager.domain.SimValidation
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -39,9 +45,15 @@ data class EditorUiState(
     val accounts: List<ContactAccount> = emptyList(),
     val selectedAccount: ContactAccount? = null,
     val fixedAccountLabel: String? = null,
+    /** SIM form: name + single phone only, name capped at [simMaxNameLength]. */
+    val simMode: Boolean = false,
+    val simMaxNameLength: Int = 14,
+    val simError: String? = null,
 ) {
+    val simNameTooLong: Boolean get() = simMode && name.length > simMaxNameLength
+
     val canSave: Boolean
-        get() = !saving && !loading && (
+        get() = !saving && !loading && !simNameTooLong && (
             name.isNotBlank() ||
                 phones.any { it.isNotBlank() } ||
                 emails.any { it.isNotBlank() }
@@ -54,6 +66,7 @@ class EditorViewModel @Inject constructor(
     private val contactsSource: ContactsSource,
     private val accountsSource: AccountsSource,
     private val writer: ContactsWriter,
+    private val simRepository: SimRepository,
 ) : ViewModel() {
 
     private val rawContactId: Long? = savedStateHandle["rawContactId"]
@@ -64,17 +77,24 @@ class EditorViewModel @Inject constructor(
     private val _events = MutableSharedFlow<EditorEvent>()
     val events: SharedFlow<EditorEvent> = _events
 
+    /** Probe-detected limits per SIM account key, prefetched so selection is synchronous. */
+    private var simCapsByKey: Map<String, SimCapabilities> = emptyMap()
+
     init {
         if (rawContactId == null) loadForCreate() else loadForEdit(rawContactId)
     }
 
     private fun loadForCreate() {
         viewModelScope.launch {
-            val writable = accountsSource.getAccounts()
-                .filter { it.capability == AccountCapability.FULL_CRUD }
-            _uiState.update {
-                it.copy(loading = false, accounts = writable, selectedAccount = writable.firstOrNull())
+            val writable = accountsSource.getAccounts().filter {
+                it.capability == AccountCapability.FULL_CRUD ||
+                    (it.capability == AccountCapability.SIM && it.writable)
             }
+            simCapsByKey = writable
+                .filter { it.capability == AccountCapability.SIM }
+                .associate { it.key to simCapsOf(it.type) }
+            _uiState.update { it.copy(loading = false, accounts = writable) }
+            writable.firstOrNull()?.let(::selectAccount)
         }
     }
 
@@ -87,6 +107,8 @@ class EditorViewModel @Inject constructor(
             val name = listOfNotNull(raw.givenName, raw.familyName)
                 .joinToString(" ")
                 .ifBlank { contact.displayName }
+            val simMode = AccountClassifier.classify(raw.accountType) == AccountCapability.SIM
+            val simCaps = if (simMode) simCapsOf(raw.accountType) else null
             _uiState.update {
                 it.copy(
                     loading = false,
@@ -96,21 +118,39 @@ class EditorViewModel @Inject constructor(
                     organization = raw.organization.orEmpty(),
                     note = raw.note.orEmpty(),
                     fixedAccountLabel = "${raw.accountName ?: "Device"} (${raw.accountType ?: "local"})",
+                    simMode = simMode,
+                    simMaxNameLength = simCaps?.maxNameLength ?: it.simMaxNameLength,
                 )
             }
         }
     }
 
-    fun setName(value: String) = _uiState.update { it.copy(name = value) }
+    /** Probe-backed caps for icc pseudo-accounts; vendor SIM accounts keep the default limit. */
+    private suspend fun simCapsOf(accountType: String?): SimCapabilities =
+        if (SimRouting.isSimAccount(accountType)) {
+            simRepository.capabilities(SimRouting.subscriptionIdOf(accountType))
+        } else {
+            SimCapabilities(canRead = true, canWrite = true)
+        }
+
+    fun setName(value: String) = _uiState.update { it.copy(name = value, simError = null) }
 
     fun setOrganization(value: String) = _uiState.update { it.copy(organization = value) }
 
     fun setNote(value: String) = _uiState.update { it.copy(note = value) }
 
-    fun selectAccount(account: ContactAccount) = _uiState.update { it.copy(selectedAccount = account) }
+    fun selectAccount(account: ContactAccount) = _uiState.update {
+        it.copy(
+            selectedAccount = account,
+            simMode = account.capability == AccountCapability.SIM,
+            simMaxNameLength = simCapsByKey[account.key]?.maxNameLength
+                ?: EditorUiState().simMaxNameLength,
+            simError = null,
+        )
+    }
 
     fun setPhone(index: Int, value: String) =
-        _uiState.update { it.copy(phones = it.phones.replaceAt(index, value)) }
+        _uiState.update { it.copy(phones = it.phones.replaceAt(index, value), simError = null) }
 
     fun addPhone() = _uiState.update { it.copy(phones = it.phones + "") }
 
@@ -128,15 +168,19 @@ class EditorViewModel @Inject constructor(
     fun save() {
         val state = _uiState.value
         if (!state.canSave) return
-        _uiState.update { it.copy(saving = true) }
-        viewModelScope.launch {
-            val editable = EditableContact(
+        val editable = if (state.simMode) {
+            simEditableOrNull(state) ?: return
+        } else {
+            EditableContact(
                 displayName = state.name.trim(),
                 phones = state.phones.map { it.trim() }.filter { it.isNotBlank() }.map { it to null },
                 emails = state.emails.map { it.trim() }.filter { it.isNotBlank() }.map { it to null },
                 organization = state.organization.trim().ifBlank { null },
                 note = state.note.trim().ifBlank { null },
             )
+        }
+        _uiState.update { it.copy(saving = true) }
+        viewModelScope.launch {
             val result = if (rawContactId != null) {
                 writer.updateRawContact(rawContactId, editable)
             } else {
@@ -154,6 +198,32 @@ class EditorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Down-converts the form to a SIM entry (name + single normalized phone),
+     * or sets an inline error and returns null when it does not fit the SIM.
+     */
+    private fun simEditableOrNull(state: EditorUiState): EditableContact? {
+        val name = state.name.trim()
+        val number = SimRouting.normalizeNumber(
+            state.phones.firstOrNull { it.isNotBlank() }.orEmpty().trim(),
+        )
+        val caps = SimCapabilities(canRead = true, canWrite = true, maxNameLength = state.simMaxNameLength)
+        when (val validation = SimContactValidator.validate(name, number, caps)) {
+            is SimValidation.Error -> {
+                _uiState.update { it.copy(simError = validation.message) }
+                return null
+            }
+            SimValidation.Ok -> Unit
+        }
+        return EditableContact(
+            displayName = name,
+            phones = listOf(number to null),
+            emails = emptyList(),
+            organization = null,
+            note = null,
+        )
     }
 
     private fun Contact.hasRawContact(id: Long): Boolean =

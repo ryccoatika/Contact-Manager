@@ -113,47 +113,89 @@ fun EditorScreen(
                 AccountPicker(state, viewModel)
                 Spacer(Modifier.height(16.dp))
             }
-            OutlinedTextField(
-                value = state.name,
-                onValueChange = viewModel::setName,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Name") },
-                singleLine = true,
-            )
-            Spacer(Modifier.height(16.dp))
-            DynamicValueList(
-                label = "Phone",
-                values = state.phones,
-                onValueChange = viewModel::setPhone,
-                onAdd = viewModel::addPhone,
-                onRemove = viewModel::removePhone,
-            )
-            Spacer(Modifier.height(16.dp))
-            DynamicValueList(
-                label = "Email",
-                values = state.emails,
-                onValueChange = viewModel::setEmail,
-                onAdd = viewModel::addEmail,
-                onRemove = viewModel::removeEmail,
-            )
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = state.organization,
-                onValueChange = viewModel::setOrganization,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Organization") },
-                singleLine = true,
-            )
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = state.note,
-                onValueChange = viewModel::setNote,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Note") },
-                minLines = 2,
-            )
+            if (state.simMode) {
+                SimForm(state, viewModel)
+            } else {
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = viewModel::setName,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Name") },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(16.dp))
+                DynamicValueList(
+                    label = "Phone",
+                    values = state.phones,
+                    onValueChange = viewModel::setPhone,
+                    onAdd = viewModel::addPhone,
+                    onRemove = viewModel::removePhone,
+                )
+                Spacer(Modifier.height(16.dp))
+                DynamicValueList(
+                    label = "Email",
+                    values = state.emails,
+                    onValueChange = viewModel::setEmail,
+                    onAdd = viewModel::addEmail,
+                    onRemove = viewModel::removeEmail,
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.organization,
+                    onValueChange = viewModel::setOrganization,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Organization") },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = state.note,
+                    onValueChange = viewModel::setNote,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Note") },
+                    minLines = 2,
+                )
+            }
         }
     }
+}
+
+/** SIM storage only fits a name and one number; other fields are hidden. */
+@Composable
+private fun SimForm(state: EditorUiState, viewModel: EditorViewModel) {
+    OutlinedTextField(
+        value = state.name,
+        onValueChange = viewModel::setName,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Name") },
+        singleLine = true,
+        isError = state.simNameTooLong,
+        supportingText = {
+            Text(
+                if (state.simNameTooLong) {
+                    "${state.name.length}/${state.simMaxNameLength} — too long for SIM"
+                } else {
+                    "${state.name.length}/${state.simMaxNameLength}"
+                },
+            )
+        },
+    )
+    Spacer(Modifier.height(16.dp))
+    OutlinedTextField(
+        value = state.phones.firstOrNull().orEmpty(),
+        onValueChange = { viewModel.setPhone(0, it) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Phone") },
+        singleLine = true,
+        isError = state.simError != null,
+        supportingText = state.simError?.let { error -> { Text(error) } },
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "SIM contacts store a name and one phone number only.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
