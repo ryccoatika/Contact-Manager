@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.data
 
+import com.ryccoatika.contactmanager.domain.model.RawContact
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -57,6 +58,17 @@ class BatchOperationManagerTest {
             }
             return moveResult
         }
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult = ContactOpResult.Success
     }
 
     private fun manager(writer: ContactsWriter) =

@@ -120,6 +120,15 @@ class EditorViewModelTest {
             targetName: String?,
             onProgress: (done: Int, total: Int) -> Unit,
         ): ContactOpResult = result
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult = result
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult = result
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult = result
     }
 
     private fun newVm(writer: ContactsWriter = FakeWriter()) = EditorViewModel(

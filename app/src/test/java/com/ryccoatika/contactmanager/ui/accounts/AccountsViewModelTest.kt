@@ -89,6 +89,17 @@ class AccountsViewModelTest {
             moveTarget = targetType to targetName
             return ContactOpResult.Success
         }
+
+        override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun mergeContacts(
+            target: RawContact,
+            sources: List<RawContact>,
+        ): ContactOpResult = ContactOpResult.Success
     }
 
     private fun vm(writer: FakeWriter = FakeWriter()) = AccountsViewModel(
