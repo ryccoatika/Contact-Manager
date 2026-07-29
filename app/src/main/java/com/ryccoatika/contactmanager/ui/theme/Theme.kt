@@ -8,60 +8,53 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TealPrimaryDark,
-    onPrimary = OnTealPrimaryDark,
-    primaryContainer = TealContainerDark,
-    onPrimaryContainer = OnTealContainerDark,
-    secondary = SageSecondaryDark,
-    onSecondary = OnSageSecondaryDark,
-    secondaryContainer = SageContainerDark,
-    onSecondaryContainer = OnSageContainerDark,
-    tertiary = TerracottaTertiaryDark,
-    onTertiary = OnTerracottaTertiaryDark,
-    tertiaryContainer = TerracottaContainerDark,
-    onTertiaryContainer = OnTerracottaContainerDark,
-    background = WarmBackgroundDark,
-    onBackground = OnWarmBackgroundDark,
-    surface = WarmSurfaceDark,
-    onSurface = OnWarmSurfaceDark,
-    surfaceVariant = WarmSurfaceVariantDark,
-    onSurfaceVariant = OnWarmSurfaceVariantDark,
-    outline = WarmOutlineDark,
+    primary = PinePrimaryDark,
+    onPrimary = OnPinePrimaryDark,
+    primaryContainer = PineContainerDark,
+    onPrimaryContainer = OnPineContainerDark,
+    secondary = SecondaryDark,
+    onSecondary = OnSecondaryDark,
+    secondaryContainer = SecondaryContainerDark,
+    onSecondaryContainer = OnSecondaryContainerDark,
+    background = GroundDark,
+    onBackground = OnGroundDark,
+    surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    outline = OutlineDark,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TealPrimaryLight,
-    onPrimary = OnTealPrimaryLight,
-    primaryContainer = TealContainerLight,
-    onPrimaryContainer = OnTealContainerLight,
-    secondary = SageSecondaryLight,
-    onSecondary = OnSageSecondaryLight,
-    secondaryContainer = SageContainerLight,
-    onSecondaryContainer = OnSageContainerLight,
-    tertiary = TerracottaTertiaryLight,
-    onTertiary = OnTerracottaTertiaryLight,
-    tertiaryContainer = TerracottaContainerLight,
-    onTertiaryContainer = OnTerracottaContainerLight,
-    background = WarmBackgroundLight,
-    onBackground = OnWarmBackgroundLight,
-    surface = WarmSurfaceLight,
-    onSurface = OnWarmSurfaceLight,
-    surfaceVariant = WarmSurfaceVariantLight,
-    onSurfaceVariant = OnWarmSurfaceVariantLight,
-    outline = WarmOutlineLight,
+    primary = PinePrimaryLight,
+    onPrimary = OnPinePrimaryLight,
+    primaryContainer = PineContainerLight,
+    onPrimaryContainer = OnPineContainerLight,
+    secondary = SecondaryLight,
+    onSecondary = OnSecondaryLight,
+    secondaryContainer = SecondaryContainerLight,
+    onSecondaryContainer = OnSecondaryContainerLight,
+    background = GroundLight,
+    onBackground = OnGroundLight,
+    surface = SurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+    outline = OutlineLight,
 )
 
 /**
- * Dynamic color (Monet) on Android 12+, warm eye-comfort fallback palette
- * below; dark mode follows the system setting.
+ * "Porcelain & Pine" is the default identity. Dynamic color (Monet) is opt-in
+ * on Android 12+; dark mode follows the system setting.
  */
 @Composable
 fun ContactManagerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -74,9 +67,14 @@ fun ContactManagerTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalExtendedColors provides if (darkTheme) DarkExtendedColors else LightExtendedColors,
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }
