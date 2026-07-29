@@ -64,12 +64,11 @@ height, `FontWeight.SemiBold`/`Bold` for names and titles. Phone numbers and
 counts use `TextStyle(fontFeatureSettings = "tnum")` (tabular numerals) so
 digits align.
 
-Typeface: **Manrope** (OFL), loaded via Compose **Downloadable Google Fonts**
-(`androidx.compose.ui:ui-text-google-fonts`) — no binary bundled, resolved at
-runtime through the Google Fonts provider with a graceful fallback to
-`FontFamily.Default` (Roboto) when the provider is unavailable. Manrope drives
-every role (display through label); the tuned scale carries the fallback. Early,
-isolated task.
+Typeface: **Manrope** (OFL), **bundled** as a single variable TTF in `res/font`
+(self-contained — no Play Services, no runtime download). Each `FontWeight`
+declares its matching `wght` axis value via `FontVariation`; devices below
+API 26 fall back to the default (Regular) instance. Manrope drives every role
+(display through label). Early, isolated task.
 
 ### Shape
 
