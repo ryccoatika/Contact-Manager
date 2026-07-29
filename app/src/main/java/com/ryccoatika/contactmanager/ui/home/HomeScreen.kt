@@ -82,7 +82,18 @@ import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import android.content.res.Configuration
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import com.ryccoatika.contactmanager.domain.model.LabeledValue
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.ContactAvatar
+import com.ryccoatika.contactmanager.ui.common.SearchField
+import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
@@ -177,7 +188,10 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (!state.selectionMode) {
-                FloatingActionButton(onClick = onAddClick) {
+                FloatingActionButton(
+                    onClick = onAddClick,
+                    shape = MaterialTheme.shapes.medium,
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "New contact")
                 }
             }
@@ -220,19 +234,19 @@ fun HomeScreen(
                     }
                 }
             }
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::setQuery,
+            SearchField(
+                query = state.query,
+                placeholder = "Search ${state.contacts.size} contacts",
+                onQueryChange = viewModel::setQuery,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search ${state.contacts.size} contacts") },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
+                trailing = if (state.query.isNotEmpty()) {
+                    {
                         IconButton(onClick = { viewModel.setQuery("") }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear search")
                         }
                     }
+                } else {
+                    null
                 },
             )
             LazyRow(
@@ -251,12 +265,7 @@ fun HomeScreen(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
                         label = { Text("${AccountVisuals.label(account.type, account.name)} · ${account.contactCount}") },
-                        leadingIcon = {
-                            Box(
-                                Modifier.size(10.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(account.type, account.name)),
-                            )
-                        },
+                        leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     )
                 }
             }
@@ -344,12 +353,7 @@ fun HomeScreen(
                         },
                         headlineContent = { Text(AccountVisuals.label(account.type, account.name)) },
                         supportingContent = { Text(account.name ?: "On this device") },
-                        leadingContent = {
-                            Box(
-                                Modifier.size(12.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(account.type, account.name)),
-                            )
-                        },
+                        leadingContent = { AccountDot(account.type, account.name, size = 12.dp) },
                     )
                 }
             Spacer(Modifier.height(24.dp))
@@ -402,12 +406,7 @@ fun HomeScreen(
                         supportingContent = {
                             Text(AccountVisuals.label(raw.accountType, raw.accountName))
                         },
-                        leadingContent = {
-                            Box(
-                                Modifier.size(12.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(raw.accountType, raw.accountName)),
-                            )
-                        },
+                        leadingContent = { AccountDot(raw.accountType, raw.accountName, size = 12.dp) },
                     )
                 }
             Spacer(Modifier.height(24.dp))
@@ -510,12 +509,12 @@ private fun nearestSectionIndex(letter: Char, letterIndex: Map<Char, Int>): Int?
 
 @Composable
 private fun SectionHeader(letter: Char) {
-    Surface(Modifier.fillMaxWidth()) {
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
         Text(
             letter.toString(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }
 }
@@ -604,59 +603,61 @@ private fun ContactRow(
         modifier = Modifier
             .heightIn(min = 64.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        headlineContent = { Text(contact.displayName) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = {
+            Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+        },
+        supportingContent = {
+            contactSubtitle(contact)?.let {
+                Text(
+                    it,
+                    style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        },
         leadingContent = {
-            if (selected) SelectedAvatar() else ContactAvatar(contact)
+            if (selected) SelectedAvatar() else ContactAvatar(contact.displayName, contact.photoThumbnailUri)
         },
         trailingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 contact.rawContacts
                     .distinctBy { it.accountType to it.accountName }
-                    .forEach { raw ->
-                        Box(
-                            Modifier.size(8.dp).clip(CircleShape)
-                                .background(AccountVisuals.color(raw.accountType, raw.accountName)),
-                        )
-                    }
+                    .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
             }
         },
     )
 }
 
-@Composable
-private fun SelectedAvatar() {
-    Box(
-        Modifier.size(40.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            Icons.Default.Check,
-            contentDescription = "Selected",
-            tint = MaterialTheme.colorScheme.onPrimary,
-        )
-    }
-}
+/** First non-blank of: organization, a phone, an email — a hint under the name. */
+private fun contactSubtitle(contact: Contact): String? =
+    contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }
+        ?: contact.rawContacts.flatMap { it.phones }.firstOrNull()?.value
+        ?: contact.rawContacts.flatMap { it.emails }.firstOrNull()?.value
 
+private fun previewContact() = Contact(
+    contactId = 1L,
+    displayName = "Amelia Hartwell",
+    rawContacts = listOf(
+        RawContact(
+            rawContactId = 1L,
+            accountType = "com.google",
+            accountName = "rycco@gmail.com",
+            organization = "Hartwell & Co",
+            phones = listOf(LabeledValue(1L, "+44 7700 900312", "Mobile")),
+        ),
+        RawContact(rawContactId = 2L, accountType = "sim", accountName = "SIM 1"),
+    ),
+)
+
+@Preview(name = "Contact row · light")
+@Preview(name = "Contact row · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun ContactAvatar(contact: Contact) {
-    if (contact.photoThumbnailUri != null) {
-        AsyncImage(
-            model = contact.photoThumbnailUri,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp).clip(CircleShape),
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                contact.displayName.firstOrNull()?.uppercase() ?: "?",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+private fun ContactRowPreview() {
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            ContactRow(previewContact(), selected = false, onClick = {}, onLongClick = {})
         }
     }
 }
