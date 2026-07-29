@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,8 +51,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
+import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.TabularNums
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +106,11 @@ fun AccountsScreen(
                 onRefresh = viewModel::refresh,
                 modifier = Modifier.padding(padding).fillMaxSize(),
             ) {
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     val simPseudoPresent = state.accounts.any { SimRouting.isSimAccount(it.type) }
                     if (simPseudoPresent && !state.phonePermissionAsked) {
                         item(key = "phone-permission-prompt") {
@@ -102,7 +118,6 @@ fun AccountsScreen(
                                 onAsked = viewModel::markPhonePermissionAsked,
                                 // Granting unlocks carrier labels; re-probe right away.
                                 onGranted = viewModel::refresh,
-                                modifier = Modifier.padding(horizontal = 16.dp),
                             )
                         }
                     }
@@ -135,12 +150,7 @@ fun AccountsScreen(
                         },
                         headlineContent = { Text(AccountVisuals.label(target.type, target.name)) },
                         supportingContent = { Text(target.name ?: "On this device") },
-                        leadingContent = {
-                            Box(
-                                Modifier.size(12.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(target.type, target.name)),
-                            )
-                        },
+                        leadingContent = { AccountDot(target.type, target.name, size = 12.dp) },
                     )
                 }
             Spacer(Modifier.height(24.dp))
@@ -199,64 +209,86 @@ private fun AccountRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
+    val label = AccountVisuals.label(account.type, account.name)
 
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        headlineContent = { Text(AccountVisuals.label(account.type, account.name)) },
-        supportingContent = { Text(account.name ?: "On this device") },
-        leadingContent = {
+    SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(12.dp).clip(CircleShape)
+                Modifier
+                    .size(42.dp)
+                    .clip(MaterialTheme.shapes.small)
                     .background(AccountVisuals.color(account.type, account.name)),
-            )
-        },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    "${account.contactCount}",
-                    style = MaterialTheme.typography.labelLarge,
+                    label.firstOrNull()?.uppercase() ?: "?",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    account.name ?: "On this device",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.width(8.dp))
-                AssistChip(
-                    onClick = onClick,
-                    label = {
-                        Text(
-                            when (account.capability) {
-                                AccountCapability.FULL_CRUD -> "Full access"
-                                AccountCapability.READ_ONLY -> "Read-only"
-                                AccountCapability.SIM -> "SIM"
-                            },
-                        )
-                    },
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${account.contactCount}",
+                    style = TabularNums.merge(MaterialTheme.typography.titleMedium),
                 )
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Account actions")
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            enabled = !readOnly,
-                            text = {
-                                Column {
-                                    Text("Move all contacts to…")
-                                    if (readOnly) {
-                                        Text(
-                                            "Managed by app",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
+                Spacer(Modifier.height(4.dp))
+                CapabilityTag(account.capability, account.writable)
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Account actions")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        enabled = !readOnly,
+                        text = {
+                            Column {
+                                Text("Move all contacts to…")
+                                if (readOnly) {
+                                    Text(
+                                        "Managed by app",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
-                            },
-                            onClick = {
-                                menuOpen = false
-                                onMoveAll()
-                            },
-                        )
-                    }
+                            }
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onMoveAll()
+                        },
+                    )
                 }
             }
-        },
-    )
+        }
+    }
+}
+
+@Preview(name = "Account row · light")
+@Preview(name = "Account row · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun AccountRowPreview() {
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AccountRow(
+                    ContactAccount("rycco@gmail.com", "com.google", AccountCapability.FULL_CRUD, 201),
+                    onClick = {}, onMoveAll = {},
+                )
+                AccountRow(
+                    ContactAccount("WhatsApp", "com.whatsapp", AccountCapability.READ_ONLY, 41, writable = false),
+                    onClick = {}, onMoveAll = {},
+                )
+            }
+        }
+    }
 }
