@@ -4,9 +4,10 @@ import androidx.compose.ui.graphics.Color
 import kotlin.math.absoluteValue
 
 object AccountVisuals {
+    // Muted premium tones so provenance dots read as quiet metadata, not decoration.
     private val palette = listOf(
-        Color(0xFF4285F4), Color(0xFF0F9D58), Color(0xFFF4B400), Color(0xFFDB4437),
-        Color(0xFF7B1FA2), Color(0xFF00838F), Color(0xFFEF6C00), Color(0xFF5D4037),
+        Color(0xFF3B7DDD), Color(0xFF1E9E6A), Color(0xFFA9782F), Color(0xFF5D7680),
+        Color(0xFF7C4A72), Color(0xFF2C7A70), Color(0xFFB4622F), Color(0xFF4C5A78),
     )
 
     fun color(accountType: String?, accountName: String?): Color =
