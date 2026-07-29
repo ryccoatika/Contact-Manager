@@ -55,7 +55,19 @@ import com.ryccoatika.contactmanager.domain.MatchConfidence
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.model.LabeledValue
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.ContactAvatar
+import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.extendedColors
+import android.content.res.Configuration
+import androidx.compose.material3.Button
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,22 +216,26 @@ private fun DuplicateGroupCard(
     onMerge: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ConfidenceChip(group.confidence)
-                Spacer(Modifier.weight(1f))
-                Text(group.matchReason, style = MaterialTheme.typography.bodySmall)
-            }
-            group.contacts.forEach { contact -> MemberRow(contact) }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            ) {
-                FilledTonalButton(onClick = onLink) { Text("Link") }
-                TextButton(onClick = onMerge) { Text("Merge…") }
-                TextButton(onClick = onDismiss) { Text("Not duplicate") }
-            }
+    SectionCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ConfidenceChip(group.confidence)
+            Spacer(Modifier.weight(1f))
+            Text(
+                group.matchReason,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.extendedColors.brass,
+            )
+        }
+        group.contacts.forEach { contact -> MemberRow(contact) }
+        Spacer(Modifier.height(4.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onDismiss) { Text("Not duplicate") }
+            TextButton(onClick = onLink) { Text("Link") }
+            Button(onClick = onMerge) { Text("Merge") }
         }
     }
 }
@@ -247,31 +263,42 @@ private fun MemberRow(contact: Contact) {
     val preview = contact.rawContacts.flatMap { it.phones }.map { it.value }.distinct().firstOrNull()
         ?: contact.rawContacts.flatMap { it.emails }.map { it.value }.distinct().firstOrNull()
     ListItem(
-        headlineContent = { Text(contact.displayName) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(contact.displayName, style = MaterialTheme.typography.titleMedium) },
         supportingContent = preview?.let { { Text(it) } },
-        leadingContent = {
-            Box(
-                Modifier.size(40.dp).clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    contact.displayName.firstOrNull()?.uppercase() ?: "?",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
-        },
+        leadingContent = { ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 40.dp) },
         trailingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 contact.rawContacts
                     .distinctBy { it.accountType to it.accountName }
-                    .forEach { raw ->
-                        Box(
-                            Modifier.size(8.dp).clip(CircleShape)
-                                .background(AccountVisuals.color(raw.accountType, raw.accountName)),
-                        )
-                    }
+                    .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
             }
         },
     )
+}
+
+@Preview(name = "Duplicate group · light")
+@Preview(name = "Duplicate group · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun DuplicateGroupPreview() {
+    val group = DuplicateGroup(
+        confidence = MatchConfidence.HIGH,
+        matchReason = "Same number · +44 7700 900312",
+        contacts = listOf(
+            Contact(
+                1L, "Amelia Hartwell",
+                rawContacts = listOf(
+                    RawContact(1L, "com.google", "rycco@gmail.com", phones = listOf(LabeledValue(1L, "+44 7700 900312", "Mobile"))),
+                ),
+            ),
+            Contact(2L, "A. Hartwell", rawContacts = listOf(RawContact(2L, "sim", "SIM 1"))),
+        ),
+    )
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp)) {
+                DuplicateGroupCard(group, onLink = {}, onMerge = {}, onDismiss = {})
+            }
+        }
+    }
 }
