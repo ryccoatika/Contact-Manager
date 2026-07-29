@@ -64,10 +64,12 @@ height, `FontWeight.SemiBold`/`Bold` for names and titles. Phone numbers and
 counts use `TextStyle(fontFeatureSettings = "tnum")` (tabular numerals) so
 digits align.
 
-Typeface: **recommended** — bundle a variable OFL font (Inter or Manrope) in
-`res/font` for the display/headline roles; body stays on it too. If skipped,
-the tuned scale on the system default (Roboto) is the fallback. This is an early,
-isolated task and a decision point, not a blocker.
+Typeface: **Manrope** (OFL), loaded via Compose **Downloadable Google Fonts**
+(`androidx.compose.ui:ui-text-google-fonts`) — no binary bundled, resolved at
+runtime through the Google Fonts provider with a graceful fallback to
+`FontFamily.Default` (Roboto) when the provider is unavailable. Manrope drives
+every role (display through label); the tuned scale carries the fallback. Early,
+isolated task.
 
 ### Shape
 
