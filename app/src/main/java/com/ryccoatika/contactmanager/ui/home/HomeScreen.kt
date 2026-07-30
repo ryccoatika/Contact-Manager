@@ -4,14 +4,13 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +67,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
@@ -300,8 +301,14 @@ fun HomeScreen(
                         }
                     }
                 }
+                val railShown = state.contacts.size > FAST_SCROLL_MIN_CONTACTS
                 Box(Modifier.fillMaxSize()) {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        // Keep row content (incl. trailing provenance dots) clear of the rail.
+                        contentPadding = PaddingValues(end = if (railShown) 30.dp else 0.dp),
+                    ) {
                         sections.forEach { section ->
                             stickyHeader(key = "header-${section.letter}") {
                                 SectionHeader(section.letter)
@@ -319,7 +326,7 @@ fun HomeScreen(
                             }
                         }
                     }
-                    if (state.contacts.size > FAST_SCROLL_MIN_CONTACTS) {
+                    if (railShown) {
                         AlphabetRail(
                             onLetterSelected = { letter ->
                                 nearestSectionIndex(letter, letterIndex)?.let { index ->
@@ -546,27 +553,39 @@ private fun AlphabetRail(
     }
     Column(
         modifier = modifier
+            .fillMaxHeight()
+            .padding(vertical = 8.dp, horizontal = 4.dp)
             .width(28.dp)
-            .padding(end = 4.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f))
             .onSizeChanged { railHeightPx = it.height }
+            // One gesture owns both a tap and a drag, so a plain tap jumps too.
             .pointerInput(Unit) {
-                detectTapGestures { offset -> letterAt(offset.y)?.let(onLetterSelected) }
-            }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, _ ->
-                    change.consume()
-                    letterAt(change.position.y)?.let(onLetterSelected)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    letterAt(down.position.y)?.let(onLetterSelected)
+                    var change = down
+                    while (change.pressed) {
+                        val event = awaitPointerEvent()
+                        change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.pressed) {
+                            change.consume()
+                            letterAt(change.position.y)?.let(onLetterSelected)
+                        }
+                    }
                 }
             },
+        verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         RAIL_LETTERS.forEach { letter ->
             Text(
                 letter.toString(),
                 fontSize = 10.sp,
-                lineHeight = 11.sp,
+                lineHeight = 12.sp,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }
