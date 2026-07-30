@@ -26,6 +26,10 @@ interface AppPrefs {
     /** Account keys ("type/name") the user hid from the Home selector. */
     fun observeHiddenAccountKeys(): Flow<Set<String>>
     suspend fun setAccountHidden(key: String, hidden: Boolean)
+
+    /** False until the user finishes the first-launch onboarding. */
+    fun observeOnboardingSeen(): Flow<Boolean>
+    suspend fun setOnboardingSeen()
 }
 
 private val Context.appPrefsDataStore by preferencesDataStore(name = "app_prefs")
@@ -64,8 +68,22 @@ class DataStoreAppPrefs @Inject constructor(
         }
     }
 
+    override fun observeOnboardingSeen(): Flow<Boolean> =
+        context.appPrefsDataStore.data
+            .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+            .map { it[ONBOARDING_SEEN] ?: false }
+
+    override suspend fun setOnboardingSeen() {
+        try {
+            context.appPrefsDataStore.edit { prefs -> prefs[ONBOARDING_SEEN] = true }
+        } catch (_: IOException) {
+            // Best-effort: onboarding may show once more.
+        }
+    }
+
     private companion object {
         val PHONE_PERMISSION_ASKED = booleanPreferencesKey("phone_permission_asked")
         val HIDDEN_ACCOUNT_KEYS = stringSetPreferencesKey("hidden_account_keys")
+        val ONBOARDING_SEEN = booleanPreferencesKey("onboarding_seen")
     }
 }

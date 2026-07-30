@@ -1,7 +1,10 @@
 package com.ryccoatika.contactmanager.ui
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,6 +16,8 @@ import com.ryccoatika.contactmanager.ui.detail.DetailScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.editor.EditorScreen
 import com.ryccoatika.contactmanager.ui.home.HomeScreen
+import com.ryccoatika.contactmanager.ui.onboarding.OnboardingScreen
+import com.ryccoatika.contactmanager.ui.onboarding.OnboardingViewModel
 import com.ryccoatika.contactmanager.ui.permission.PermissionGate
 
 object Routes {
@@ -31,7 +36,18 @@ object Routes {
 }
 
 @Composable
-fun AppNav() {
+fun AppNav(onboardingViewModel: OnboardingViewModel = hiltViewModel()) {
+    val showOnboarding by onboardingViewModel.showOnboarding.collectAsStateWithLifecycle()
+    when (showOnboarding) {
+        // Brief blank while the flag loads — avoids flashing the app then onboarding.
+        null -> Surface(color = MaterialTheme.colorScheme.background) {}
+        true -> OnboardingScreen(onDone = onboardingViewModel::complete)
+        false -> MainNavGraph()
+    }
+}
+
+@Composable
+private fun MainNavGraph() {
     val navController = rememberNavController()
     PermissionGate {
         NavHost(navController = navController, startDestination = Routes.HOME) {
