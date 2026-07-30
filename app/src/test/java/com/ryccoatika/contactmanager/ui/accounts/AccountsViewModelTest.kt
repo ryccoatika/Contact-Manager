@@ -135,6 +135,17 @@ class AccountsViewModelTest {
         )
     }
 
+    @Test fun `setAccountHidden toggles the account in hiddenAccountKeys`() = runTest(dispatcher) {
+        val vm = vm()
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.setAccountHidden(googleAccount, true)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(googleAccount.key in vm.uiState.value.hiddenAccountKeys)
+        vm.setAccountHidden(googleAccount, false)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(googleAccount.key in vm.uiState.value.hiddenAccountKeys)
+    }
+
     @Test fun `moveAllContacts moves every raw contact of the source account only`() = runTest(dispatcher) {
         val writer = FakeWriter()
         val vm = vm(writer)

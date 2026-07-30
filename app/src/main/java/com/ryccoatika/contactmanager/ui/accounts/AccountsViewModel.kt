@@ -28,6 +28,8 @@ data class AccountsUiState(
     val refreshing: Boolean = false,
     /** Defaults true so the one-time phone-permission prompt never flashes before load. */
     val phonePermissionAsked: Boolean = true,
+    /** Account keys hidden from the Home selector. */
+    val hiddenAccountKeys: Set<String> = emptySet(),
 )
 
 /** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
@@ -58,12 +60,22 @@ class AccountsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _uiState.value = AccountsUiState(
-                accounts = accountsSource.getAccounts(),
-                loading = false,
-                phonePermissionAsked = appPrefs.phonePermissionAsked(),
-            )
+            val accounts = accountsSource.getAccounts()
+            val asked = appPrefs.phonePermissionAsked()
+            _uiState.update {
+                it.copy(accounts = accounts, loading = false, phonePermissionAsked = asked)
+            }
         }
+        viewModelScope.launch {
+            appPrefs.observeHiddenAccountKeys().collect { keys ->
+                _uiState.update { it.copy(hiddenAccountKeys = keys) }
+            }
+        }
+    }
+
+    /** Hide/show an account in the Home selector. */
+    fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
+        viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
     }
 
     fun markPhonePermissionAsked() {
