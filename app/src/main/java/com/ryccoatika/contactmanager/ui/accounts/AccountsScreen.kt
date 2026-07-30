@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +59,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
+import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -98,9 +98,7 @@ fun AccountsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (state.loading) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            CardsSkeleton(Modifier.padding(padding), count = 4, height = 76.dp)
         } else {
             // Pull down to re-probe SIM capabilities (stale after a SIM swap)
             // and re-fetch the account list.

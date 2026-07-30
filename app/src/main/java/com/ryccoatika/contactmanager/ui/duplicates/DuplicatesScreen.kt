@@ -58,6 +58,7 @@ import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -100,7 +101,9 @@ fun DuplicatesScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (!state.loading && state.groups.isEmpty()) {
+        if (state.loading) {
+            CardsSkeleton(Modifier.padding(padding), count = 3, height = 150.dp)
+        } else if (state.groups.isEmpty()) {
             Column(
                 Modifier.padding(padding).fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
