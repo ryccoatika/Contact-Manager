@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -73,6 +72,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -297,6 +297,16 @@ fun HomeScreen(
                 val centerOffset = -((viewport - itemSize) / 2).coerceAtLeast(0)
                 chipsState.animateScrollToItem(selectedChipIndex, centerOffset)
             }
+            // Fill the row when only a few accounts fit; stay compact (and let the
+            // row scroll) when there are many. Each account chip gets an equal share
+            // of the width left after "All", padding and spacing, clamped 120..280dp.
+            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+            val accountCount = state.accounts.size
+            val chipWidth = if (accountCount > 0) {
+                ((screenWidth - 104.dp - 8.dp * accountCount) / accountCount).coerceIn(120.dp, 280.dp)
+            } else {
+                120.dp
+            }
             LazyRow(
                 state = chipsState,
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -313,15 +323,15 @@ fun HomeScreen(
                     FilterChip(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
-                        modifier = Modifier.widthIn(max = 120.dp),
+                        modifier = Modifier.width(chipWidth),
                         label = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Only the name scrolls; the count is always visible.
+                                // Name fills the chip and scrolls if long; count pinned right.
                                 Text(
                                     AccountVisuals.label(account.type, account.name),
                                     maxLines = 1,
                                     // Loop forever with no pause, even while the row scrolls.
-                                    modifier = Modifier.weight(1f, fill = false).basicMarquee(
+                                    modifier = Modifier.weight(1f).basicMarquee(
                                         iterations = Int.MAX_VALUE,
                                         repeatDelayMillis = 0,
                                         initialDelayMillis = 0,
