@@ -99,6 +99,7 @@ import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -252,14 +253,27 @@ fun HomeScreen(
                     }
                 }
             }
+            // Local input state keeps the cursor stable while typing; filtering is
+            // debounced to the ViewModel so the list only re-filters after a pause.
+            var queryInput by remember { mutableStateOf(state.query) }
+            LaunchedEffect(state.query) {
+                if (state.query != queryInput) queryInput = state.query
+            }
+            LaunchedEffect(queryInput) {
+                delay(500)
+                if (queryInput != state.query) viewModel.setQuery(queryInput)
+            }
             SearchField(
-                query = state.query,
+                query = queryInput,
                 placeholder = "Search ${state.contacts.size} contacts",
-                onQueryChange = viewModel::setQuery,
+                onQueryChange = { queryInput = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = if (state.query.isNotEmpty()) {
+                trailing = if (queryInput.isNotEmpty()) {
                     {
-                        IconButton(onClick = { viewModel.setQuery("") }) {
+                        IconButton(onClick = {
+                            queryInput = ""
+                            viewModel.setQuery("")
+                        }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear search")
                         }
                     }
