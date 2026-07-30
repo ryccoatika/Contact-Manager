@@ -3,6 +3,7 @@ package com.ryccoatika.contactmanager.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.BatchProgress
 import com.ryccoatika.contactmanager.data.ContactOpResult
@@ -51,6 +52,7 @@ class HomeViewModel @Inject constructor(
     private val writer: ContactsWriter,
     private val batchManager: BatchOperationManager,
     duplicatePrefs: DuplicatePrefs,
+    appPrefs: AppPrefs,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -58,6 +60,11 @@ class HomeViewModel @Inject constructor(
     private val selectedAccountKey = MutableStateFlow<String?>(null)
     private val accounts = MutableStateFlow<List<ContactAccount>>(emptyList())
     private val selectedContactIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Accounts the user hid from the selector, paired with the account list. */
+    private val accountsAndHidden = combine(
+        accounts, appPrefs.observeHiddenAccountKeys(),
+    ) { accounts, hidden -> accounts to hidden }
 
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
@@ -76,12 +83,14 @@ class HomeViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        contactsWithDuplicateCount, accounts, query, selectedAccountKey, selectedContactIds,
-    ) { (contacts, duplicateCount), accounts, query, accountKey, selected ->
+        contactsWithDuplicateCount, accountsAndHidden, query, selectedAccountKey, selectedContactIds,
+    ) { (contacts, duplicateCount), (allAccounts, hidden), query, accountKey, selected ->
+        // A hidden account can't stay selected: its chip is gone, so fall back to All.
+        val effectiveKey = accountKey?.takeIf { it !in hidden }
         HomeUiState(
-            contacts = contacts.filtered(query, accountKey),
-            accounts = accounts,
-            selectedAccountKey = accountKey,
+            contacts = contacts.filtered(query, effectiveKey, hidden),
+            accounts = allAccounts.filter { it.key !in hidden },
+            selectedAccountKey = effectiveKey,
             query = query,
             loading = false,
             selectedContactIds = selected,
@@ -171,11 +180,20 @@ class HomeViewModel @Inject constructor(
         selectedRawContacts()
             .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
 
-    private fun List<Contact>.filtered(query: String, accountKey: String?): List<Contact> {
+    private fun List<Contact>.filtered(
+        query: String,
+        accountKey: String?,
+        hidden: Set<String>,
+    ): List<Contact> {
         var result = this
         if (accountKey != null) {
             result = result.filter { contact ->
                 contact.rawContacts.any { "${it.accountType}/${it.accountName}" == accountKey }
+            }
+        } else if (hidden.isNotEmpty()) {
+            // "All" view: drop contacts that live only in hidden accounts.
+            result = result.filter { contact ->
+                contact.rawContacts.any { "${it.accountType}/${it.accountName}" !in hidden }
             }
         }
         if (query.isNotBlank()) {

@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -125,8 +127,10 @@ fun AccountsScreen(
                     items(state.accounts, key = { it.key }) { account ->
                         AccountRow(
                             account = account,
+                            hidden = account.key in state.hiddenAccountKeys,
                             onClick = { onAccountClick(account.key) },
                             onMoveAll = { moveSource = account },
+                            onToggleHidden = { hidden -> viewModel.setAccountHidden(account, hidden) },
                         )
                     }
                 }
@@ -208,15 +212,20 @@ private fun isMoveTarget(account: ContactAccount): Boolean =
 @Composable
 private fun AccountRow(
     account: ContactAccount,
+    hidden: Boolean = false,
     onClick: () -> Unit,
     onMoveAll: () -> Unit,
+    onToggleHidden: (Boolean) -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
     val label = account.displayLabel ?: AccountVisuals.label(account.type, account.name)
     // Prefer the SIM number as the subtitle; hide opaque native SIM account names.
-    val subtitle = account.phoneNumber
-        ?: account.name?.takeUnless { account.capability == AccountCapability.SIM }
+    val subtitle = if (hidden) {
+        "Hidden from selector"
+    } else {
+        account.phoneNumber ?: account.name?.takeUnless { account.capability == AccountCapability.SIM }
+    }
 
     SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -274,6 +283,19 @@ private fun AccountRow(
                         onClick = {
                             menuOpen = false
                             onMoveAll()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (hidden) "Show in selector" else "Hide from selector") },
+                        leadingIcon = {
+                            Icon(
+                                if (hidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onToggleHidden(!hidden)
                         },
                     )
                 }
