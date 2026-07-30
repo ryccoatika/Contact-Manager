@@ -8,12 +8,16 @@ import android.os.RemoteException
 import android.provider.ContactsContract
 import android.provider.ContactsContract.AggregationExceptions
 import android.provider.ContactsContract.CommonDataKinds.Email
+import android.provider.ContactsContract.CommonDataKinds.Event
 import android.provider.ContactsContract.CommonDataKinds.GroupMembership
+import android.provider.ContactsContract.CommonDataKinds.Nickname
 import android.provider.ContactsContract.CommonDataKinds.Note
 import android.provider.ContactsContract.CommonDataKinds.Organization
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.CommonDataKinds.Photo
 import android.provider.ContactsContract.CommonDataKinds.StructuredName
+import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
+import android.provider.ContactsContract.CommonDataKinds.Website
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.RawContacts
 import com.ryccoatika.contactmanager.di.IoDispatcher
@@ -37,8 +41,14 @@ data class EditableContact(
     val displayName: String,
     val phones: List<Pair<String, String?>>, // value to typeLabel (unused for write v1)
     val emails: List<Pair<String, String?>>,
-    val organization: String?,
+    val organization: String?, // company
     val note: String?,
+    val jobTitle: String? = null,
+    val nickname: String? = null,
+    val websites: List<String> = emptyList(),
+    val addresses: List<String> = emptyList(),
+    val birthday: String? = null,      // "yyyy-MM-dd"
+    val anniversary: String? = null,
 )
 
 interface ContactsWriter {
@@ -107,17 +117,13 @@ class ContactsWriteRepository @Inject constructor(
     ): ContactOpResult = withContext(ioDispatcher) {
         runCatchingOp("update contact") {
             val ops = ArrayList<ContentProviderOperation>()
+            // Only clear the mimetypes the editor manages, so fields it doesn't
+            // touch (IM, relation, group membership, photo, …) survive the edit.
+            val placeholders = MANAGED_MIME_TYPES.joinToString(",") { "?" }
             ops += ContentProviderOperation.newDelete(Data.CONTENT_URI)
                 .withSelection(
-                    "${Data.RAW_CONTACT_ID}=? AND ${Data.MIMETYPE} IN (?,?,?,?,?)",
-                    arrayOf(
-                        rawContactId.toString(),
-                        StructuredName.CONTENT_ITEM_TYPE,
-                        Phone.CONTENT_ITEM_TYPE,
-                        Email.CONTENT_ITEM_TYPE,
-                        Organization.CONTENT_ITEM_TYPE,
-                        Note.CONTENT_ITEM_TYPE,
-                    ),
+                    "${Data.RAW_CONTACT_ID}=? AND ${Data.MIMETYPE} IN ($placeholders)",
+                    arrayOf(rawContactId.toString(), *MANAGED_MIME_TYPES),
                 )
                 .build()
             ops += dataInsertOps(contact) { it.withValue(Data.RAW_CONTACT_ID, rawContactId) }
@@ -370,10 +376,45 @@ class ContactsWriteRepository @Inject constructor(
                 .withValue(Email.TYPE, Email.TYPE_HOME)
                 .build()
         }
-        if (!contact.organization.isNullOrBlank()) {
-            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+        if (!contact.organization.isNullOrBlank() || !contact.jobTitle.isNullOrBlank()) {
+            val builder = attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
                 .withValue(Data.MIMETYPE, Organization.CONTENT_ITEM_TYPE)
-                .withValue(Organization.COMPANY, contact.organization)
+            contact.organization?.takeIf { it.isNotBlank() }?.let { builder.withValue(Organization.COMPANY, it) }
+            contact.jobTitle?.takeIf { it.isNotBlank() }?.let { builder.withValue(Organization.TITLE, it) }
+            ops += builder.build()
+        }
+        if (!contact.nickname.isNullOrBlank()) {
+            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+                .withValue(Data.MIMETYPE, Nickname.CONTENT_ITEM_TYPE)
+                .withValue(Nickname.NAME, contact.nickname)
+                .build()
+        }
+        contact.websites.map { it.trim() }.filter { it.isNotBlank() }.forEach { url ->
+            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+                .withValue(Data.MIMETYPE, Website.CONTENT_ITEM_TYPE)
+                .withValue(Website.URL, url)
+                .withValue(Website.TYPE, Website.TYPE_OTHER)
+                .build()
+        }
+        contact.addresses.map { it.trim() }.filter { it.isNotBlank() }.forEach { address ->
+            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+                .withValue(Data.MIMETYPE, StructuredPostal.CONTENT_ITEM_TYPE)
+                .withValue(StructuredPostal.FORMATTED_ADDRESS, address)
+                .withValue(StructuredPostal.TYPE, StructuredPostal.TYPE_HOME)
+                .build()
+        }
+        contact.birthday?.takeIf { it.isNotBlank() }?.let { date ->
+            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+                .withValue(Data.MIMETYPE, Event.CONTENT_ITEM_TYPE)
+                .withValue(Event.START_DATE, date)
+                .withValue(Event.TYPE, Event.TYPE_BIRTHDAY)
+                .build()
+        }
+        contact.anniversary?.takeIf { it.isNotBlank() }?.let { date ->
+            ops += attach(ContentProviderOperation.newInsert(Data.CONTENT_URI))
+                .withValue(Data.MIMETYPE, Event.CONTENT_ITEM_TYPE)
+                .withValue(Event.START_DATE, date)
+                .withValue(Event.TYPE, Event.TYPE_ANNIVERSARY)
                 .build()
         }
         if (!contact.note.isNullOrBlank()) {
@@ -407,6 +448,19 @@ class ContactsWriteRepository @Inject constructor(
     private companion object {
         /** Binder transactions cap around 1 MB; 400 ops per applyBatch stays well under it. */
         const val MAX_OPS_PER_BATCH = 400
+
+        /** Mimetypes the editor owns — cleared and rewritten on update; others survive. */
+        val MANAGED_MIME_TYPES = arrayOf(
+            StructuredName.CONTENT_ITEM_TYPE,
+            Phone.CONTENT_ITEM_TYPE,
+            Email.CONTENT_ITEM_TYPE,
+            Organization.CONTENT_ITEM_TYPE,
+            Nickname.CONTENT_ITEM_TYPE,
+            Website.CONTENT_ITEM_TYPE,
+            StructuredPostal.CONTENT_ITEM_TYPE,
+            Event.CONTENT_ITEM_TYPE,
+            Note.CONTENT_ITEM_TYPE,
+        )
 
         val GENERIC_DATA_COLUMNS = arrayOf(
             Data.DATA1, Data.DATA2, Data.DATA3, Data.DATA4, Data.DATA5,
