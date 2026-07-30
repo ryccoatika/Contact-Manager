@@ -69,6 +69,9 @@ import com.ryccoatika.contactmanager.ui.common.QuickActionPill
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -256,7 +259,13 @@ private fun RawContactCard(
         Spacer(Modifier.height(8.dp))
         raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
         raw.emails.forEach { LabeledValueRow(it, fallbackLabel = "Email") }
-        raw.organization?.let { FieldRow(label = "Organization", value = it) }
+        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = "Website") }
+        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = "Address") }
+        raw.organization?.let { FieldRow(label = "Company", value = it) }
+        raw.jobTitle?.let { FieldRow(label = "Job title", value = it) }
+        raw.nickname?.let { FieldRow(label = "Nickname", value = it) }
+        raw.birthday?.let { FieldRow(label = "Birthday", value = formatContactDate(it)) }
+        raw.anniversary?.let { FieldRow(label = "Anniversary", value = formatContactDate(it)) }
         raw.note?.let { FieldRow(label = "Note", value = it) }
         Spacer(Modifier.height(8.dp))
         if (readOnly) {
@@ -297,6 +306,19 @@ private fun FieldRow(label: String, value: String) {
         )
         Text(value, style = TabularNums.merge(MaterialTheme.typography.bodyLarge))
     }
+}
+
+// Provider dates are ISO "yyyy-MM-dd" (UTC); show a friendly form, keep the raw
+// string for year-less "--MM-dd" values that don't parse.
+private val detailIsoDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+private val detailPrettyDate = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun formatContactDate(iso: String): String = try {
+    detailIsoDate.parse(iso)?.let { detailPrettyDate.format(it) } ?: iso
+} catch (e: Exception) {
+    iso
 }
 
 @Preview(name = "Detail · light")
