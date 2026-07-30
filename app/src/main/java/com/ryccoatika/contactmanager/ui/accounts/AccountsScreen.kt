@@ -213,7 +213,10 @@ private fun AccountRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
-    val label = AccountVisuals.label(account.type, account.name)
+    val label = account.displayLabel ?: AccountVisuals.label(account.type, account.name)
+    // Prefer the SIM number as the subtitle; hide opaque native SIM account names.
+    val subtitle = account.phoneNumber
+        ?: account.name?.takeUnless { account.capability == AccountCapability.SIM }
 
     SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -233,11 +236,13 @@ private fun AccountRow(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    account.name ?: "On this device",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                subtitle?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(

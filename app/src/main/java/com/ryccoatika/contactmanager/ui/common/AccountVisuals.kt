@@ -1,6 +1,7 @@
 package com.ryccoatika.contactmanager.ui.common
 
 import androidx.compose.ui.graphics.Color
+import com.ryccoatika.contactmanager.data.sim.SimRouting
 import kotlin.math.absoluteValue
 
 object AccountVisuals {
@@ -19,7 +20,8 @@ object AccountVisuals {
         accountType == "com.osp.app.signin" -> "Samsung"
         accountType == "com.whatsapp" -> "WhatsApp"
         accountType.startsWith("org.telegram") -> "Telegram"
-        accountType.contains("sim", ignoreCase = true) -> "SIM"
+        accountType.contains("sim", ignoreCase = true) ->
+            SimRouting.nativeSimSlot(accountType)?.let { "SIM ${it + 1}" } ?: "SIM"
         else -> accountName ?: accountType.substringAfterLast('.')
     }
 }

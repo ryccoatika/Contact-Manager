@@ -32,6 +32,9 @@ interface SimAccountsIntegration {
 
     /** Maps a synthetic negative raw-contact id back to the SIM entry from the last read. */
     fun resolveSimContact(rawContactId: Long): ResolvedSimContact?
+
+    /** Active subscriptions keyed by physical slot, for labeling native SIM accounts. */
+    suspend fun subscriptionsBySlot(): Map<Int, SimSubscription>
 }
 
 @Singleton
@@ -58,9 +61,16 @@ class IccSimAccountsIntegration @Inject constructor(
                 capability = AccountCapability.SIM,
                 contactCount = simSource.readAll(sub.subscriptionId).size,
                 writable = caps.canWrite,
+                displayLabel = sub.label,
+                phoneNumber = sub.number,
             )
         }
     }
+
+    override suspend fun subscriptionsBySlot(): Map<Int, SimSubscription> =
+        subscriptionsSource.activeSubscriptions()
+            .mapNotNull { sub -> sub.slotIndex?.let { it to sub } }
+            .toMap()
 
     override suspend fun simContacts(existingContacts: List<Contact>): List<Contact> {
         val nativeSimTypes = existingContacts

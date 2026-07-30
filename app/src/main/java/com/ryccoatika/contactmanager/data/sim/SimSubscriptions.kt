@@ -3,6 +3,8 @@ package com.ryccoatika.contactmanager.data.sim
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.util.Log
 import com.ryccoatika.contactmanager.di.IoDispatcher
@@ -19,6 +21,8 @@ data class SimSubscription(
     val label: String,
     /** Physical slot this SIM occupies; null on the legacy fallback. */
     val slotIndex: Int? = null,
+    /** The SIM's own phone number (MSISDN), when the platform exposes it. */
+    val number: String? = null,
 )
 
 interface SimSubscriptionsSource {
@@ -52,6 +56,7 @@ class DefaultSimSubscriptionsSource @Inject constructor(
                     subscriptionId = info.subscriptionId,
                     label = "SIM ${info.simSlotIndex + 1}" + (carrier?.let { " · $it" }.orEmpty()),
                     slotIndex = info.simSlotIndex,
+                    number = numberOf(manager, info),
                 )
             }
         } catch (e: CancellationException) {
@@ -62,6 +67,23 @@ class DefaultSimSubscriptionsSource @Inject constructor(
             Log.w(TAG, "activeSubscriptions failed; using single-SIM fallback", e)
             FALLBACK
         }
+    }
+
+    /**
+     * The SIM's MSISDN if the platform will share it. Prefers the deprecated
+     * [SubscriptionInfo.getNumber], then [SubscriptionManager.getPhoneNumber]
+     * (API 33+, needs READ_PHONE_NUMBERS). Any denial/failure yields null.
+     */
+    @Suppress("DEPRECATION")
+    private fun numberOf(manager: SubscriptionManager, info: SubscriptionInfo): String? = try {
+        info.number?.takeIf { it.isNotBlank() }
+            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                manager.getPhoneNumber(info.subscriptionId).takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+    } catch (e: Exception) {
+        null
     }
 
     private companion object {
