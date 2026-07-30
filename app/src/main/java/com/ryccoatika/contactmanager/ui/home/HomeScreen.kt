@@ -4,14 +4,13 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,15 +28,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.PeopleAlt
+import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -55,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -67,22 +66,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import android.content.res.Configuration
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import com.ryccoatika.contactmanager.domain.model.LabeledValue
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.ContactAvatar
+import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
+import com.ryccoatika.contactmanager.ui.common.SearchField
+import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
@@ -136,10 +149,18 @@ fun HomeScreen(
                             Icon(Icons.Default.Close, contentDescription = "Clear selection")
                         }
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
                 )
             } else {
                 TopAppBar(
                     title = { Text("Contacts") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
                     actions = {
                         IconButton(onClick = onDuplicatesClick) {
                             BadgedBox(
@@ -149,11 +170,11 @@ fun HomeScreen(
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.PeopleAlt, contentDescription = "Duplicates")
+                                Icon(Icons.Default.Difference, contentDescription = "Duplicates")
                             }
                         }
                         IconButton(onClick = onAccountsClick) {
-                            Icon(Icons.Default.Group, contentDescription = "Accounts")
+                            Icon(Icons.Default.ManageAccounts, contentDescription = "Accounts")
                         }
                     },
                 )
@@ -161,7 +182,7 @@ fun HomeScreen(
         },
         bottomBar = {
             if (state.selectionMode) {
-                BottomAppBar {
+                BottomAppBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = { showMovePicker = true }) { Text("Move to…") }
                     Spacer(Modifier.width(8.dp))
@@ -177,7 +198,16 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (!state.selectionMode) {
-                FloatingActionButton(onClick = onAddClick) {
+                FloatingActionButton(
+                    onClick = onAddClick,
+                    shape = MaterialTheme.shapes.medium,
+                    // Shift clear of the fast-scroll rail when it's shown.
+                    modifier = if (state.contacts.size > FAST_SCROLL_MIN_CONTACTS) {
+                        Modifier.padding(end = 28.dp)
+                    } else {
+                        Modifier
+                    },
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "New contact")
                 }
             }
@@ -220,19 +250,19 @@ fun HomeScreen(
                     }
                 }
             }
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::setQuery,
+            SearchField(
+                query = state.query,
+                placeholder = "Search ${state.contacts.size} contacts",
+                onQueryChange = viewModel::setQuery,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search ${state.contacts.size} contacts") },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
+                trailing = if (state.query.isNotEmpty()) {
+                    {
                         IconButton(onClick = { viewModel.setQuery("") }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear search")
                         }
                     }
+                } else {
+                    null
                 },
             )
             LazyRow(
@@ -251,19 +281,12 @@ fun HomeScreen(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
                         label = { Text("${AccountVisuals.label(account.type, account.name)} · ${account.contactCount}") },
-                        leadingIcon = {
-                            Box(
-                                Modifier.size(10.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(account.type, account.name)),
-                            )
-                        },
+                        leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     )
                 }
             }
             if (state.loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                ContactListSkeleton()
             } else if (state.contacts.isEmpty()) {
                 EmptyState(
                     query = state.query,
@@ -284,8 +307,14 @@ fun HomeScreen(
                         }
                     }
                 }
+                val railShown = state.contacts.size > FAST_SCROLL_MIN_CONTACTS
                 Box(Modifier.fillMaxSize()) {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        // Keep row content (incl. trailing provenance dots) clear of the rail.
+                        contentPadding = PaddingValues(end = if (railShown) 30.dp else 0.dp),
+                    ) {
                         sections.forEach { section ->
                             stickyHeader(key = "header-${section.letter}") {
                                 SectionHeader(section.letter)
@@ -303,7 +332,7 @@ fun HomeScreen(
                             }
                         }
                     }
-                    if (state.contacts.size > FAST_SCROLL_MIN_CONTACTS) {
+                    if (railShown) {
                         AlphabetRail(
                             onLetterSelected = { letter ->
                                 nearestSectionIndex(letter, letterIndex)?.let { index ->
@@ -319,7 +348,10 @@ fun HomeScreen(
     }
 
     if (showMovePicker) {
-        ModalBottomSheet(onDismissRequest = { showMovePicker = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showMovePicker = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
             Text(
                 "Move ${state.selectedContactIds.size} selected to",
                 style = MaterialTheme.typography.titleMedium,
@@ -344,12 +376,7 @@ fun HomeScreen(
                         },
                         headlineContent = { Text(AccountVisuals.label(account.type, account.name)) },
                         supportingContent = { Text(account.name ?: "On this device") },
-                        leadingContent = {
-                            Box(
-                                Modifier.size(12.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(account.type, account.name)),
-                            )
-                        },
+                        leadingContent = { AccountDot(account.type, account.name, size = 12.dp) },
                     )
                 }
             Spacer(Modifier.height(24.dp))
@@ -381,7 +408,10 @@ fun HomeScreen(
     if (showMergePicker) {
         val selectedContacts = state.contacts.filter { it.contactId in state.selectedContactIds }
         val memberRaws = selectedContacts.flatMap { contact -> contact.rawContacts.map { contact to it } }
-        ModalBottomSheet(onDismissRequest = { showMergePicker = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showMergePicker = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
             Text(
                 "Merge ${state.selectedContactIds.size} selected into",
                 style = MaterialTheme.typography.titleMedium,
@@ -402,12 +432,7 @@ fun HomeScreen(
                         supportingContent = {
                             Text(AccountVisuals.label(raw.accountType, raw.accountName))
                         },
-                        leadingContent = {
-                            Box(
-                                Modifier.size(12.dp).clip(CircleShape)
-                                    .background(AccountVisuals.color(raw.accountType, raw.accountName)),
-                            )
-                        },
+                        leadingContent = { AccountDot(raw.accountType, raw.accountName, size = 12.dp) },
                     )
                 }
             Spacer(Modifier.height(24.dp))
@@ -510,12 +535,12 @@ private fun nearestSectionIndex(letter: Char, letterIndex: Map<Char, Int>): Int?
 
 @Composable
 private fun SectionHeader(letter: Char) {
-    Surface(Modifier.fillMaxWidth()) {
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
         Text(
             letter.toString(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }
 }
@@ -527,35 +552,75 @@ private fun AlphabetRail(
     modifier: Modifier = Modifier,
 ) {
     var railHeightPx by remember { mutableIntStateOf(0) }
+    var active by remember { mutableStateOf<Char?>(null) }
     fun letterAt(y: Float): Char? {
         if (railHeightPx <= 0) return null
         val index = (y / railHeightPx * RAIL_LETTERS.size).toInt()
         return RAIL_LETTERS[index.coerceIn(0, RAIL_LETTERS.lastIndex)]
     }
-    Column(
-        modifier = modifier
-            .width(28.dp)
-            .padding(end = 4.dp)
-            .onSizeChanged { railHeightPx = it.height }
-            .pointerInput(Unit) {
-                detectTapGestures { offset -> letterAt(offset.y)?.let(onLetterSelected) }
+    Box(modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .padding(vertical = 8.dp, horizontal = 4.dp)
+                .width(28.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f))
+                .onSizeChanged { railHeightPx = it.height }
+                // One gesture owns both a tap and a drag, so a plain tap jumps too.
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        letterAt(down.position.y)?.let { active = it; onLetterSelected(it) }
+                        var change = down
+                        while (change.pressed) {
+                            val event = awaitPointerEvent()
+                            change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.pressed) {
+                                change.consume()
+                                letterAt(change.position.y)?.let {
+                                    if (it != active) onLetterSelected(it)
+                                    active = it
+                                }
+                            }
+                        }
+                        active = null
+                    }
+                },
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RAIL_LETTERS.forEach { letter ->
+                val on = letter == active
+                Text(
+                    letter.toString(),
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp,
+                    textAlign = TextAlign.Center,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, _ ->
-                    change.consume()
-                    letterAt(change.position.y)?.let(onLetterSelected)
-                }
-            },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        RAIL_LETTERS.forEach { letter ->
-            Text(
-                letter.toString(),
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        }
+        // Touch hint: a large centered bubble of the letter under the finger.
+        active?.let { letter ->
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .size(96.dp)
+                    .shadow(10.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    letter.toString(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.displaySmall,
+                )
+            }
         }
     }
 }
@@ -604,59 +669,61 @@ private fun ContactRow(
         modifier = Modifier
             .heightIn(min = 64.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        headlineContent = { Text(contact.displayName) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = {
+            Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+        },
+        supportingContent = {
+            contactSubtitle(contact)?.let {
+                Text(
+                    it,
+                    style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        },
         leadingContent = {
-            if (selected) SelectedAvatar() else ContactAvatar(contact)
+            if (selected) SelectedAvatar() else ContactAvatar(contact.displayName, contact.photoThumbnailUri)
         },
         trailingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 contact.rawContacts
                     .distinctBy { it.accountType to it.accountName }
-                    .forEach { raw ->
-                        Box(
-                            Modifier.size(8.dp).clip(CircleShape)
-                                .background(AccountVisuals.color(raw.accountType, raw.accountName)),
-                        )
-                    }
+                    .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
             }
         },
     )
 }
 
-@Composable
-private fun SelectedAvatar() {
-    Box(
-        Modifier.size(40.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            Icons.Default.Check,
-            contentDescription = "Selected",
-            tint = MaterialTheme.colorScheme.onPrimary,
-        )
-    }
-}
+/** First non-blank of: organization, a phone, an email — a hint under the name. */
+private fun contactSubtitle(contact: Contact): String? =
+    contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }
+        ?: contact.rawContacts.flatMap { it.phones }.firstOrNull()?.value
+        ?: contact.rawContacts.flatMap { it.emails }.firstOrNull()?.value
 
+private fun previewContact() = Contact(
+    contactId = 1L,
+    displayName = "Amelia Hartwell",
+    rawContacts = listOf(
+        RawContact(
+            rawContactId = 1L,
+            accountType = "com.google",
+            accountName = "rycco@gmail.com",
+            organization = "Hartwell & Co",
+            phones = listOf(LabeledValue(1L, "+44 7700 900312", "Mobile")),
+        ),
+        RawContact(rawContactId = 2L, accountType = "sim", accountName = "SIM 1"),
+    ),
+)
+
+@Preview(name = "Contact row · light")
+@Preview(name = "Contact row · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun ContactAvatar(contact: Contact) {
-    if (contact.photoThumbnailUri != null) {
-        AsyncImage(
-            model = contact.photoThumbnailUri,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp).clip(CircleShape),
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                contact.displayName.firstOrNull()?.uppercase() ?: "?",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+private fun ContactRowPreview() {
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            ContactRow(previewContact(), selected = false, onClick = {}, onLongClick = {})
         }
     }
 }

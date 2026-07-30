@@ -14,7 +14,14 @@ data class RawContact(
     val familyName: String? = null,
     val phones: List<LabeledValue> = emptyList(),
     val emails: List<LabeledValue> = emptyList(),
-    val organization: String? = null,
+    val organization: String? = null,   // company
+    val jobTitle: String? = null,
+    val nickname: String? = null,
+    val websites: List<LabeledValue> = emptyList(),
+    val addresses: List<LabeledValue> = emptyList(),
+    /** Raw provider strings, e.g. "1990-08-12" or "--08-12" (no year). */
+    val birthday: String? = null,
+    val anniversary: String? = null,
     val note: String? = null,
 )
 

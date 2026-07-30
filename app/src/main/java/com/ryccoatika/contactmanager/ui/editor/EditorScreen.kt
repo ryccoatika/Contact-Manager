@@ -1,7 +1,8 @@
 package com.ryccoatika.contactmanager.ui.editor
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,29 +11,38 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,12 +51,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
+import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +113,9 @@ fun EditorScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (state.isEdit) "Edit contact" else "New contact") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
                 navigationIcon = {
                     IconButton(onClick = requestClose) {
                         Icon(Icons.Default.Close, contentDescription = "Cancel")
@@ -115,9 +138,7 @@ fun EditorScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (state.loading) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            CardsSkeleton(Modifier.padding(padding), count = 4, height = 84.dp)
             return@Scaffold
         }
         Column(
@@ -130,104 +151,258 @@ fun EditorScreen(
             if (state.isEdit) {
                 state.fixedAccountLabel?.let { label ->
                     Text(
-                        "Account: $label",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Editing in $label",
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
             } else {
                 if (!state.phonePermissionAsked &&
                     state.accounts.any { SimRouting.isSimAccount(it.type) }
                 ) {
                     PhonePermissionPrompt(onAsked = viewModel::markPhonePermissionAsked)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
                 AccountPicker(state, viewModel)
-                Spacer(Modifier.height(16.dp))
             }
             if (state.simMode) {
                 SimForm(state, viewModel)
             } else {
-                OutlinedTextField(
-                    value = state.name,
-                    onValueChange = viewModel::setName,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Name") },
-                    singleLine = true,
+                GroupLabel("Name")
+                SectionCard(Modifier.fillMaxWidth()) {
+                    EditorField(state.name, viewModel::setName, "Full name")
+                    FieldDivider()
+                    EditorField(state.nickname, viewModel::setNickname, "Nickname")
+                    FieldDivider()
+                    EditorField(state.organization, viewModel::setOrganization, "Company")
+                    FieldDivider()
+                    EditorField(state.jobTitle, viewModel::setJobTitle, "Job title")
+                }
+                ValueGroupCard("Phone", state.phones, viewModel::setPhone, viewModel::addPhone, viewModel::removePhone)
+                ValueGroupCard("Email", state.emails, viewModel::setEmail, viewModel::addEmail, viewModel::removeEmail)
+                ValueGroupCard("Website", state.websites, viewModel::setWebsite, viewModel::addWebsite, viewModel::removeWebsite)
+                ValueGroupCard(
+                    "Address", state.addresses, viewModel::setAddress, viewModel::addAddress,
+                    viewModel::removeAddress, singleLine = false,
                 )
-                Spacer(Modifier.height(16.dp))
-                DynamicValueList(
-                    label = "Phone",
-                    values = state.phones,
-                    onValueChange = viewModel::setPhone,
-                    onAdd = viewModel::addPhone,
-                    onRemove = viewModel::removePhone,
-                )
-                Spacer(Modifier.height(16.dp))
-                DynamicValueList(
-                    label = "Email",
-                    values = state.emails,
-                    onValueChange = viewModel::setEmail,
-                    onAdd = viewModel::addEmail,
-                    onRemove = viewModel::removeEmail,
-                )
-                Spacer(Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = state.organization,
-                    onValueChange = viewModel::setOrganization,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Organization") },
-                    singleLine = true,
-                )
-                Spacer(Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = state.note,
-                    onValueChange = viewModel::setNote,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Note") },
-                    minLines = 2,
-                )
+                GroupLabel("Dates")
+                SectionCard(Modifier.fillMaxWidth()) {
+                    DateField("Birthday", state.birthday, viewModel::setBirthday)
+                    FieldDivider()
+                    DateField("Anniversary", state.anniversary, viewModel::setAnniversary)
+                }
+                GroupLabel("Note")
+                SectionCard(Modifier.fillMaxWidth()) {
+                    EditorField(state.note, viewModel::setNote, "Add a note", singleLine = false, minLines = 2)
+                }
             }
         }
     }
 }
 
+/** A small uppercase-ish group label sitting above a [SectionCard]. */
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
+    )
+}
+
+/** Hairline between fields grouped in the same card. */
+@Composable
+private fun FieldDivider() {
+    HorizontalDivider(
+        Modifier.padding(vertical = 2.dp),
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+    )
+}
+
+/** Borderless text input; the surrounding [SectionCard] provides the frame. */
+@Composable
+private fun EditorField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    trailing: @Composable (() -> Unit)? = null,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    isError: Boolean = false,
+    supportingText: @Composable (() -> Unit)? = null,
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        placeholder = { Text(placeholder) },
+        singleLine = singleLine,
+        minLines = minLines,
+        isError = isError,
+        supportingText = supportingText,
+        trailingIcon = trailing,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            errorContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            errorIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+        ),
+    )
+}
+
+/** A titled card holding a variable-length list of values with add/remove. */
+@Composable
+private fun ValueGroupCard(
+    label: String,
+    values: List<String>,
+    onValueChange: (Int, String) -> Unit,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+    singleLine: Boolean = true,
+) {
+    GroupLabel(label)
+    SectionCard(Modifier.fillMaxWidth()) {
+        values.forEachIndexed { index, value ->
+            if (index > 0) FieldDivider()
+            EditorField(
+                value = value,
+                onValueChange = { onValueChange(index, it) },
+                placeholder = label,
+                singleLine = singleLine,
+                minLines = if (singleLine) 1 else 2,
+                trailing = {
+                    IconButton(onClick = { onRemove(index) }) {
+                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove $label")
+                    }
+                },
+            )
+        }
+        FieldDivider()
+        TextButton(onClick = onAdd) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(4.dp))
+            Text("Add $label")
+        }
+    }
+}
+
+/** A tappable row that opens a date picker; stores/clears an ISO "yyyy-MM-dd" string. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateField(label: String, value: String, onPick: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().clickable { showPicker = true }.padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.CalendarMonth,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                if (value.isBlank()) "Add $label" else prettyDate(value),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (value.isBlank()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
+        if (value.isNotBlank()) {
+            IconButton(onClick = { onPick("") }) {
+                Icon(Icons.Default.Close, contentDescription = "Clear $label")
+            }
+        }
+    }
+    if (showPicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoToMillis(value))
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPicker = false
+                    pickerState.selectedDateMillis?.let { onPick(millisToIso(it)) }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+}
+
+// Dates are stored as provider ISO "yyyy-MM-dd" in UTC; the picker is UTC too.
+private val isoFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+private val prettyFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun prettyDate(iso: String): String = try {
+    isoFormat.parse(iso)?.let { prettyFormat.format(it) } ?: iso
+} catch (e: Exception) {
+    iso
+}
+
+private fun isoToMillis(iso: String): Long? = try {
+    isoFormat.parse(iso)?.time
+} catch (e: Exception) {
+    null
+}
+
+private fun millisToIso(millis: Long): String = isoFormat.format(Date(millis))
+
 /** SIM storage only fits a name and one number; other fields are hidden. */
 @Composable
 private fun SimForm(state: EditorUiState, viewModel: EditorViewModel) {
-    OutlinedTextField(
-        value = state.name,
-        onValueChange = viewModel::setName,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Name") },
-        singleLine = true,
-        isError = state.simNameTooLong,
-        supportingText = {
-            Text(
-                if (state.simNameTooLong) {
-                    "${state.name.length}/${state.simMaxNameLength} — too long for SIM"
-                } else {
-                    "${state.name.length}/${state.simMaxNameLength}"
-                },
-            )
-        },
-    )
-    Spacer(Modifier.height(16.dp))
-    OutlinedTextField(
-        value = state.phones.firstOrNull().orEmpty(),
-        onValueChange = { viewModel.setPhone(0, it) },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Phone") },
-        singleLine = true,
-        isError = state.simError != null,
-        supportingText = state.simError?.let { error -> { Text(error) } },
-    )
-    Spacer(Modifier.height(8.dp))
+    GroupLabel("SIM contact")
+    SectionCard(Modifier.fillMaxWidth()) {
+        EditorField(
+            value = state.name,
+            onValueChange = viewModel::setName,
+            placeholder = "Name",
+            isError = state.simNameTooLong,
+            supportingText = {
+                Text(
+                    if (state.simNameTooLong) {
+                        "${state.name.length}/${state.simMaxNameLength} — too long for SIM"
+                    } else {
+                        "${state.name.length}/${state.simMaxNameLength}"
+                    },
+                )
+            },
+        )
+        FieldDivider()
+        EditorField(
+            value = state.phones.firstOrNull().orEmpty(),
+            onValueChange = { viewModel.setPhone(0, it) },
+            placeholder = "Phone",
+            isError = state.simError != null,
+            supportingText = state.simError?.let { error -> { Text(error) } },
+        )
+    }
     Text(
         "SIM contacts store a name and one phone number only.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
     )
 }
 
@@ -235,21 +410,33 @@ private fun SimForm(state: EditorUiState, viewModel: EditorViewModel) {
 @Composable
 private fun AccountPicker(state: EditorUiState, viewModel: EditorViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    val selected = state.selectedAccount
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = state.selectedAccount
-                ?.let { AccountVisuals.label(it.type, it.name) }
-                ?: "Device",
-            onValueChange = {},
-            readOnly = true,
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            label = { Text("Save to account") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-        )
+        SectionCard(
+            Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AccountDot(selected?.type, selected?.name, size = 12.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Save to",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        selected?.let { AccountVisuals.label(it.type, it.name) } ?: "Device",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
+        }
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             state.accounts.forEach { account ->
                 DropdownMenuItem(
                     text = { Text("${AccountVisuals.label(account.type, account.name)} · ${account.name ?: "local"}") },
+                    leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     onClick = {
                         viewModel.selectAccount(account)
                         expanded = false
@@ -260,37 +447,21 @@ private fun AccountPicker(state: EditorUiState, viewModel: EditorViewModel) {
     }
 }
 
+@Preview(name = "Editor fields · light")
+@Preview(name = "Editor fields · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun DynamicValueList(
-    label: String,
-    values: List<String>,
-    onValueChange: (Int, String) -> Unit,
-    onAdd: () -> Unit,
-    onRemove: (Int) -> Unit,
-) {
-    Column {
-        values.forEachIndexed { index, value ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { onValueChange(index, it) },
-                    modifier = Modifier.weight(1f),
-                    label = { Text(label) },
-                    singleLine = true,
-                )
-                IconButton(onClick = { onRemove(index) }) {
-                    Icon(
-                        Icons.Default.RemoveCircleOutline,
-                        contentDescription = "Remove $label",
-                    )
+private fun EditorFieldsPreview() {
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp)) {
+                GroupLabel("Name")
+                SectionCard(Modifier.fillMaxWidth()) {
+                    EditorField("Amelia Hartwell", {}, "Full name")
+                    FieldDivider()
+                    EditorField("Hartwell & Co", {}, "Company")
                 }
+                ValueGroupCard("Phone", listOf("+44 7700 900312"), { _, _ -> }, {}, {})
             }
-            if (index < values.lastIndex) Spacer(Modifier.height(8.dp))
-        }
-        TextButton(onClick = onAdd) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.size(4.dp))
-            Text("Add $label")
         }
     }
 }

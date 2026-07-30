@@ -9,7 +9,7 @@ Android contact manager that surfaces **every** contact source on the device —
 - **Move & copy between accounts**: single contacts or multi-selected batches. Copy-then-delete ordering — a mid-flight failure can leave a duplicate, never lose data. Field-loss warnings before lossy moves (e.g. to SIM).
 - **Full SIM support**: read, create, edit, delete, and move contacts on SIM — via the vendor account (Samsung) or the `icc/adn` provider elsewhere, with dual-SIM labels, a write-capability probe, and SIM field limits enforced in the editor (name length, single number).
 - **Duplicate management**: indexed matching on normalized phones (country-code tolerant), emails, and diacritic/token-folded names. Per group: **Link** (reversible, native aggregation), **Merge** into a chosen account (destructive, confirmed), or **Not duplicate** (persisted dismissal).
-- **Eye-comfort UI**: Material 3, dynamic color on Android 12+, warm fallback palette below, dark mode follows system, no pure black/white.
+- **"Porcelain & Pine" design system**: a premium Material 3 identity — pine-teal signature on a green-biased porcelain neutral, Manrope type, gradient identity avatars, grouped cards, brass accent, and shimmer loading states. Both light and dark are designed first-class. Dynamic color (Monet) is opt-in on Android 12+. See `docs/superpowers/specs/2026-07-30-premium-redesign-design.md`.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Key decisions:
 - Writes via `applyBatch` chunked ≤400 ops (binder transaction limit), every operation caught into a typed `ContactOpResult` — provider errors surface as snackbars, never crashes.
 - `SimAwareContactsWriter` decorator routes CRUD between `ContactsContract` and the `icc/adn` provider transparently.
 - Long batch moves run in an application-scoped coroutine (survive rotation), with cancellable progress.
-- Pure domain logic (matching, planning, validation, classification) is JVM-unit-tested — 143 tests.
+- Pure domain logic (matching, planning, validation, classification) is JVM-unit-tested — 146 tests.
 
 ## Package map
 
@@ -51,7 +51,7 @@ Key decisions:
 
 ```bash
 ./gradlew :app:assembleDebug          # build
-./gradlew :app:testDebugUnitTest      # 143 unit tests
+./gradlew :app:testDebugUnitTest      # 146 unit tests
 ./gradlew :app:lintDebug              # lint
 ```
 

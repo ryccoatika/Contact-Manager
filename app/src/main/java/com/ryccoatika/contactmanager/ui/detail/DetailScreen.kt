@@ -17,41 +17,61 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.CapabilityTag
+import com.ryccoatika.contactmanager.ui.common.ContactAvatar
+import com.ryccoatika.contactmanager.ui.common.DetailSkeleton
+import com.ryccoatika.contactmanager.ui.common.QuickActionPill
+import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.TabularNums
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +82,7 @@ fun DetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     var pendingDelete by remember { mutableStateOf<RawContact?>(null) }
 
     LaunchedEffect(Unit) {
@@ -88,15 +109,16 @@ fun DetailScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         val current = state.contact
         if (current == null) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            DetailSkeleton(Modifier.padding(padding))
         } else {
             Column(
                 Modifier
@@ -105,7 +127,19 @@ fun DetailScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
             ) {
-                DetailHeader(current)
+                val heroPhone = current.rawContacts.flatMap { it.phones }.firstOrNull()?.value
+                val editableRawId = current.rawContacts
+                    .firstOrNull { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
+                    ?.rawContactId
+                Spacer(Modifier.height(8.dp))
+                DetailHero(
+                    contact = current,
+                    phone = heroPhone,
+                    canEdit = editableRawId != null,
+                    onCall = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it"))) } },
+                    onMessage = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$it"))) } },
+                    onEdit = { editableRawId?.let(onEditRawContact) },
+                )
                 Spacer(Modifier.height(16.dp))
                 current.rawContacts.forEach { raw ->
                     RawContactCard(
@@ -144,33 +178,61 @@ fun DetailScreen(
 }
 
 @Composable
-private fun DetailHeader(contact: Contact) {
-    Column(
-        Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (contact.photoThumbnailUri != null) {
-            AsyncImage(
-                model = contact.photoThumbnailUri,
-                contentDescription = null,
-                modifier = Modifier.size(96.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop,
+private fun DetailHero(
+    contact: Contact,
+    phone: String?,
+    canEdit: Boolean,
+    onCall: () -> Unit,
+    onMessage: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    SectionCard(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(Modifier.size(116.dp), contentAlignment = Alignment.Center) {
+                // Soft pine glow behind the avatar.
+                Box(
+                    Modifier.matchParentSize().clip(CircleShape).background(
+                        Brush.radialGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+                )
+                ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 88.dp)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                contact.displayName,
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
             )
-        } else {
-            Box(
-                Modifier.size(96.dp).clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
+            contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }?.let {
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    contact.displayName.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
+            if (phone != null || canEdit) {
+                Spacer(Modifier.height(18.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (phone != null) {
+                        QuickActionPill("Call", Icons.Default.Call, onCall, Modifier.weight(1f))
+                        QuickActionPill("Message", Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
+                    }
+                    if (canEdit) {
+                        QuickActionPill("Edit", Icons.Default.Edit, onEdit, Modifier.weight(1f))
+                    }
+                }
+            }
         }
-        Spacer(Modifier.height(12.dp))
-        Text(contact.displayName, style = MaterialTheme.typography.headlineMedium)
     }
 }
 
@@ -184,53 +246,46 @@ private fun RawContactCard(
     val readOnly = capability == AccountCapability.READ_ONLY
     val accountLabel = AccountVisuals.label(raw.accountType, raw.accountName)
 
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+    SectionCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AccountDot(raw.accountType, raw.accountName, size = 10.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(accountLabel, style = MaterialTheme.typography.titleSmall)
+            if (capability == AccountCapability.SIM) {
+                Spacer(Modifier.width(8.dp))
+                CapabilityTag(AccountCapability.SIM)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
+        raw.emails.forEach { LabeledValueRow(it, fallbackLabel = "Email") }
+        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = "Website") }
+        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = "Address") }
+        raw.organization?.let { FieldRow(label = "Company", value = it) }
+        raw.jobTitle?.let { FieldRow(label = "Job title", value = it) }
+        raw.nickname?.let { FieldRow(label = "Nickname", value = it) }
+        raw.birthday?.let { FieldRow(label = "Birthday", value = formatContactDate(it)) }
+        raw.anniversary?.let { FieldRow(label = "Anniversary", value = formatContactDate(it)) }
+        raw.note?.let { FieldRow(label = "Note", value = it) }
+        Spacer(Modifier.height(8.dp))
+        if (readOnly) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(10.dp).clip(CircleShape)
-                        .background(AccountVisuals.color(raw.accountType, raw.accountName)),
+                Icon(
+                    Icons.Default.Lock, contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(accountLabel, style = MaterialTheme.typography.titleSmall)
-                if (capability == AccountCapability.SIM) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "SIM",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
+                Text(
+                    "Managed by $accountLabel — edit in that app",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Spacer(Modifier.height(8.dp))
-            raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
-            raw.emails.forEach { LabeledValueRow(it, fallbackLabel = "Email") }
-            raw.organization?.let { FieldRow(label = "Organization", value = it) }
-            raw.note?.let { FieldRow(label = "Note", value = it) }
-            Spacer(Modifier.height(8.dp))
-            if (readOnly) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Lock, contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Managed by $accountLabel — edit in that app",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onEdit) { Text("Edit") }
-                    OutlinedButton(onClick = onDelete) { Text("Delete") }
-                }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onEdit) { Text("Edit") }
+                OutlinedButton(onClick = onDelete) { Text("Delete") }
             }
         }
     }
@@ -249,6 +304,48 @@ private fun FieldRow(label: String, value: String) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(value, style = MaterialTheme.typography.bodyLarge)
+        Text(value, style = TabularNums.merge(MaterialTheme.typography.bodyLarge))
+    }
+}
+
+// Provider dates are ISO "yyyy-MM-dd" (UTC); show a friendly form, keep the raw
+// string for year-less "--MM-dd" values that don't parse.
+private val detailIsoDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+private val detailPrettyDate = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun formatContactDate(iso: String): String = try {
+    detailIsoDate.parse(iso)?.let { detailPrettyDate.format(it) } ?: iso
+} catch (e: Exception) {
+    iso
+}
+
+@Preview(name = "Detail · light")
+@Preview(name = "Detail · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun DetailPreview() {
+    val contact = Contact(
+        contactId = 1L,
+        displayName = "Amelia Hartwell",
+        rawContacts = listOf(
+            RawContact(
+                rawContactId = 1L,
+                accountType = "com.google",
+                accountName = "rycco@gmail.com",
+                organization = "Hartwell & Co",
+                phones = listOf(LabeledValue(1L, "+44 7700 900312", "Mobile")),
+                emails = listOf(LabeledValue(2L, "amelia@hartwell.co", "Work")),
+            ),
+        ),
+    )
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp)) {
+                DetailHero(contact, phone = "+44 7700 900312", canEdit = true, onCall = {}, onMessage = {}, onEdit = {})
+                Spacer(Modifier.height(12.dp))
+                RawContactCard(contact.rawContacts.first(), onEdit = {}, onDelete = {})
+            }
+        }
     }
 }
