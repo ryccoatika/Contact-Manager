@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.ui.editor
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,10 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -37,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +63,10 @@ import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,10 +173,25 @@ fun EditorScreen(
                 SectionCard(Modifier.fillMaxWidth()) {
                     EditorField(state.name, viewModel::setName, "Full name")
                     FieldDivider()
+                    EditorField(state.nickname, viewModel::setNickname, "Nickname")
+                    FieldDivider()
                     EditorField(state.organization, viewModel::setOrganization, "Company")
+                    FieldDivider()
+                    EditorField(state.jobTitle, viewModel::setJobTitle, "Job title")
                 }
                 ValueGroupCard("Phone", state.phones, viewModel::setPhone, viewModel::addPhone, viewModel::removePhone)
                 ValueGroupCard("Email", state.emails, viewModel::setEmail, viewModel::addEmail, viewModel::removeEmail)
+                ValueGroupCard("Website", state.websites, viewModel::setWebsite, viewModel::addWebsite, viewModel::removeWebsite)
+                ValueGroupCard(
+                    "Address", state.addresses, viewModel::setAddress, viewModel::addAddress,
+                    viewModel::removeAddress, singleLine = false,
+                )
+                GroupLabel("Dates")
+                SectionCard(Modifier.fillMaxWidth()) {
+                    DateField("Birthday", state.birthday, viewModel::setBirthday)
+                    FieldDivider()
+                    DateField("Anniversary", state.anniversary, viewModel::setAnniversary)
+                }
                 GroupLabel("Note")
                 SectionCard(Modifier.fillMaxWidth()) {
                     EditorField(state.note, viewModel::setNote, "Add a note", singleLine = false, minLines = 2)
@@ -241,6 +265,7 @@ private fun ValueGroupCard(
     onValueChange: (Int, String) -> Unit,
     onAdd: () -> Unit,
     onRemove: (Int) -> Unit,
+    singleLine: Boolean = true,
 ) {
     GroupLabel(label)
     SectionCard(Modifier.fillMaxWidth()) {
@@ -250,6 +275,8 @@ private fun ValueGroupCard(
                 value = value,
                 onValueChange = { onValueChange(index, it) },
                 placeholder = label,
+                singleLine = singleLine,
+                minLines = if (singleLine) 1 else 2,
                 trailing = {
                     IconButton(onClick = { onRemove(index) }) {
                         Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove $label")
@@ -265,6 +292,82 @@ private fun ValueGroupCard(
         }
     }
 }
+
+/** A tappable row that opens a date picker; stores/clears an ISO "yyyy-MM-dd" string. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateField(label: String, value: String, onPick: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().clickable { showPicker = true }.padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.CalendarMonth,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                if (value.isBlank()) "Add $label" else prettyDate(value),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (value.isBlank()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
+        if (value.isNotBlank()) {
+            IconButton(onClick = { onPick("") }) {
+                Icon(Icons.Default.Close, contentDescription = "Clear $label")
+            }
+        }
+    }
+    if (showPicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoToMillis(value))
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPicker = false
+                    pickerState.selectedDateMillis?.let { onPick(millisToIso(it)) }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+}
+
+// Dates are stored as provider ISO "yyyy-MM-dd" in UTC; the picker is UTC too.
+private val isoFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+private val prettyFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+    .apply { timeZone = TimeZone.getTimeZone("UTC") }
+
+private fun prettyDate(iso: String): String = try {
+    isoFormat.parse(iso)?.let { prettyFormat.format(it) } ?: iso
+} catch (e: Exception) {
+    iso
+}
+
+private fun isoToMillis(iso: String): Long? = try {
+    isoFormat.parse(iso)?.time
+} catch (e: Exception) {
+    null
+}
+
+private fun millisToIso(millis: Long): String = isoFormat.format(Date(millis))
 
 /** SIM storage only fits a name and one number; other fields are hidden. */
 @Composable
