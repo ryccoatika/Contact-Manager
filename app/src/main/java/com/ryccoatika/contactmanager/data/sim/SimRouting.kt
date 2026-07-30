@@ -32,6 +32,19 @@ object SimRouting {
     /** Synthetic contact/raw-contact id for the SIM entry at [stableIndex]. */
     fun syntheticId(stableIndex: Int): Long = -(SYNTHETIC_ID_BASE + stableIndex)
 
+    /**
+     * Physical slot a *native* SIM account type maps to, so an icc pseudo-account
+     * isn't shown for a SIM the provider already surfaces itself. Samsung uses
+     * `vnd.sec.contact.sim` (slot 0), `vnd.sec.contact.sim2` (slot 1), …; a plain
+     * `…sim` maps to slot 0. Returns null when the type can't be mapped to a slot
+     * (caller then conservatively skips all icc to avoid double-listing).
+     */
+    fun nativeSimSlot(accountType: String?): Int? {
+        val match = Regex("sim(\\d*)$").find(accountType?.lowercase() ?: return null) ?: return null
+        val digits = match.groupValues[1]
+        return if (digits.isEmpty()) 0 else digits.toIntOrNull()?.minus(1)?.takeIf { it >= 0 }
+    }
+
     /** Strips formatting (spaces, dashes, parens, dots) so stored numbers pass SIM validation. */
     fun normalizeNumber(raw: String): String =
         raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }

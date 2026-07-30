@@ -6,6 +6,7 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,8 +48,10 @@ class IccSimAccountsIntegration @Inject constructor(
     override suspend fun simPseudoAccounts(
         existingAccounts: List<ContactAccount>,
     ): List<ContactAccount> {
-        if (existingAccounts.any { it.capability == AccountCapability.SIM }) return emptyList()
-        return readableSubscriptions().map { (sub, caps) ->
+        val nativeSimTypes = existingAccounts
+            .filter { it.capability == AccountCapability.SIM }
+            .map { it.type }
+        return readableSubscriptions(nativeSimTypes).map { (sub, caps) ->
             ContactAccount(
                 name = sub.label,
                 type = SimRouting.simAccountType(sub.subscriptionId),
@@ -60,16 +63,16 @@ class IccSimAccountsIntegration @Inject constructor(
     }
 
     override suspend fun simContacts(existingContacts: List<Contact>): List<Contact> {
-        val nativeSimPresent = existingContacts.any { contact ->
-            contact.rawContacts.any {
-                AccountClassifier.classify(it.accountType) == AccountCapability.SIM
-            }
-        }
-        if (nativeSimPresent) {
+        val nativeSimTypes = existingContacts
+            .flatMap { it.rawContacts }
+            .filter { AccountClassifier.classify(it.accountType) == AccountCapability.SIM }
+            .map { it.accountType }
+        val readable = readableSubscriptions(nativeSimTypes)
+        if (readable.isEmpty()) {
             snapshot = emptyMap()
             return emptyList()
         }
-        val entries = readableSubscriptions()
+        val entries = readable
             .flatMap { (sub, _) -> simSource.readAll(sub.subscriptionId).map { sub to it } }
             .sortedWith(
                 compareBy(
@@ -102,9 +105,35 @@ class IccSimAccountsIntegration @Inject constructor(
 
     override fun resolveSimContact(rawContactId: Long): ResolvedSimContact? = snapshot[rawContactId]
 
-    private suspend fun readableSubscriptions() =
-        subscriptionsSource.activeSubscriptions().mapNotNull { sub ->
+    /**
+     * Readable subscriptions not already surfaced by a native SIM account.
+     * [nativeSimTypes] are the account types of SIM accounts the provider exposes
+     * itself; a subscription whose physical slot one of them covers is dropped so
+     * the same SIM isn't listed twice. See [uncovered] for the slot matching.
+     */
+    private suspend fun readableSubscriptions(
+        nativeSimTypes: List<String?>,
+    ): List<Pair<SimSubscription, SimCapabilities>> =
+        uncovered(subscriptionsSource.activeSubscriptions(), nativeSimTypes).mapNotNull { sub ->
             val caps = simRepository.capabilities(sub.subscriptionId)
             if (caps.canRead) sub to caps else null
         }
+
+    /**
+     * Filters [subs] down to those NOT covered by a native SIM account. With no
+     * native SIM accounts every subscription flows through icc. Otherwise each
+     * native account is mapped to a physical slot and matching subscriptions are
+     * dropped. If any native SIM type can't be mapped to a slot, all icc pseudo-
+     * accounts are skipped (old behavior) rather than risk double-listing a SIM.
+     */
+    private fun uncovered(
+        subs: List<SimSubscription>,
+        nativeSimTypes: List<String?>,
+    ): List<SimSubscription> {
+        if (nativeSimTypes.isEmpty()) return subs
+        val slots = nativeSimTypes.map { SimRouting.nativeSimSlot(it) }
+        if (slots.any { it == null }) return emptyList()
+        val covered = slots.filterNotNull().toSet()
+        return subs.filter { it.slotIndex != null && it.slotIndex !in covered }
+    }
 }
