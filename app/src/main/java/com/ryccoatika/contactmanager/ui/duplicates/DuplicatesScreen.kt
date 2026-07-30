@@ -35,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,6 +88,9 @@ fun DuplicatesScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Duplicates") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -130,7 +134,10 @@ fun DuplicatesScreen(
     }
 
     mergePickerGroup?.let { group ->
-        ModalBottomSheet(onDismissRequest = { mergePickerGroup = null }) {
+        ModalBottomSheet(
+            onDismissRequest = { mergePickerGroup = null },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
             Text(
                 "Merge into",
                 style = MaterialTheme.typography.titleMedium,
