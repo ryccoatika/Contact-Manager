@@ -165,6 +165,24 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** Deletes one contact (its writable raw contacts) — used by swipe-to-delete. */
+    fun deleteContact(contactId: Long) {
+        val contact = uiState.value.contacts.firstOrNull { it.contactId == contactId } ?: return
+        val ids = contact.rawContacts
+            .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
+            .map { it.rawContactId }
+        viewModelScope.launch {
+            if (ids.isEmpty()) {
+                _events.emit("${contact.displayName} is managed by its app and can't be deleted.")
+                return@launch
+            }
+            when (val result = writer.deleteRawContacts(ids)) {
+                is ContactOpResult.Success -> _events.emit("Deleted ${contact.displayName}.")
+                is ContactOpResult.Failure -> _events.emit(result.message)
+            }
+        }
+    }
+
     fun cancelBatch() = batchManager.cancel()
 
     fun onBatchFinishedShown() = batchManager.clearFinished()
