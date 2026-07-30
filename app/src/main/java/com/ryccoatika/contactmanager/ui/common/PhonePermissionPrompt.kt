@@ -29,21 +29,30 @@ fun PhonePermissionPrompt(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    fun granted(permission: String) =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     val alreadyGranted = remember {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) ==
-            PackageManager.PERMISSION_GRANTED
+        granted(Manifest.permission.READ_PHONE_STATE) &&
+            granted(Manifest.permission.READ_PHONE_NUMBERS)
     }
     if (alreadyGranted) return
 
     val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
         onAsked()
-        if (granted) onGranted()
+        if (result[Manifest.permission.READ_PHONE_STATE] == true) onGranted()
     }
     AssistChip(
-        onClick = { launcher.launch(Manifest.permission.READ_PHONE_STATE) },
-        label = { Text("Grant phone permission to label dual SIMs") },
+        onClick = {
+            launcher.launch(
+                arrayOf(
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.READ_PHONE_NUMBERS,
+                ),
+            )
+        },
+        label = { Text("Grant phone permission to label SIMs & show numbers") },
         leadingIcon = {
             Icon(Icons.Default.SimCard, contentDescription = null, Modifier.size(18.dp))
         },

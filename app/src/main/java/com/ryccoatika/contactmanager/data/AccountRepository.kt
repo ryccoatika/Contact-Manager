@@ -4,6 +4,7 @@ import android.content.Context
 import android.provider.ContactsContract.RawContacts
 import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
+import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -56,14 +57,24 @@ class AccountRepository @Inject constructor(
                 counts[key] = (counts[key] ?: 0) + 1
             }
         }
+        // Slot -> subscription, so native SIM accounts (e.g. Samsung's opaque
+        // "primary.sim2.account_name") can be labeled "SIM 2 · carrier" + number.
+        val slotSubs = simIntegration.subscriptionsBySlot()
         val providerAccounts = counts.map { (key, count) ->
             val capability = AccountClassifier.classify(key.first)
+            val sub = if (capability == AccountCapability.SIM) {
+                SimRouting.nativeSimSlot(key.first)?.let { slotSubs[it] }
+            } else {
+                null
+            }
             ContactAccount(
                 name = key.second,
                 type = key.first,
                 capability = capability,
                 contactCount = count,
                 writable = capability != AccountCapability.READ_ONLY,
+                displayLabel = sub?.label,
+                phoneNumber = sub?.number,
             )
         }.sortedByDescending { it.contactCount }
         return providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)

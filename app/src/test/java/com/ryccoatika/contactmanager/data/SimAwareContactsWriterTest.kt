@@ -103,6 +103,9 @@ class SimAwareContactsWriterTest {
         override suspend fun simContacts(existingContacts: List<Contact>) = emptyList<Contact>()
 
         override fun resolveSimContact(rawContactId: Long) = resolved[rawContactId]
+
+        override suspend fun subscriptionsBySlot() =
+            emptyMap<Int, com.ryccoatika.contactmanager.data.sim.SimSubscription>()
     }
 
     private val simId = SimRouting.syntheticId(0)

@@ -42,6 +42,10 @@ data class ContactAccount(
     val contactCount: Int = 0,
     /** False for read-only accounts and SIMs whose write probe failed. */
     val writable: Boolean = true,
+    /** Friendly SIM label ("SIM 2 · XL Axiata") when the provider name is opaque. */
+    val displayLabel: String? = null,
+    /** The SIM's own phone number, when the platform exposes it. */
+    val phoneNumber: String? = null,
 ) {
     val key: String get() = "$type/$name"
 }
