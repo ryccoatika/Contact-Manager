@@ -74,6 +74,8 @@ class IccSimSource @Inject constructor(
                     val name = if (iName >= 0) c.getString(iName).orEmpty() else ""
                     val number = if (iNumber >= 0) c.getString(iNumber).orEmpty() else ""
                     if (name.isBlank() && number.isBlank()) continue
+                    // Hide our own write-probe marker if a prior cleanup delete failed.
+                    if (name == PROBE_NAME && number == PROBE_NUMBER) continue
                     result += SimContact(
                         indexOnIcc = if (iIndex >= 0) c.getString(iIndex)?.toIntOrNull() else null,
                         name = name,

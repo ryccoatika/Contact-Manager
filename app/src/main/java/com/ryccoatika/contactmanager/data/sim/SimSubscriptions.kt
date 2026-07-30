@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.telephony.SubscriptionManager
+import android.util.Log
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -16,6 +17,8 @@ data class SimSubscription(
     /** null on the single-SIM/legacy path (plain content://icc/adn). */
     val subscriptionId: Int?,
     val label: String,
+    /** Physical slot this SIM occupies; null on the legacy fallback. */
+    val slotIndex: Int? = null,
 )
 
 interface SimSubscriptionsSource {
@@ -48,16 +51,21 @@ class DefaultSimSubscriptionsSource @Inject constructor(
                 SimSubscription(
                     subscriptionId = info.subscriptionId,
                     label = "SIM ${info.simSlotIndex + 1}" + (carrier?.let { " · $it" }.orEmpty()),
+                    slotIndex = info.simSlotIndex,
                 )
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Swallowed silently before; keep a breadcrumb since this path
+            // silently degrades dual-SIM to a single SIM.
+            Log.w(TAG, "activeSubscriptions failed; using single-SIM fallback", e)
             FALLBACK
         }
     }
 
     private companion object {
-        val FALLBACK = listOf(SimSubscription(subscriptionId = null, label = "SIM"))
+        const val TAG = "SimSubscriptions"
+        val FALLBACK = listOf(SimSubscription(subscriptionId = null, label = "SIM", slotIndex = null))
     }
 }
