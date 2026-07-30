@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import android.util.Log
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -43,6 +44,8 @@ class DefaultSimSubscriptionsSource @Inject constructor(
 
     override suspend fun activeSubscriptions(): List<SimSubscription> = withContext(ioDispatcher) {
         try {
+            // No SIM (physical or eSIM) in any slot → no SIM account at all.
+            if (!anySimPresent()) return@withContext emptyList()
             val granted = context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) ==
                 PackageManager.PERMISSION_GRANTED
             if (!granted) return@withContext FALLBACK
@@ -85,6 +88,30 @@ class DefaultSimSubscriptionsSource @Inject constructor(
     } catch (e: Exception) {
         null
     }
+
+    /**
+     * True if any slot holds a usable SIM/eSIM. Uses [TelephonyManager.getSimState]
+     * (no permission), so an empty tray or an eSIM with no active profile reports
+     * absent and no SIM account is shown.
+     */
+    private fun anySimPresent(): Boolean = try {
+        val tm = context.getSystemService(TelephonyManager::class.java) ?: return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val slots = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                tm.activeModemCount
+            } else {
+                @Suppress("DEPRECATION") tm.phoneCount
+            }
+            (0 until slots).any { simPresent(tm.getSimState(it)) }
+        } else {
+            simPresent(tm.simState)
+        }
+    } catch (e: Exception) {
+        true // can't tell → don't hide a possibly-real SIM
+    }
+
+    private fun simPresent(state: Int): Boolean =
+        state != TelephonyManager.SIM_STATE_ABSENT && state != TelephonyManager.SIM_STATE_UNKNOWN
 
     private companion object {
         const val TAG = "SimSubscriptions"
