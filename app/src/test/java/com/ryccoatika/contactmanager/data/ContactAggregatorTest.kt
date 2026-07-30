@@ -9,10 +9,11 @@ class ContactAggregatorTest {
         dataId: Long, rawId: Long, contactId: Long, mime: String?,
         data1: String?, name: String = "Contact $contactId",
         accType: String? = "com.google", accName: String? = "a@gmail.com",
-        data2: String? = null, data3: String? = null, typeLabel: String? = null,
+        data2: String? = null, data3: String? = null, data4: String? = null,
+        typeLabel: String? = null,
     ) = DataRow(
         dataId = dataId, rawContactId = rawId, contactId = contactId,
-        mimeType = mime, data1 = data1, data2 = data2, data3 = data3,
+        mimeType = mime, data1 = data1, data2 = data2, data3 = data3, data4 = data4,
         typeLabel = typeLabel,
         accountType = accType, accountName = accName,
         displayName = name, photoThumbUri = null, starred = false,
@@ -21,6 +22,11 @@ class ContactAggregatorTest {
     private val PHONE = "vnd.android.cursor.item/phone_v2"
     private val EMAIL = "vnd.android.cursor.item/email_v2"
     private val NAME = "vnd.android.cursor.item/name"
+    private val ORG = "vnd.android.cursor.item/organization"
+    private val NICKNAME = "vnd.android.cursor.item/nickname"
+    private val WEBSITE = "vnd.android.cursor.item/website"
+    private val POSTAL = "vnd.android.cursor.item/postal-address_v2"
+    private val EVENT = "vnd.android.cursor.item/contact_event"
 
     @Test
     fun `groups rows into one contact with one raw contact`() {
@@ -99,6 +105,27 @@ class ContactAggregatorTest {
         assertEquals(null, contacts[0].rawContacts[0].familyName)
         assertEquals(null, contacts[1].rawContacts[0].givenName)
         assertEquals(null, contacts[1].rawContacts[0].familyName)
+    }
+
+    @Test
+    fun `extended fields parsed - org title, nickname, website, address, birthday, anniversary`() {
+        val contacts = ContactAggregator.aggregate(listOf(
+            row(1, 10, 100, ORG, "PT Maju", data4 = "Engineer"),
+            row(2, 10, 100, NICKNAME, "Bud"),
+            row(3, 10, 100, WEBSITE, "https://budi.dev", typeLabel = "Homepage"),
+            row(4, 10, 100, POSTAL, "Jl. Merdeka 1, Jakarta", typeLabel = "Home"),
+            row(5, 10, 100, EVENT, "1990-08-12", data2 = "3"),   // TYPE_BIRTHDAY
+            row(6, 10, 100, EVENT, "2015-06-01", data2 = "1"),   // TYPE_ANNIVERSARY
+        ))
+        val raw = contacts[0].rawContacts[0]
+        assertEquals("PT Maju", raw.organization)
+        assertEquals("Engineer", raw.jobTitle)
+        assertEquals("Bud", raw.nickname)
+        assertEquals("https://budi.dev", raw.websites[0].value)
+        assertEquals("Homepage", raw.websites[0].typeLabel)
+        assertEquals("Jl. Merdeka 1, Jakarta", raw.addresses[0].value)
+        assertEquals("1990-08-12", raw.birthday)
+        assertEquals("2015-06-01", raw.anniversary)
     }
 
     @Test

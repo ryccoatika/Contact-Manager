@@ -100,6 +100,7 @@ class ContactsRepository @Inject constructor(
             Data.DATA1,
             Data.DATA2,
             Data.DATA3,
+            Data.DATA4,
             ContactsContract.RawContacts.ACCOUNT_TYPE,
             ContactsContract.RawContacts.ACCOUNT_NAME,
             Data.DISPLAY_NAME_PRIMARY,
@@ -117,6 +118,7 @@ class ContactsRepository @Inject constructor(
             val iData1 = c.getColumnIndexOrThrow(Data.DATA1)
             val iData2 = c.getColumnIndexOrThrow(Data.DATA2)
             val iData3 = c.getColumnIndexOrThrow(Data.DATA3)
+            val iData4 = c.getColumnIndexOrThrow(Data.DATA4)
             val iAccType = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
             val iAccName = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)
             val iName = c.getColumnIndexOrThrow(Data.DISPLAY_NAME_PRIMARY)
@@ -134,6 +136,7 @@ class ContactsRepository @Inject constructor(
                     data1 = c.getString(iData1),
                     data2 = data2,
                     data3 = data3,
+                    data4 = c.getString(iData4),
                     typeLabel = PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3),
                     accountType = c.getString(iAccType),
                     accountName = c.getString(iAccName),
