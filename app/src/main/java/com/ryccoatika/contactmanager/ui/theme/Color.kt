@@ -39,6 +39,20 @@ val SurfaceVariantDark = Color(0xFF212A25)
 val OnSurfaceVariantDark = Color(0xFF94A39C)
 val OutlineDark = Color(0xFF3B443F)
 
+// Surface container ramp — porcelain-consistent tones for bars, sheets, and
+// menus (M3 pulls these roles for TopAppBar, BottomAppBar, ModalBottomSheet,
+// DropdownMenu). Left at defaults they render as off-palette grey.
+val SurfaceContainerLowestLight = Color(0xFFFFFFFF)
+val SurfaceContainerLowLight = Color(0xFFF6F8F5)
+val SurfaceContainerLight = Color(0xFFF0F3EF)
+val SurfaceContainerHighLight = Color(0xFFEAEEE8)
+val SurfaceContainerHighestLight = Color(0xFFE4E9E2)
+val SurfaceContainerLowestDark = Color(0xFF0A0F0D)
+val SurfaceContainerLowDark = Color(0xFF141B17)
+val SurfaceContainerDark = Color(0xFF18201C)
+val SurfaceContainerHighDark = Color(0xFF222A26)
+val SurfaceContainerHighestDark = Color(0xFF2C3530)
+
 // Extended — brass accent, used sparingly (SIM tags, duplicate match reason).
 val BrassLight = Color(0xFF8F6423)
 val OnBrassLight = Color(0xFFFFFFFF)

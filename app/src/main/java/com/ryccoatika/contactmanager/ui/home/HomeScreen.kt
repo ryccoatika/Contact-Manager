@@ -29,8 +29,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.PeopleAlt
+import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -145,10 +146,18 @@ fun HomeScreen(
                             Icon(Icons.Default.Close, contentDescription = "Clear selection")
                         }
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
                 )
             } else {
                 TopAppBar(
                     title = { Text("Contacts") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
                     actions = {
                         IconButton(onClick = onDuplicatesClick) {
                             BadgedBox(
@@ -158,11 +167,11 @@ fun HomeScreen(
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.PeopleAlt, contentDescription = "Duplicates")
+                                Icon(Icons.Default.Difference, contentDescription = "Duplicates")
                             }
                         }
                         IconButton(onClick = onAccountsClick) {
-                            Icon(Icons.Default.Group, contentDescription = "Accounts")
+                            Icon(Icons.Default.ManageAccounts, contentDescription = "Accounts")
                         }
                     },
                 )
@@ -170,7 +179,7 @@ fun HomeScreen(
         },
         bottomBar = {
             if (state.selectionMode) {
-                BottomAppBar {
+                BottomAppBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = { showMovePicker = true }) { Text("Move to…") }
                     Spacer(Modifier.width(8.dp))
@@ -326,7 +335,10 @@ fun HomeScreen(
     }
 
     if (showMovePicker) {
-        ModalBottomSheet(onDismissRequest = { showMovePicker = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showMovePicker = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
             Text(
                 "Move ${state.selectedContactIds.size} selected to",
                 style = MaterialTheme.typography.titleMedium,
@@ -383,7 +395,10 @@ fun HomeScreen(
     if (showMergePicker) {
         val selectedContacts = state.contacts.filter { it.contactId in state.selectedContactIds }
         val memberRaws = selectedContacts.flatMap { contact -> contact.rawContacts.map { contact to it } }
-        ModalBottomSheet(onDismissRequest = { showMergePicker = false }) {
+        ModalBottomSheet(
+            onDismissRequest = { showMergePicker = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
             Text(
                 "Merge ${state.selectedContactIds.size} selected into",
                 style = MaterialTheme.typography.titleMedium,

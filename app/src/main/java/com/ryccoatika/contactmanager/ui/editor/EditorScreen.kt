@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -103,6 +104,9 @@ fun EditorScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (state.isEdit) "Edit contact" else "New contact") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
                 navigationIcon = {
                     IconButton(onClick = requestClose) {
                         Icon(Icons.Default.Close, contentDescription = "Cancel")
