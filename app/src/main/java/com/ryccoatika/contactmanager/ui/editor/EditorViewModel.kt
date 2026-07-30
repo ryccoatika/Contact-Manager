@@ -40,6 +40,12 @@ data class EditorFormSnapshot(
     val phones: List<String> = listOf(""),
     val emails: List<String> = listOf(""),
     val organization: String = "",
+    val jobTitle: String = "",
+    val nickname: String = "",
+    val websites: List<String> = listOf(""),
+    val addresses: List<String> = listOf(""),
+    val birthday: String = "",
+    val anniversary: String = "",
     val note: String = "",
 )
 
@@ -51,6 +57,12 @@ data class EditorUiState(
     val phones: List<String> = listOf(""),
     val emails: List<String> = listOf(""),
     val organization: String = "",
+    val jobTitle: String = "",
+    val nickname: String = "",
+    val websites: List<String> = listOf(""),
+    val addresses: List<String> = listOf(""),
+    val birthday: String = "",
+    val anniversary: String = "",
     val note: String = "",
     val accounts: List<ContactAccount> = emptyList(),
     val selectedAccount: ContactAccount? = null,
@@ -69,7 +81,10 @@ data class EditorUiState(
     /** True when the user has unsaved edits worth a discard confirmation. */
     val dirty: Boolean
         get() = loadedSnapshot != null &&
-            loadedSnapshot != EditorFormSnapshot(name, phones, emails, organization, note)
+            loadedSnapshot != EditorFormSnapshot(
+                name, phones, emails, organization, jobTitle, nickname,
+                websites, addresses, birthday, anniversary, note,
+            )
 
     val canSave: Boolean
         get() = !saving && !loading && !simNameTooLong && (
@@ -139,6 +154,8 @@ class EditorViewModel @Inject constructor(
             val simCaps = if (simMode) simCapsOf(raw.accountType) else null
             val phones = raw.phones.map { phone -> phone.value }.ifEmpty { listOf("") }
             val emails = raw.emails.map { email -> email.value }.ifEmpty { listOf("") }
+            val websites = raw.websites.map { it.value }.ifEmpty { listOf("") }
+            val addresses = raw.addresses.map { it.value }.ifEmpty { listOf("") }
             _uiState.update {
                 it.copy(
                     loading = false,
@@ -146,6 +163,12 @@ class EditorViewModel @Inject constructor(
                     phones = phones,
                     emails = emails,
                     organization = raw.organization.orEmpty(),
+                    jobTitle = raw.jobTitle.orEmpty(),
+                    nickname = raw.nickname.orEmpty(),
+                    websites = websites,
+                    addresses = addresses,
+                    birthday = raw.birthday.orEmpty(),
+                    anniversary = raw.anniversary.orEmpty(),
                     note = raw.note.orEmpty(),
                     fixedAccountLabel = "${raw.accountName ?: "Device"} (${raw.accountType ?: "local"})",
                     simMode = simMode,
@@ -155,6 +178,12 @@ class EditorViewModel @Inject constructor(
                         phones = phones,
                         emails = emails,
                         organization = raw.organization.orEmpty(),
+                        jobTitle = raw.jobTitle.orEmpty(),
+                        nickname = raw.nickname.orEmpty(),
+                        websites = websites,
+                        addresses = addresses,
+                        birthday = raw.birthday.orEmpty(),
+                        anniversary = raw.anniversary.orEmpty(),
                         note = raw.note.orEmpty(),
                     ),
                 )
@@ -179,7 +208,31 @@ class EditorViewModel @Inject constructor(
 
     fun setOrganization(value: String) = _uiState.update { it.copy(organization = value) }
 
+    fun setJobTitle(value: String) = _uiState.update { it.copy(jobTitle = value) }
+
+    fun setNickname(value: String) = _uiState.update { it.copy(nickname = value) }
+
+    fun setBirthday(value: String) = _uiState.update { it.copy(birthday = value) }
+
+    fun setAnniversary(value: String) = _uiState.update { it.copy(anniversary = value) }
+
     fun setNote(value: String) = _uiState.update { it.copy(note = value) }
+
+    fun setWebsite(index: Int, value: String) =
+        _uiState.update { it.copy(websites = it.websites.replaceAt(index, value)) }
+
+    fun addWebsite() = _uiState.update { it.copy(websites = it.websites + "") }
+
+    fun removeWebsite(index: Int) =
+        _uiState.update { it.copy(websites = it.websites.removeAt(index).ifEmpty { listOf("") }) }
+
+    fun setAddress(index: Int, value: String) =
+        _uiState.update { it.copy(addresses = it.addresses.replaceAt(index, value)) }
+
+    fun addAddress() = _uiState.update { it.copy(addresses = it.addresses + "") }
+
+    fun removeAddress(index: Int) =
+        _uiState.update { it.copy(addresses = it.addresses.removeAt(index).ifEmpty { listOf("") }) }
 
     fun selectAccount(account: ContactAccount) = _uiState.update {
         it.copy(
@@ -219,6 +272,12 @@ class EditorViewModel @Inject constructor(
                 emails = state.emails.map { it.trim() }.filter { it.isNotBlank() }.map { it to null },
                 organization = state.organization.trim().ifBlank { null },
                 note = state.note.trim().ifBlank { null },
+                jobTitle = state.jobTitle.trim().ifBlank { null },
+                nickname = state.nickname.trim().ifBlank { null },
+                websites = state.websites.map { it.trim() }.filter { it.isNotBlank() },
+                addresses = state.addresses.map { it.trim() }.filter { it.isNotBlank() },
+                birthday = state.birthday.ifBlank { null },
+                anniversary = state.anniversary.ifBlank { null },
             )
         }
         _uiState.update { it.copy(saving = true) }
