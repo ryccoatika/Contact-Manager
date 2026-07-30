@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.ui.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -265,7 +267,24 @@ fun HomeScreen(
                     null
                 },
             )
+            val chipsState = rememberLazyListState()
+            // Chip index of the active account ("All" is index 0).
+            val selectedChipIndex = if (state.selectedAccountKey == null) {
+                0
+            } else {
+                state.accounts.indexOfFirst { it.key == state.selectedAccountKey }
+                    .let { if (it >= 0) it + 1 else 0 }
+            }
+            // Keep the active account centered (or at least on screen).
+            LaunchedEffect(selectedChipIndex, state.accounts.size) {
+                val info = chipsState.layoutInfo
+                val viewport = info.viewportEndOffset - info.viewportStartOffset
+                val itemSize = info.visibleItemsInfo.firstOrNull { it.index == selectedChipIndex }?.size ?: 0
+                val centerOffset = -((viewport - itemSize) / 2).coerceAtLeast(0)
+                chipsState.animateScrollToItem(selectedChipIndex, centerOffset)
+            }
             LazyRow(
+                state = chipsState,
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -280,7 +299,27 @@ fun HomeScreen(
                     FilterChip(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
-                        label = { Text("${AccountVisuals.label(account.type, account.name)} · ${account.contactCount}") },
+                        modifier = Modifier.widthIn(max = 120.dp),
+                        label = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Only the name scrolls; the count is always visible.
+                                Text(
+                                    AccountVisuals.label(account.type, account.name),
+                                    maxLines = 1,
+                                    // Loop forever with no pause, even while the row scrolls.
+                                    modifier = Modifier.weight(1f, fill = false).basicMarquee(
+                                        iterations = Int.MAX_VALUE,
+                                        repeatDelayMillis = 0,
+                                        initialDelayMillis = 0,
+                                    ),
+                                )
+                                Text(
+                                    " · ${account.contactCount}",
+                                    maxLines = 1,
+                                    style = TabularNums.merge(MaterialTheme.typography.labelLarge),
+                                )
+                            }
+                        },
                         leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     )
                 }
