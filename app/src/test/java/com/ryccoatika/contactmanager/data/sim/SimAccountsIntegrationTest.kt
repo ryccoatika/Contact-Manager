@@ -172,6 +172,12 @@ class SimAccountsIntegrationTest {
         assertTrue(!sim2.writable)
     }
 
+    @Test fun `no subscriptions yields no SIM accounts or contacts`() = runTest {
+        val integration = integration(FakeSimContactSource(), subs = emptyList())
+        assertTrue(integration.simPseudoAccounts(emptyList()).isEmpty())
+        assertTrue(integration.simContacts(emptyList()).isEmpty())
+    }
+
     @Test fun `unreadable subscription produces no pseudo account`() = runTest {
         val source = FakeSimContactSource(
             capsBySub = mapOf(1 to SimCapabilities(canRead = false, canWrite = false)),
