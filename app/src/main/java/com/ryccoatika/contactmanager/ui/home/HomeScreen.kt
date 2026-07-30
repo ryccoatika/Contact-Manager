@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Difference
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Search
@@ -51,10 +53,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -70,9 +75,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,7 +94,6 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import android.content.res.Configuration
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.ui.common.AccountDot
@@ -118,6 +124,7 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showMovePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
     var pendingMove by remember { mutableStateOf<Pair<ContactAccount, MovePlan>?>(null) }
     var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
@@ -386,11 +393,14 @@ fun HomeScreen(
                                 ContactRow(
                                     contact = contact,
                                     selected = contact.contactId in state.selectedContactIds,
+                                    swipeEnabled = !state.selectionMode,
                                     onClick = {
                                         if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
                                         else onContactClick(contact.contactId)
                                     },
                                     onLongClick = { viewModel.toggleSelect(contact.contactId) },
+                                    onSwipeDelete = { pendingDeleteContact = contact },
+                                    modifier = Modifier.animateItem(),
                                 )
                             }
                         }
@@ -564,6 +574,23 @@ fun HomeScreen(
             },
         )
     }
+
+    pendingDeleteContact?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteContact = null },
+            title = { Text("Delete ${target.displayName}?") },
+            text = { Text("Entries managed by other apps are skipped. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDeleteContact = null
+                    viewModel.deleteContact(target.contactId)
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteContact = null }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 /** Fast-scroll only earns its screen space on long lists. */
@@ -720,43 +747,101 @@ private fun EmptyState(query: String, accountFiltered: Boolean) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ContactRow(
     contact: Contact,
     selected: Boolean,
+    swipeEnabled: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onSwipeDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        modifier = Modifier
-            .heightIn(min = 64.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
-            Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+    val haptic = LocalHapticFeedback.current
+    val row = @Composable {
+        ListItem(
+            modifier = Modifier
+                .heightIn(min = 64.dp)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongClick()
+                    },
+                ),
+            // Opaque so it covers the red delete background until swiped.
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+            headlineContent = {
+                Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+            },
+            supportingContent = {
+                contactSubtitle(contact)?.let {
+                    Text(
+                        it,
+                        style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            },
+            leadingContent = {
+                Crossfade(targetState = selected, label = "avatar") { isSelected ->
+                    if (isSelected) {
+                        SelectedAvatar()
+                    } else {
+                        ContactAvatar(contact.displayName, contact.photoThumbnailUri)
+                    }
+                }
+            },
+            trailingContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    contact.rawContacts
+                        .distinctBy { it.accountType to it.accountName }
+                        .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
+                }
+            },
+        )
+    }
+
+    if (!swipeEnabled) {
+        Box(modifier) { row() }
+        return
+    }
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            // Swipe left far enough → buzz + ask to confirm; never auto-delete.
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSwipeDelete()
+            }
+            false
         },
-        supportingContent = {
-            contactSubtitle(contact)?.let {
-                Text(
-                    it,
-                    style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = modifier,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.error),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.padding(end = 24.dp),
                 )
             }
         },
-        leadingContent = {
-            if (selected) SelectedAvatar() else ContactAvatar(contact.displayName, contact.photoThumbnailUri)
-        },
-        trailingContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                contact.rawContacts
-                    .distinctBy { it.accountType to it.accountName }
-                    .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
-            }
-        },
-    )
+    ) {
+        row()
+    }
 }
 
 /** First non-blank of: organization, a phone, an email — a hint under the name. */
@@ -786,7 +871,14 @@ private fun previewContact() = Contact(
 private fun ContactRowPreview() {
     ContactManagerTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            ContactRow(previewContact(), selected = false, onClick = {}, onLongClick = {})
+            ContactRow(
+                previewContact(),
+                selected = false,
+                swipeEnabled = true,
+                onClick = {},
+                onLongClick = {},
+                onSwipeDelete = {},
+            )
         }
     }
 }
