@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.di
 
 import com.ryccoatika.contactmanager.data.AccountRepository
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AndroidStringProvider
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.ContactsRepository
 import com.ryccoatika.contactmanager.data.ContactsSource
@@ -11,6 +12,7 @@ import com.ryccoatika.contactmanager.data.DataStoreAppPrefs
 import com.ryccoatika.contactmanager.data.DataStoreDuplicatePrefs
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.SimAwareContactsWriter
+import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.sim.DataStoreSimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.DefaultSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.IccSimAccountsIntegration
@@ -45,6 +47,7 @@ abstract class DataModule {
 
     @Binds abstract fun bindDuplicatePrefs(impl: DataStoreDuplicatePrefs): DuplicatePrefs
     @Binds abstract fun bindAppPrefs(impl: DataStoreAppPrefs): AppPrefs
+    @Binds abstract fun bindStringProvider(impl: AndroidStringProvider): StringProvider
 
     @Binds abstract fun bindSimContactSource(impl: IccSimSource): SimContactSource
     @Binds abstract fun bindSimCapabilityCache(impl: DataStoreSimCapabilityCache): SimCapabilityCache

@@ -9,10 +9,10 @@ class SimContactValidatorTest {
 
     private val caps = SimCapabilities(canRead = true, canWrite = true, maxNameLength = 14)
 
-    private fun errorOf(name: String, number: String): String {
+    private fun errorOf(name: String, number: String): SimError {
         val result = SimContactValidator.validate(name, number, caps)
         assertTrue("expected Error, got $result", result is SimValidation.Error)
-        return (result as SimValidation.Error).message
+        return (result as SimValidation.Error).error
     }
 
     @Test fun `valid name and number pass`() {
@@ -24,21 +24,21 @@ class SimContactValidatorTest {
     }
 
     @Test fun `blank name rejected`() {
-        assertEquals("Name is required.", errorOf("   ", "0812"))
+        assertEquals(SimError.BlankName, errorOf("   ", "0812"))
     }
 
-    @Test fun `name over max length rejected with limit in message`() {
-        assertEquals("Name too long for SIM (max 14).", errorOf("A".repeat(15), "0812"))
+    @Test fun `name over max length rejected with limit in reason`() {
+        assertEquals(SimError.NameTooLong(14), errorOf("A".repeat(15), "0812"))
     }
 
     @Test fun `name length limit follows capabilities`() {
         val shortCaps = caps.copy(maxNameLength = 6)
         val result = SimContactValidator.validate("Budiman", "0812", shortCaps)
-        assertEquals(SimValidation.Error("Name too long for SIM (max 6)."), result)
+        assertEquals(SimValidation.Error(SimError.NameTooLong(6)), result)
     }
 
     @Test fun `blank number rejected`() {
-        assertEquals("Phone number is required.", errorOf("Budi", "  "))
+        assertEquals(SimError.BlankNumber, errorOf("Budi", "  "))
     }
 
     @Test fun `number with letters or spaces rejected`() {

@@ -14,8 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.ryccoatika.contactmanager.R
 
 /**
  * One-time, subtle READ_PHONE_STATE request shown next to SIM pseudo-accounts.
@@ -52,7 +54,7 @@ fun PhonePermissionPrompt(
                 ),
             )
         },
-        label = { Text("Grant phone permission to label SIMs & show numbers") },
+        label = { Text(stringResource(R.string.phone_permission_label)) },
         leadingIcon = {
             Icon(Icons.Default.SimCard, contentDescription = null, Modifier.size(18.dp))
         },

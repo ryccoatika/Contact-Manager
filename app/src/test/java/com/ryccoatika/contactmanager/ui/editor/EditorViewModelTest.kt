@@ -7,6 +7,7 @@ import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
@@ -139,6 +140,7 @@ class EditorViewModelTest {
         writer = writer,
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
+        strings = FakeStringProvider(),
     )
 
     private fun editVm(rawContactId: Long = 10, writer: ContactsWriter = FakeWriter()) = EditorViewModel(
@@ -148,6 +150,7 @@ class EditorViewModelTest {
         writer = writer,
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
+        strings = FakeStringProvider(),
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
@@ -171,7 +174,9 @@ class EditorViewModelTest {
         assertEquals(listOf("budi@x.com"), state.emails)
         assertEquals("PT Maju", state.organization)
         assertEquals("VIP", state.note)
-        assertEquals("a@gmail.com (com.google)", state.fixedAccountLabel)
+        // fixedAccountLabel is now formatted via StringProvider; the fake encodes id + args.
+        assertTrue(state.fixedAccountLabel!!.contains("a@gmail.com"))
+        assertTrue(state.fixedAccountLabel!!.contains("com.google"))
     }
 
     @Test fun `save disabled with blank name and no phones or emails`() = runTest(dispatcher) {

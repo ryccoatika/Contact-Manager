@@ -50,11 +50,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -106,7 +108,10 @@ fun DetailScreen(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.detail_cd_back),
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -156,22 +161,25 @@ fun DetailScreen(
     pendingDelete?.let { raw ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete contact entry?") },
+            title = { Text(stringResource(R.string.detail_delete_dialog_title)) },
             text = {
                 Text(
-                    "This removes the entry from " +
-                        "${AccountVisuals.label(raw.accountType, raw.accountName)}. " +
-                        "This cannot be undone.",
+                    stringResource(
+                        R.string.detail_delete_dialog_message,
+                        AccountVisuals.label(context, raw.accountType, raw.accountName),
+                    ),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDelete = null
                     viewModel.deleteRawContact(raw.rawContactId)
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.detail_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.detail_cancel))
+                }
             },
         )
     }
@@ -224,11 +232,11 @@ private fun DetailHero(
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (phone != null) {
-                        QuickActionPill("Call", Icons.Default.Call, onCall, Modifier.weight(1f))
-                        QuickActionPill("Message", Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_call), Icons.Default.Call, onCall, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_message), Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
                     }
                     if (canEdit) {
-                        QuickActionPill("Edit", Icons.Default.Edit, onEdit, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_edit), Icons.Default.Edit, onEdit, Modifier.weight(1f))
                     }
                 }
             }
@@ -242,9 +250,10 @@ private fun RawContactCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val context = LocalContext.current
     val capability = AccountClassifier.classify(raw.accountType)
     val readOnly = capability == AccountCapability.READ_ONLY
-    val accountLabel = AccountVisuals.label(raw.accountType, raw.accountName)
+    val accountLabel = AccountVisuals.label(context, raw.accountType, raw.accountName)
 
     SectionCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,16 +266,16 @@ private fun RawContactCard(
             }
         }
         Spacer(Modifier.height(8.dp))
-        raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
-        raw.emails.forEach { LabeledValueRow(it, fallbackLabel = "Email") }
-        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = "Website") }
-        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = "Address") }
-        raw.organization?.let { FieldRow(label = "Company", value = it) }
-        raw.jobTitle?.let { FieldRow(label = "Job title", value = it) }
-        raw.nickname?.let { FieldRow(label = "Nickname", value = it) }
-        raw.birthday?.let { FieldRow(label = "Birthday", value = formatContactDate(it)) }
-        raw.anniversary?.let { FieldRow(label = "Anniversary", value = formatContactDate(it)) }
-        raw.note?.let { FieldRow(label = "Note", value = it) }
+        raw.phones.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_phone)) }
+        raw.emails.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_email)) }
+        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_website)) }
+        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_address)) }
+        raw.organization?.let { FieldRow(label = stringResource(R.string.detail_label_company), value = it) }
+        raw.jobTitle?.let { FieldRow(label = stringResource(R.string.detail_label_job_title), value = it) }
+        raw.nickname?.let { FieldRow(label = stringResource(R.string.detail_label_nickname), value = it) }
+        raw.birthday?.let { FieldRow(label = stringResource(R.string.detail_label_birthday), value = formatContactDate(it)) }
+        raw.anniversary?.let { FieldRow(label = stringResource(R.string.detail_label_anniversary), value = formatContactDate(it)) }
+        raw.note?.let { FieldRow(label = stringResource(R.string.detail_label_note), value = it) }
         Spacer(Modifier.height(8.dp))
         if (readOnly) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,15 +286,15 @@ private fun RawContactCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Managed by $accountLabel — edit in that app",
+                    stringResource(R.string.detail_managed_by, accountLabel),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEdit) { Text("Edit") }
-                OutlinedButton(onClick = onDelete) { Text("Delete") }
+                OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.detail_edit)) }
+                OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.detail_delete)) }
             }
         }
     }

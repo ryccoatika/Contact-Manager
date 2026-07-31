@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar -->
+    <string name="detail_cd_back">Back</string>
+
+    <!-- Quick actions -->
+    <string name="detail_action_call">Call</string>
+    <string name="detail_action_message">Message</string>
+    <string name="detail_action_edit">Edit</string>
+
+    <!-- Field labels -->
+    <string name="detail_label_phone">Phone</string>
+    <string name="detail_label_email">Email</string>
+    <string name="detail_label_website">Website</string>
+    <string name="detail_label_address">Address</string>
+    <string name="detail_label_company">Company</string>
+    <string name="detail_label_job_title">Job title</string>
+    <string name="detail_label_nickname">Nickname</string>
+    <string name="detail_label_birthday">Birthday</string>
+    <string name="detail_label_anniversary">Anniversary</string>
+    <string name="detail_label_note">Note</string>
+
+    <!-- Read-only notice -->
+    <string name="detail_managed_by">Managed by %1$s — edit in that app</string>
+
+    <!-- Card actions -->
+    <string name="detail_edit">Edit</string>
+    <string name="detail_delete">Delete</string>
+    <string name="detail_cancel">Cancel</string>
+
+    <!-- Delete confirmation dialog -->
+    <string name="detail_delete_dialog_title">Delete contact entry?</string>
+    <string name="detail_delete_dialog_message">This removes the entry from %1$s. This cannot be undone.</string>
+</resources>

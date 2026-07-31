@@ -1,0 +1,11 @@
+<resources>
+    <!-- DuplicatesViewModel snackbar/event messages (ui/duplicates/DuplicatesViewModel.kt) -->
+    <plurals name="duplicates_msg_linked">
+        <item quantity="one">Linked %1$d contact into one.</item>
+        <item quantity="other">Linked %1$d contacts into one.</item>
+    </plurals>
+    <plurals name="duplicates_msg_merged">
+        <item quantity="one">Merged %1$d entry into one contact.</item>
+        <item quantity="other">Merged %1$d entries into one contact.</item>
+    </plurals>
+</resources>

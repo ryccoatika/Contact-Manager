@@ -3,7 +3,10 @@ package com.ryccoatika.contactmanager.data.sim
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.ContactOpResult
+import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
@@ -32,6 +35,7 @@ interface SimContactSource {
 class IccSimSource @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val strings: StringProvider,
 ) : SimContactSource {
 
     override suspend fun probe(subscriptionId: Int?): SimCapabilities = withContext(ioDispatcher) {
@@ -93,7 +97,7 @@ class IccSimSource @Inject constructor(
         name: String,
         number: String,
     ): ContactOpResult = withContext(ioDispatcher) {
-        writeOp("add the SIM contact") {
+        writeOp(R.string.icc_action_add) {
             context.contentResolver.insert(
                 uri(subscriptionId),
                 ContentValues().apply {
@@ -110,7 +114,7 @@ class IccSimSource @Inject constructor(
         name: String,
         number: String,
     ): ContactOpResult = withContext(ioDispatcher) {
-        writeOp("update the SIM contact") {
+        writeOp(R.string.icc_action_update) {
             context.contentResolver.update(
                 uri(subscriptionId),
                 ContentValues().apply {
@@ -129,7 +133,7 @@ class IccSimSource @Inject constructor(
         subscriptionId: Int?,
         contact: SimContact,
     ): ContactOpResult = withContext(ioDispatcher) {
-        writeOp("delete the SIM contact") {
+        writeOp(R.string.icc_action_delete) {
             context.contentResolver.delete(
                 uri(subscriptionId),
                 deleteWhere(contact.name, contact.number),
@@ -152,18 +156,18 @@ class IccSimSource @Inject constructor(
     private fun deleteWhere(name: String, number: String): String =
         "tag='${name.replace("'", "''")}' AND number='${number.replace("'", "''")}'"
 
-    private inline fun writeOp(action: String, block: () -> Boolean): ContactOpResult = try {
+    private inline fun writeOp(@StringRes action: Int, block: () -> Boolean): ContactOpResult = try {
         if (block()) {
             ContactOpResult.Success
         } else {
-            ContactOpResult.Failure("Could not $action — the SIM rejected the change (it may be full or read-only).")
+            ContactOpResult.Failure(strings.get(R.string.icc_error_rejected, strings.get(action)))
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         // SecurityException, IllegalArgumentException, UnsupportedOperationException,
         // NullPointerException (some OEM providers), SQLite errors, ...
-        ContactOpResult.Failure("Could not $action — this device does not allow SIM storage access.", e)
+        ContactOpResult.Failure(strings.get(R.string.icc_error_no_access, strings.get(action)), e)
     }
 
     private inline fun <T> guard(fallback: T, block: () -> T): T = try {

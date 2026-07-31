@@ -1,0 +1,26 @@
+<resources>
+    <!-- CapabilityTag / avatars (ui/common/ContactUi.kt) -->
+    <string name="common_capability_full">Full access</string>
+    <string name="common_capability_readonly">Read-only</string>
+    <string name="common_capability_sim">SIM</string>
+    <string name="common_capability_sim_limited">SIM · limited</string>
+    <string name="common_selected">Selected</string>
+
+    <!-- Permission gate (ui/permission/PermissionGate.kt) -->
+    <string name="permission_title">Contact access needed</string>
+    <string name="permission_rationale">This app organizes the contacts already on your device — across Google, Samsung, SIM and app accounts. Nothing leaves your phone.</string>
+    <string name="permission_allow">Allow access</string>
+    <string name="permission_open_settings">Open settings</string>
+
+    <!-- Phone permission prompt (ui/common/PhonePermissionPrompt.kt) -->
+    <string name="phone_permission_label">Grant phone permission to label SIMs &amp; show numbers</string>
+
+    <!-- Account provenance labels (ui/common/AccountVisuals.kt) -->
+    <string name="account_device">Device</string>
+    <string name="account_google">Google</string>
+    <string name="account_samsung">Samsung</string>
+    <string name="account_whatsapp">WhatsApp</string>
+    <string name="account_telegram">Telegram</string>
+    <string name="account_sim">SIM</string>
+    <string name="account_sim_numbered">SIM %1$d</string>
+</resources>

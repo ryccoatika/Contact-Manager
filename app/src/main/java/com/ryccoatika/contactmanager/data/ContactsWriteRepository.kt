@@ -20,6 +20,8 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
 import android.provider.ContactsContract.CommonDataKinds.Website
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.RawContacts
+import androidx.annotation.StringRes
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -91,6 +93,7 @@ interface ContactsWriter {
 class ContactsWriteRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val strings: StringProvider,
 ) : ContactsWriter {
 
     override suspend fun createContact(
@@ -98,7 +101,7 @@ class ContactsWriteRepository @Inject constructor(
         accountName: String?,
         contact: EditableContact,
     ): ContactOpResult = withContext(ioDispatcher) {
-        runCatchingOp("create contact") {
+        runCatchingOp(R.string.cwr_action_create) {
             val ops = ArrayList<ContentProviderOperation>()
             ops += ContentProviderOperation.newInsert(RawContacts.CONTENT_URI)
                 .withValue(RawContacts.ACCOUNT_TYPE, accountType)
@@ -115,7 +118,7 @@ class ContactsWriteRepository @Inject constructor(
         rawContactId: Long,
         contact: EditableContact,
     ): ContactOpResult = withContext(ioDispatcher) {
-        runCatchingOp("update contact") {
+        runCatchingOp(R.string.cwr_action_update) {
             val ops = ArrayList<ContentProviderOperation>()
             // Only clear the mimetypes the editor manages, so fields it doesn't
             // touch (IM, relation, group membership, photo, …) survive the edit.
@@ -133,7 +136,7 @@ class ContactsWriteRepository @Inject constructor(
 
     override suspend fun deleteRawContacts(rawContactIds: List<Long>): ContactOpResult =
         withContext(ioDispatcher) {
-            runCatchingOp("delete contact") { applyChunked(deleteOps(rawContactIds)) }
+            runCatchingOp(R.string.cwr_action_delete) { applyChunked(deleteOps(rawContactIds)) }
         }
 
     override suspend fun copyRawContact(
@@ -141,7 +144,7 @@ class ContactsWriteRepository @Inject constructor(
         targetType: String?,
         targetName: String?,
     ): ContactOpResult = withContext(ioDispatcher) {
-        runCatchingOp("copy contact") { insertCopy(rawContactId, targetType, targetName) }
+        runCatchingOp(R.string.cwr_action_copy) { insertCopy(rawContactId, targetType, targetName) }
     }
 
     override suspend fun moveRawContacts(
@@ -171,7 +174,7 @@ class ContactsWriteRepository @Inject constructor(
             ContactOpResult.Success
         } else {
             ContactOpResult.Failure(
-                "Could not move $failed of ${rawContactIds.size} contacts.",
+                strings.get(R.string.cwr_error_move_count, failed, rawContactIds.size),
                 firstCause,
             )
         }
@@ -179,14 +182,14 @@ class ContactsWriteRepository @Inject constructor(
 
     override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
         withContext(ioDispatcher) {
-            runCatchingOp("link contacts") {
+            runCatchingOp(R.string.cwr_action_link) {
                 applyChunked(aggregationOps(rawContactIds, AggregationExceptions.TYPE_KEEP_TOGETHER))
             }
         }
 
     override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
         withContext(ioDispatcher) {
-            runCatchingOp("separate contacts") {
+            runCatchingOp(R.string.cwr_action_separate) {
                 applyChunked(aggregationOps(rawContactIds, AggregationExceptions.TYPE_KEEP_SEPARATE))
             }
         }
@@ -195,7 +198,7 @@ class ContactsWriteRepository @Inject constructor(
         target: RawContact,
         sources: List<RawContact>,
     ): ContactOpResult = withContext(ioDispatcher) {
-        runCatchingOp("merge contacts") {
+        runCatchingOp(R.string.cwr_action_merge) {
             if (sources.isEmpty()) return@runCatchingOp
             val ops = ArrayList<ContentProviderOperation>()
             // Copy first, delete last: a failure in between duplicates data, never loses it.
@@ -432,17 +435,24 @@ class ContactsWriteRepository @Inject constructor(
         }
     }
 
-    private inline fun runCatchingOp(action: String, block: () -> Unit): ContactOpResult = try {
+    private inline fun runCatchingOp(@StringRes action: Int, block: () -> Unit): ContactOpResult = try {
         block()
         ContactOpResult.Success
     } catch (e: OperationApplicationException) {
-        ContactOpResult.Failure("Could not $action: the contacts provider rejected the change.", e)
+        ContactOpResult.Failure(strings.get(R.string.cwr_error_rejected, strings.get(action)), e)
     } catch (e: RemoteException) {
-        ContactOpResult.Failure("Could not $action: the contacts provider is unavailable.", e)
+        ContactOpResult.Failure(strings.get(R.string.cwr_error_unavailable, strings.get(action)), e)
     } catch (e: SecurityException) {
-        ContactOpResult.Failure("Could not $action: contacts permission is missing.", e)
+        ContactOpResult.Failure(strings.get(R.string.cwr_error_permission, strings.get(action)), e)
     } catch (e: IllegalArgumentException) {
-        ContactOpResult.Failure("Could not $action: ${e.message ?: "invalid data"}.", e)
+        ContactOpResult.Failure(
+            strings.get(
+                R.string.cwr_error_generic,
+                strings.get(action),
+                e.message ?: strings.get(R.string.cwr_error_invalid_data),
+            ),
+            e,
+        )
     }
 
     private companion object {
