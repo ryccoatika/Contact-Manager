@@ -12,6 +12,8 @@ import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.StringProvider
+import com.ryccoatika.contactmanager.data.analytics.Analytics
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
@@ -56,6 +58,7 @@ class HomeViewModel @Inject constructor(
     duplicatePrefs: DuplicatePrefs,
     appPrefs: AppPrefs,
     private val strings: StringProvider,
+    private val analytics: Analytics,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -102,7 +105,10 @@ class HomeViewModel @Inject constructor(
     }.flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
-    fun setQuery(q: String) { query.value = q }
+    fun setQuery(q: String) {
+        query.value = q
+        if (q.isNotBlank()) analytics.logEvent(AnalyticsEvent.Search(q.trim().length))
+    }
 
     fun selectAccount(key: String?) { selectedAccountKey.value = key }
 
@@ -132,7 +138,11 @@ class HomeViewModel @Inject constructor(
             targetName = target.name,
             label = strings.get(R.string.home_msg_moving_label, movable.size, targetName),
         )
-        if (!started) {
+        if (started) {
+            analytics.logEvent(
+                AnalyticsEvent.ContactMove(movable.size, AccountClassifier.classify(target.type).name),
+            )
+        } else {
             viewModelScope.launch {
                 _events.emit(strings.get(R.string.home_msg_busy))
             }
@@ -148,8 +158,10 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
             when (val result = writer.deleteRawContacts(ids)) {
-                is ContactOpResult.Success ->
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
                     _events.emit(strings.getQuantity(R.plurals.home_msg_deleted_entries, ids.size, ids.size))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -164,8 +176,10 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             when (val result = writer.mergeContacts(target, sources)) {
-                is ContactOpResult.Success ->
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
                     _events.emit(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -183,8 +197,10 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
             when (val result = writer.deleteRawContacts(ids)) {
-                is ContactOpResult.Success ->
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
                     _events.emit(strings.get(R.string.home_msg_deleted_named, contact.displayName))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
