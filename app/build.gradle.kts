@@ -15,6 +15,10 @@ if (googleServicesJson.exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// versionCode is CI-driven so Play testing tracks always get a monotonically
+// increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
+val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.ryccoatika.contactmanager"
     compileSdk {
@@ -27,7 +31,7 @@ android {
         applicationId = "com.ryccoatika.contactmanager"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = appVersionCode
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
