@@ -10,6 +10,8 @@ import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -132,6 +134,7 @@ class HomeViewModelTest {
     private fun vm(
         writer: FakeWriter = FakeWriter(),
         appPrefs: AppPrefs = FakeAppPrefs(),
+        analytics: FakeAnalytics = FakeAnalytics(),
     ) = HomeViewModel(
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
@@ -140,6 +143,7 @@ class HomeViewModelTest {
         duplicatePrefs = fakePrefs,
         appPrefs = appPrefs,
         strings = FakeStringProvider(),
+        analytics = analytics,
         defaultDispatcher = dispatcher,
     )
 
@@ -236,6 +240,31 @@ class HomeViewModelTest {
         assertEquals("com.google" to "b@gmail.com", writer.moveTarget)
         assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
         job.cancel()
+    }
+
+    @Test fun `moveSelectedTo logs contact_move with count and capability`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.moveSelectedTo(googleTarget)
+        dispatcher.scheduler.advanceUntilIdle()
+        val move = analytics.events.filterIsInstance<AnalyticsEvent.ContactMove>().single()
+        assertEquals(2, move.count)
+        job.cancel()
+    }
+
+    @Test fun `setQuery logs search with query length`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        vm.setQuery("andi")
+        assertEquals(
+            AnalyticsEvent.Search(4),
+            analytics.events.filterIsInstance<AnalyticsEvent.Search>().single(),
+        )
     }
 
     @Test fun `moveSelectedTo with only read-only raws emits message and moves nothing`() = runTest(dispatcher) {
