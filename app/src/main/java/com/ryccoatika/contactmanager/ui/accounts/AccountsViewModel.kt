@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.StringProvider
+import com.ryccoatika.contactmanager.data.analytics.Analytics
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import com.ryccoatika.contactmanager.domain.FieldLoss
@@ -50,6 +52,7 @@ class AccountsViewModel @Inject constructor(
     private val simSubscriptionsSource: SimSubscriptionsSource,
     private val appPrefs: AppPrefs,
     private val strings: StringProvider,
+    private val analytics: Analytics,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccountsUiState())
@@ -78,6 +81,7 @@ class AccountsViewModel @Inject constructor(
 
     /** Hide/show an account in the Home selector. */
     fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
+        analytics.logEvent(AnalyticsEvent.AccountVisibility(hidden))
         viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
     }
 
@@ -142,6 +146,7 @@ class AccountsViewModel @Inject constructor(
                 targetName = target.name,
                 label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
             )
+            if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
             _events.emit(
                 if (started) strings.get(R.string.accounts_msg_move_started)
                 else strings.get(R.string.accounts_msg_busy),
