@@ -43,11 +43,22 @@ jobs:
         id: version
         run: echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed release AAB
+      - name: Build signed release AAB + APK
         env:
           ORG_GRADLE_PROJECT_CONTACTMANAGER_RELEASE_KEYSTORE_PWD: ${{ secrets.CONTACTMANAGER_RELEASE_KEYSTORE_PWD }}
           ORG_GRADLE_PROJECT_CONTACTMANAGER_RELEASE_KEY_PWD: ${{ secrets.CONTACTMANAGER_RELEASE_KEY_PWD }}
-        run: ./gradlew :app:bundleRelease -PappVersionCode=${{ steps.version.outputs.code }}
+        run: ./gradlew :app:bundleRelease :app:assembleRelease -PappVersionCode=${{ steps.version.outputs.code }}
+
+      - name: Upload build artifacts (AAB + APK + mapping)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}-v${{ steps.version.outputs.code }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/mapping/release/mapping.txt
 
       - name: Publish to Internal App Sharing (develop)
         if: github.ref == 'refs/heads/develop'
