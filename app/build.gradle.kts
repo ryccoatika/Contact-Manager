@@ -23,10 +23,43 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Shared debug keystore so every machine/CI produces the same debug
+        // signature (stable SHA-1 for API-console registrations). These are the
+        // well-known public Android debug credentials — not secrets.
+        getByName("debug") {
+            storeFile = rootProject.file("release/app-debug.jks")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        // Real release key. Guarded by existence so the project still builds on
+        // machines/CI without the keystore. Passwords come from Gradle properties
+        // (~/.gradle/gradle.properties or -P/env) — never hardcoded here.
+        if (rootProject.file("release/app-release.jks").exists()) {
+            create("release") {
+                storeFile = rootProject.file("release/app-release.jks")
+                storePassword = properties["CONTACTMANAGER_RELEASE_KEYSTORE_PWD"]?.toString().orEmpty()
+                keyAlias = "contactmanager"
+                keyPassword = properties["CONTACTMANAGER_RELEASE_KEY_PWD"]?.toString().orEmpty()
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // Picks up the reconfigured debug signingConfig above.
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
+            // Signed only when release/app-release.jks is present; null → unsigned.
+            signingConfig = signingConfigs.findByName("release")
+            // R8 in full mode (default since AGP 8.0; pinned in gradle.properties).
+            // The optimization DSL enables code + resource shrinking and bakes in
+            // the default Android optimize rules, so no getDefaultProguardFile call.
+            // Custom keep rules live in src/main/keepRules/*.keep.
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
