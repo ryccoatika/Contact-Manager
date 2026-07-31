@@ -32,6 +32,8 @@ if [[ ! -z "$ENCRYPT_KEY" ]]; then
   decrypt ${ENCRYPT_KEY} release/app-release.gpg release/app-release.jks
   # Decrypt Google Services key (Android)
   decrypt ${ENCRYPT_KEY} release/google-services.gpg release/google-services.json
+  # Decrypt Play Store service-account key (used by fastlane to publish)
+  decrypt ${ENCRYPT_KEY} release/play-account.gpg release/play-account.json
 else
   echo "ENCRYPT_KEY is empty"
 fi
