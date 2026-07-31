@@ -46,6 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +61,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
@@ -74,6 +78,7 @@ fun AccountsScreen(
     onAccountClick: (String) -> Unit,
     viewModel: AccountsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingMove by viewModel.pendingMove.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -86,13 +91,16 @@ fun AccountsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Accounts") },
+                title = { Text(stringResource(R.string.accounts_title)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.accounts_back),
+                        )
                     }
                 },
             )
@@ -144,7 +152,10 @@ fun AccountsScreen(
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
             Text(
-                "Move all ${AccountVisuals.label(source.type, source.name)} contacts to",
+                stringResource(
+                    R.string.accounts_move_all_source_contacts_to,
+                    AccountVisuals.label(context, source.type, source.name),
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
@@ -156,8 +167,10 @@ fun AccountsScreen(
                             moveSource = null
                             viewModel.requestMoveAll(source, target)
                         },
-                        headlineContent = { Text(AccountVisuals.label(target.type, target.name)) },
-                        supportingContent = { Text(target.name ?: "On this device") },
+                        headlineContent = { Text(AccountVisuals.label(context, target.type, target.name)) },
+                        supportingContent = {
+                            Text(target.name ?: stringResource(R.string.accounts_on_this_device))
+                        },
                         leadingContent = { AccountDot(target.type, target.name, size = 12.dp) },
                     )
                 }
@@ -172,33 +185,55 @@ fun AccountsScreen(
             title = {
                 Text(
                     if (lostFields.isEmpty()) {
-                        "Move ${pending.source.contactCount} contacts?"
+                        pluralStringResource(
+                            R.plurals.accounts_move_contacts_title,
+                            pending.source.contactCount,
+                            pending.source.contactCount,
+                        )
                     } else {
-                        "Some fields will be lost"
+                        stringResource(R.string.accounts_some_fields_lost)
                     },
                 )
             },
             text = {
+                val moveBody = stringResource(
+                    R.string.accounts_move_dialog_body,
+                    AccountVisuals.label(context, pending.source.type, pending.source.name),
+                    AccountVisuals.label(context, pending.target.type, pending.target.name),
+                )
+                val lossesText = if (lostFields.isNotEmpty()) {
+                    pluralStringResource(
+                        R.plurals.accounts_move_dialog_losses,
+                        pending.losses.size,
+                        pending.losses.size,
+                        lostFields.joinToString(),
+                    )
+                } else {
+                    null
+                }
                 Text(
                     buildString {
-                        append("All contacts in ${AccountVisuals.label(pending.source.type, pending.source.name)} ")
-                        append("will be moved to ${AccountVisuals.label(pending.target.type, pending.target.name)}.")
-                        if (lostFields.isNotEmpty()) {
-                            append(
-                                "\n\n${pending.losses.size} of them will lose: " +
-                                    lostFields.joinToString() + ".",
-                            )
+                        append(moveBody)
+                        if (lossesText != null) {
+                            append("\n\n")
+                            append(lossesText)
                         }
                     },
                 )
             },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmPendingMove) {
-                    Text(if (lostFields.isEmpty()) "Move" else "Move anyway")
+                    Text(
+                        stringResource(
+                            if (lostFields.isEmpty()) R.string.accounts_move else R.string.accounts_move_anyway,
+                        ),
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissPendingMove) { Text("Cancel") }
+                TextButton(onClick = viewModel::dismissPendingMove) {
+                    Text(stringResource(R.string.accounts_cancel))
+                }
             },
         )
     }
@@ -217,12 +252,13 @@ private fun AccountRow(
     onMoveAll: () -> Unit,
     onToggleHidden: (Boolean) -> Unit = {},
 ) {
+    val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
-    val label = account.displayLabel ?: AccountVisuals.label(account.type, account.name)
+    val label = account.displayLabel ?: AccountVisuals.label(context, account.type, account.name)
     // Prefer the SIM number as the subtitle; hide opaque native SIM account names.
     val subtitle = if (hidden) {
-        "Hidden from selector"
+        stringResource(R.string.accounts_hidden_from_selector)
     } else {
         account.phoneNumber ?: account.name?.takeUnless { account.capability == AccountCapability.SIM }
     }
@@ -263,17 +299,20 @@ private fun AccountRow(
             }
             Box {
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Account actions")
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.accounts_account_actions),
+                    )
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         enabled = !readOnly,
                         text = {
                             Column {
-                                Text("Move all contacts to…")
+                                Text(stringResource(R.string.accounts_move_all_contacts_to))
                                 if (readOnly) {
                                     Text(
-                                        "Managed by app",
+                                        stringResource(R.string.accounts_managed_by_app),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -286,7 +325,14 @@ private fun AccountRow(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text(if (hidden) "Show in selector" else "Hide from selector") },
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (hidden) R.string.accounts_show_in_selector
+                                    else R.string.accounts_hide_from_selector,
+                                ),
+                            )
+                        },
                         leadingIcon = {
                             Icon(
                                 if (hidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,

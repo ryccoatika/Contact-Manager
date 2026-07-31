@@ -146,6 +146,7 @@ class SimAwareContactsWriterTest {
             contactsSource = object : ContactsSource {
                 override fun observeContacts(): Flow<List<Contact>> = flowOf(contacts)
             },
+            strings = FakeStringProvider(),
         )
     }
 
@@ -181,7 +182,8 @@ class SimAwareContactsWriterTest {
     @Test fun `create with icc account fails validation for over-long name`() = runTest {
         val env = Env()
         val result = env.writer.createContact("icc/-1", "SIM", editable("A".repeat(15), "0812"))
-        assertEquals(ContactOpResult.Failure("Name too long for SIM (max 14)."), result)
+        assertTrue(result is ContactOpResult.Failure)
+        assertTrue((result as ContactOpResult.Failure).message.contains("14"))
         assertTrue(env.simSource.contactsBySub.isEmpty())
     }
 
@@ -246,7 +248,8 @@ class SimAwareContactsWriterTest {
         )
         val env = Env(contacts = listOf(longNamed))
         val result = env.writer.copyRawContact(11, "icc/-1", "SIM")
-        assertEquals(ContactOpResult.Failure("Name too long for SIM (max 14)."), result)
+        assertTrue(result is ContactOpResult.Failure)
+        assertTrue((result as ContactOpResult.Failure).message.contains("14"))
         assertTrue(env.simSource.contactsBySub.isEmpty())
     }
 
@@ -334,10 +337,7 @@ class SimAwareContactsWriterTest {
     @Test fun `link with a sim id fails without touching the delegate`() = runTest {
         val env = Env()
         val result = env.writer.linkContacts(listOf(10L, simId))
-        assertEquals(
-            ContactOpResult.Failure("SIM contacts can't be linked — move them to an account first"),
-            result,
-        )
+        assertTrue(result is ContactOpResult.Failure)
         assertNull(env.delegate.linked)
     }
 

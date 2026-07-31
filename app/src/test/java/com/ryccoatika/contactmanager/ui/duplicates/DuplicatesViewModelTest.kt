@@ -5,6 +5,7 @@ import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.MatchConfidence
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -120,6 +121,7 @@ class DuplicatesViewModelTest {
             contactsSource = fakeContacts,
             writer = writer,
             prefs = prefs,
+            strings = FakeStringProvider(),
             defaultDispatcher = dispatcher,
         )
 

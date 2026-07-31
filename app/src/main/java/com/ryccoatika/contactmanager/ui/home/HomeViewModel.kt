@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
@@ -10,6 +11,7 @@ import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
+import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
@@ -53,6 +55,7 @@ class HomeViewModel @Inject constructor(
     private val batchManager: BatchOperationManager,
     duplicatePrefs: DuplicatePrefs,
     appPrefs: AppPrefs,
+    private val strings: StringProvider,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -118,19 +121,20 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         if (movable.isEmpty()) {
             viewModelScope.launch {
-                _events.emit("Selected contacts are managed by their apps and can't be moved.")
+                _events.emit(strings.get(R.string.home_msg_readonly_move))
             }
             return
         }
+        val targetName = target.name ?: strings.get(R.string.home_msg_this_device)
         val started = batchManager.moveContacts(
             rawContactIds = movable.map { it.rawContactId },
             targetType = target.type,
             targetName = target.name,
-            label = "Moving ${movable.size} to ${target.name ?: "this device"}",
+            label = strings.get(R.string.home_msg_moving_label, movable.size, targetName),
         )
         if (!started) {
             viewModelScope.launch {
-                _events.emit("Another operation is still running — try again when it finishes.")
+                _events.emit(strings.get(R.string.home_msg_busy))
             }
         }
     }
@@ -140,11 +144,12 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             if (ids.isEmpty()) {
-                _events.emit("Selected contacts are managed by their apps and can't be deleted.")
+                _events.emit(strings.get(R.string.home_msg_readonly_delete))
                 return@launch
             }
             when (val result = writer.deleteRawContacts(ids)) {
-                is ContactOpResult.Success -> _events.emit("Deleted ${ids.size} contact entries.")
+                is ContactOpResult.Success ->
+                    _events.emit(strings.getQuantity(R.plurals.home_msg_deleted_entries, ids.size, ids.size))
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -159,7 +164,8 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             when (val result = writer.mergeContacts(target, sources)) {
-                is ContactOpResult.Success -> _events.emit("Merged ${sources.size} entries into one contact.")
+                is ContactOpResult.Success ->
+                    _events.emit(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size))
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -173,11 +179,12 @@ class HomeViewModel @Inject constructor(
             .map { it.rawContactId }
         viewModelScope.launch {
             if (ids.isEmpty()) {
-                _events.emit("${contact.displayName} is managed by its app and can't be deleted.")
+                _events.emit(strings.get(R.string.home_msg_delete_readonly_named, contact.displayName))
                 return@launch
             }
             when (val result = writer.deleteRawContacts(ids)) {
-                is ContactOpResult.Success -> _events.emit("Deleted ${contact.displayName}.")
+                is ContactOpResult.Success ->
+                    _events.emit(strings.get(R.string.home_msg_deleted_named, contact.displayName))
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }

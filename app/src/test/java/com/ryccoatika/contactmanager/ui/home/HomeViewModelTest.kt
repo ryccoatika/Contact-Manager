@@ -9,6 +9,7 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -138,6 +139,7 @@ class HomeViewModelTest {
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
         duplicatePrefs = fakePrefs,
         appPrefs = appPrefs,
+        strings = FakeStringProvider(),
         defaultDispatcher = dispatcher,
     )
 

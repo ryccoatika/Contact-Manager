@@ -2,10 +2,12 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactsSource
+import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import com.ryccoatika.contactmanager.domain.FieldLoss
@@ -47,6 +49,7 @@ class AccountsViewModel @Inject constructor(
     private val simRepository: SimRepository,
     private val simSubscriptionsSource: SimSubscriptionsSource,
     private val appPrefs: AppPrefs,
+    private val strings: StringProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccountsUiState())
@@ -129,18 +132,19 @@ class AccountsViewModel @Inject constructor(
                 .filter { it.accountType == source.type && it.accountName == source.name }
                 .map { it.rawContactId }
             if (rawIds.isEmpty()) {
-                _events.emit("No contacts to move.")
+                _events.emit(strings.get(R.string.accounts_msg_no_contacts))
                 return@launch
             }
+            val targetName = target.name ?: strings.get(R.string.accounts_msg_this_device)
             val started = batchManager.moveContacts(
                 rawContactIds = rawIds,
                 targetType = target.type,
                 targetName = target.name,
-                label = "Moving ${rawIds.size} to ${target.name ?: "this device"}",
+                label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
             )
             _events.emit(
-                if (started) "Move started — progress is shown on the contacts screen."
-                else "Another operation is still running — try again when it finishes.",
+                if (started) strings.get(R.string.accounts_msg_move_started)
+                else strings.get(R.string.accounts_msg_busy),
             )
         }
     }

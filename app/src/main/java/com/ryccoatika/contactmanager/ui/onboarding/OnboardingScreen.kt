@@ -1,6 +1,7 @@
 package com.ryccoatika.contactmanager.ui.onboarding
 
 import android.content.res.Configuration
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,34 +34,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import kotlinx.coroutines.launch
 
 private data class OnboardingPage(
     val icon: ImageVector,
-    val title: String,
-    val body: String,
+    @StringRes val title: Int,
+    @StringRes val body: Int,
 )
 
 private val onboardingPages = listOf(
     OnboardingPage(
         Icons.Default.Contacts,
-        "All your contacts in one place",
-        "See everyone from Google, SIM, WhatsApp and your phone together in a single list.",
+        R.string.onboarding_page1_title,
+        R.string.onboarding_page1_body,
     ),
     OnboardingPage(
         Icons.Default.SwapHoriz,
-        "Put each contact where it belongs",
-        "Keep some contacts in your Google account, others on your SIM. Move a contact to the right account with a tap.",
+        R.string.onboarding_page2_title,
+        R.string.onboarding_page2_body,
     ),
     OnboardingPage(
         Icons.Default.CallMerge,
-        "Merge duplicates into one",
-        "Got the same person saved twice? Combine them into a single, clean contact.",
+        R.string.onboarding_page3_title,
+        R.string.onboarding_page3_body,
     ),
 )
 
@@ -76,7 +79,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
             // Skip — reserve the row height so the pager doesn't jump on the last page.
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterEnd) {
                 if (!isLast) {
-                    TextButton(onClick = onDone) { Text("Skip") }
+                    TextButton(onClick = onDone) { Text(stringResource(R.string.onboarding_skip)) }
                 }
             }
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
@@ -115,7 +118,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Text(if (isLast) "Get started" else "Next")
+                Text(stringResource(if (isLast) R.string.onboarding_get_started else R.string.onboarding_next))
             }
         }
     }
@@ -141,14 +144,14 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         }
         Spacer(Modifier.height(32.dp))
         Text(
-            page.title,
+            stringResource(page.title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            page.body,
+            stringResource(page.body),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

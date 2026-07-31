@@ -1,0 +1,37 @@
+<resources>
+    <!-- SIM validation (domain/SimContactValidator.kt via data/SimErrorMessages.kt) -->
+    <string name="sim_error_name_required">Name is required.</string>
+    <string name="sim_error_name_too_long">Name too long for SIM (max %1$d).</string>
+    <string name="sim_error_number_required">Phone number is required.</string>
+    <string name="sim_error_number_invalid">Phone number may only contain digits, +, * and #.</string>
+
+    <!-- SimAwareContactsWriter (data/SimAwareContactsWriter.kt) -->
+    <string name="saw_error_copy_not_found">Could not find the contact to copy.</string>
+    <string name="saw_error_move_some">Could not move some contacts.</string>
+    <string name="saw_error_sim_readonly">This SIM does not allow writing contacts.</string>
+    <string name="saw_error_sim_stale">This SIM entry is no longer available — it may have changed on the SIM.</string>
+    <string name="saw_error_move_not_found">Could not find the contact to move.</string>
+    <string name="saw_error_sim_no_link">SIM contacts can\'t be linked — move them to an account first</string>
+
+    <!-- ContactsWriteRepository (data/ContactsWriteRepository.kt) -->
+    <string name="cwr_action_create">create contact</string>
+    <string name="cwr_action_update">update contact</string>
+    <string name="cwr_action_delete">delete contact</string>
+    <string name="cwr_action_copy">copy contact</string>
+    <string name="cwr_action_link">link contacts</string>
+    <string name="cwr_action_separate">separate contacts</string>
+    <string name="cwr_action_merge">merge contacts</string>
+    <string name="cwr_error_move_count">Could not move %1$d of %2$d contacts.</string>
+    <string name="cwr_error_rejected">Could not %1$s: the contacts provider rejected the change.</string>
+    <string name="cwr_error_unavailable">Could not %1$s: the contacts provider is unavailable.</string>
+    <string name="cwr_error_permission">Could not %1$s: contacts permission is missing.</string>
+    <string name="cwr_error_generic">Could not %1$s: %2$s.</string>
+    <string name="cwr_error_invalid_data">invalid data</string>
+
+    <!-- IccSimSource (data/sim/SimContactSource.kt) -->
+    <string name="icc_action_add">add the SIM contact</string>
+    <string name="icc_action_update">update the SIM contact</string>
+    <string name="icc_action_delete">delete the SIM contact</string>
+    <string name="icc_error_rejected">Could not %1$s — the SIM rejected the change (it may be full or read-only).</string>
+    <string name="icc_error_no_access">Could not %1$s — this device does not allow SIM storage access.</string>
+</resources>
