@@ -15,8 +15,8 @@
 local.properties
 
 release/app-release.jks
-release/google-services.json
-release/play-account.json
+# Never commit plaintext secrets in release/ — only the encrypted *.gpg blobs.
+release/*.json
 app/google-services.json
 
 # fastlane run artifacts
