@@ -67,6 +67,9 @@ import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.DetailSkeleton
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.QuickActionPill
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -82,6 +85,8 @@ fun DetailScreen(
     onEditRawContact: (Long) -> Unit,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("contact_detail")
+    val analytics = LocalAnalytics.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -141,8 +146,18 @@ fun DetailScreen(
                     contact = current,
                     phone = heroPhone,
                     canEdit = editableRawId != null,
-                    onCall = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it"))) } },
-                    onMessage = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$it"))) } },
+                    onCall = {
+                        heroPhone?.let {
+                            analytics.logEvent(AnalyticsEvent.CallContact)
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it")))
+                        }
+                    },
+                    onMessage = {
+                        heroPhone?.let {
+                            analytics.logEvent(AnalyticsEvent.MessageContact)
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$it")))
+                        }
+                    },
                     onEdit = { editableRawId?.let(onEditRawContact) },
                 )
                 Spacer(Modifier.height(16.dp))
@@ -159,6 +174,7 @@ fun DetailScreen(
     }
 
     pendingDelete?.let { raw ->
+        TrackScreenView("delete_contact_confirm")
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text(stringResource(R.string.detail_delete_dialog_title)) },

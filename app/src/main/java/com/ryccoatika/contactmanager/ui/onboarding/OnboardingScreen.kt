@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import kotlinx.coroutines.launch
 
@@ -69,6 +72,8 @@ private val onboardingPages = listOf(
 
 @Composable
 fun OnboardingScreen(onDone: () -> Unit) {
+    val analytics = LocalAnalytics.current
+    TrackScreenView("onboarding")
     val pages = onboardingPages
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
@@ -79,7 +84,10 @@ fun OnboardingScreen(onDone: () -> Unit) {
             // Skip — reserve the row height so the pager doesn't jump on the last page.
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterEnd) {
                 if (!isLast) {
-                    TextButton(onClick = onDone) { Text(stringResource(R.string.onboarding_skip)) }
+                    TextButton(onClick = {
+                        analytics.logEvent(AnalyticsEvent.Onboarding(skipped = true))
+                        onDone()
+                    }) { Text(stringResource(R.string.onboarding_skip)) }
                 }
             }
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
@@ -110,6 +118,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
             Button(
                 onClick = {
                     if (isLast) {
+                        analytics.logEvent(AnalyticsEvent.Onboarding(skipped = false))
                         onDone()
                     } else {
                         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }

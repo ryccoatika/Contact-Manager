@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -78,6 +79,7 @@ fun AccountsScreen(
     onAccountClick: (String) -> Unit,
     viewModel: AccountsViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("accounts")
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingMove by viewModel.pendingMove.collectAsStateWithLifecycle()
@@ -147,6 +149,7 @@ fun AccountsScreen(
     }
 
     moveSource?.let { source ->
+        TrackScreenView("account_move_target_picker")
         ModalBottomSheet(
             onDismissRequest = { moveSource = null },
             containerColor = MaterialTheme.colorScheme.surface,
@@ -180,6 +183,7 @@ fun AccountsScreen(
 
     pendingMove?.let { pending ->
         val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
+        TrackScreenView("account_move_confirm")
         AlertDialog(
             onDismissRequest = viewModel::dismissPendingMove,
             title = {
