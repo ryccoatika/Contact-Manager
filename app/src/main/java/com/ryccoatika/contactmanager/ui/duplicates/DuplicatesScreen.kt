@@ -56,6 +56,7 @@ import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.DuplicateGroup
 import com.ryccoatika.contactmanager.domain.MatchConfidence
 import com.ryccoatika.contactmanager.domain.MatchReason
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.RawContact
@@ -81,6 +82,7 @@ fun DuplicatesScreen(
     onBack: () -> Unit,
     viewModel: DuplicatesViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("duplicates")
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -149,6 +151,7 @@ fun DuplicatesScreen(
     }
 
     mergePickerGroup?.let { group ->
+        TrackScreenView("merge_target_picker")
         ModalBottomSheet(
             onDismissRequest = { mergePickerGroup = null },
             containerColor = MaterialTheme.colorScheme.surface,
@@ -191,6 +194,7 @@ fun DuplicatesScreen(
         val readOnly = sources.filter { (_, raw) ->
             AccountClassifier.classify(raw.accountType) == AccountCapability.READ_ONLY
         }
+        TrackScreenView("merge_confirm")
         AlertDialog(
             onDismissRequest = { pendingMerge = null },
             title = {

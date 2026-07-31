@@ -106,6 +106,7 @@ import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
@@ -123,6 +124,7 @@ fun HomeScreen(
     onPendingFilterConsumed: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("home")
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val batchProgress by viewModel.batchProgress.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -460,6 +462,7 @@ fun HomeScreen(
     }
 
     if (showMovePicker) {
+        TrackScreenView("move_account_picker")
         ModalBottomSheet(
             onDismissRequest = { showMovePicker = false },
             containerColor = MaterialTheme.colorScheme.surface,
@@ -502,6 +505,7 @@ fun HomeScreen(
     }
 
     pendingMove?.let { (account, plan) ->
+        TrackScreenView("move_fields_lost")
         AlertDialog(
             onDismissRequest = { pendingMove = null },
             title = { Text(stringResource(R.string.home_fields_lost_title)) },
@@ -529,6 +533,7 @@ fun HomeScreen(
     }
 
     if (showMergePicker) {
+        TrackScreenView("merge_target_picker")
         val selectedContacts = state.contacts.filter { it.contactId in state.selectedContactIds }
         val memberRaws = selectedContacts.flatMap { contact -> contact.rawContacts.map { contact to it } }
         ModalBottomSheet(
@@ -628,6 +633,7 @@ fun HomeScreen(
     }
 
     if (showDeleteConfirm) {
+        TrackScreenView("delete_selected_confirm")
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = {
@@ -657,6 +663,7 @@ fun HomeScreen(
     }
 
     pendingDeleteContact?.let { target ->
+        TrackScreenView("delete_contact_confirm")
         AlertDialog(
             onDismissRequest = { pendingDeleteContact = null },
             title = { Text(stringResource(R.string.home_delete_contact_title, target.displayName)) },

@@ -60,6 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
@@ -78,6 +79,7 @@ fun EditorScreen(
     viewModel: EditorViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    TrackScreenView(if (state.isEdit) "editor_edit" else "editor_new")
     val snackbarHostState = remember { SnackbarHostState() }
     var showDiscardConfirm by remember { mutableStateOf(false) }
     val requestClose = {
@@ -96,6 +98,7 @@ fun EditorScreen(
     BackHandler(enabled = state.dirty && !state.saving) { showDiscardConfirm = true }
 
     if (showDiscardConfirm) {
+        TrackScreenView("discard_edit")
         AlertDialog(
             onDismissRequest = { showDiscardConfirm = false },
             title = { Text(stringResource(R.string.editor_discard_title)) },
@@ -334,6 +337,7 @@ private fun DateField(label: String, value: String, onPick: (String) -> Unit) {
         }
     }
     if (showPicker) {
+        TrackScreenView("date_picker")
         val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoToMillis(value))
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
