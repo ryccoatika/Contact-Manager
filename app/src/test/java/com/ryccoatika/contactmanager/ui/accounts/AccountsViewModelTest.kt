@@ -4,6 +4,8 @@ import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
@@ -114,7 +116,10 @@ class AccountsViewModelTest {
         capsBySub = mapOf<Int?, SimCapabilities>(1 to SimCapabilities(canRead = true, canWrite = true)),
     )
 
-    private fun vm(writer: FakeWriter = FakeWriter()) = AccountsViewModel(
+    private fun vm(
+        writer: FakeWriter = FakeWriter(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = AccountsViewModel(
         accountsSource = fakeAccounts,
         contactsSource = fakeContacts,
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
@@ -122,6 +127,7 @@ class AccountsViewModelTest {
         simSubscriptionsSource = FakeSimSubscriptionsSource(listOf(SimSubscription(1, "SIM 1"))),
         appPrefs = FakeAppPrefs(),
         strings = FakeStringProvider(),
+        analytics = analytics,
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
@@ -156,6 +162,17 @@ class AccountsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(10L, 21L), writer.movedIds)
         assertEquals(null to null, writer.moveTarget)
+    }
+
+    @Test fun `moveAllContacts and setAccountHidden log analytics events`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.setAccountHidden(googleAccount, true)
+        vm.moveAllContacts(source = googleAccount, target = deviceAccount)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(AnalyticsEvent.AccountVisibility(hidden = true), analytics.events.first())
+        assertTrue(analytics.events.any { it is AnalyticsEvent.AccountMoveAll })
     }
 
     @Test fun `moveAllContacts with empty source moves nothing`() = runTest(dispatcher) {
