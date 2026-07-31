@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
@@ -133,7 +135,10 @@ class EditorViewModelTest {
         ): ContactOpResult = result
     }
 
-    private fun newVm(writer: ContactsWriter = FakeWriter()) = EditorViewModel(
+    private fun newVm(
+        writer: ContactsWriter = FakeWriter(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = EditorViewModel(
         savedStateHandle = SavedStateHandle(),
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
@@ -141,9 +146,14 @@ class EditorViewModelTest {
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
         strings = FakeStringProvider(),
+        analytics = analytics,
     )
 
-    private fun editVm(rawContactId: Long = 10, writer: ContactsWriter = FakeWriter()) = EditorViewModel(
+    private fun editVm(
+        rawContactId: Long = 10,
+        writer: ContactsWriter = FakeWriter(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = EditorViewModel(
         savedStateHandle = SavedStateHandle(mapOf("rawContactId" to rawContactId)),
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
@@ -151,6 +161,7 @@ class EditorViewModelTest {
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
         strings = FakeStringProvider(),
+        analytics = analytics,
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
@@ -228,6 +239,25 @@ class EditorViewModelTest {
         assertEquals("catatan", contact.note)
         assertEquals(listOf<EditorEvent>(EditorEvent.Saved), events)
         job.cancel()
+    }
+
+    @Test fun `save logs contact_create in new mode and contact_update in edit mode`() = runTest(dispatcher) {
+        val createAnalytics = FakeAnalytics()
+        val newVm = newVm(analytics = createAnalytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        newVm.setName("Budi")
+        newVm.setPhone(0, "0812")
+        newVm.save()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(createAnalytics.events.any { it is AnalyticsEvent.ContactCreate })
+
+        val editAnalytics = FakeAnalytics()
+        val editVm = editVm(analytics = editAnalytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        editVm.setName("Budi S")
+        editVm.save()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(editAnalytics.events.contains(AnalyticsEvent.ContactUpdate))
     }
 
     @Test fun `save in edit mode updates the raw contact`() = runTest(dispatcher) {
