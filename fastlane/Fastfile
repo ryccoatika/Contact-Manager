@@ -20,7 +20,7 @@ platform :android do
     upload_to_play_store(
       track: "alpha",
       aab: AAB_PATH,
-      release_status: "completed",
+      release_status: "draft",
       skip_upload_metadata: true,
       skip_upload_changelogs: true,
       skip_upload_images: true,
