@@ -1,10 +1,9 @@
 # ============================================================================
-#  R8 keep rules — ContactManager
+#  R8 / ProGuard keep rules — ContactManager
 #
 #  R8 full mode is ON (default since AGP 8.0; pinned in gradle.properties).
-#  The optimization DSL (optimization { enable = true }) turns on code +
-#  resource shrinking and includes the default Android optimize rules
-#  automatically, so they are NOT duplicated here.
+#  proguard-android-optimize.txt is applied from build.gradle.kts, so its
+#  rules are NOT duplicated here.
 #
 #  This module has no reflection-based serialization (no Gson / Moshi /
 #  Retrofit / kotlinx-serialization), no JNI, and no custom Parcelable. Hilt,

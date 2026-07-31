@@ -55,12 +55,13 @@ android {
             // Signed only when release/app-release.jks is present; null → unsigned.
             signingConfig = signingConfigs.findByName("release")
             // R8 in full mode (default since AGP 8.0; pinned in gradle.properties).
-            // The optimization DSL enables code + resource shrinking and bakes in
-            // the default Android optimize rules, so no getDefaultProguardFile call.
-            // Custom keep rules live in src/main/keepRules/*.keep.
-            optimization {
-                enable = true
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                // Optimizing defaults — never proguard-android.txt (forces -dontoptimize).
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
