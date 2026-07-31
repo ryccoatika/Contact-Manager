@@ -5,6 +5,16 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Firebase is optional: wire google-services only when the json (kept in the
+// gitignored release/ folder, next to the keystores) is present. The plugin
+// only scans app/, so bridge the file into place first. Absent → no FirebaseApp
+// → NoOpAnalytics, and the build/tests still pass.
+val googleServicesJson = rootProject.file("release/google-services.json")
+if (googleServicesJson.exists()) {
+    googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.ryccoatika.contactmanager"
     compileSdk {
@@ -91,6 +101,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.datastore.preferences)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
