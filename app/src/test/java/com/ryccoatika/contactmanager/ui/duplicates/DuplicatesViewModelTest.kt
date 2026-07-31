@@ -6,6 +6,8 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.MatchConfidence
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -116,12 +118,17 @@ class DuplicatesViewModelTest {
         }
     }
 
-    private fun vm(writer: FakeWriter = FakeWriter(), prefs: FakePrefs = FakePrefs()) =
+    private fun vm(
+        writer: FakeWriter = FakeWriter(),
+        prefs: FakePrefs = FakePrefs(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) =
         DuplicatesViewModel(
             contactsSource = fakeContacts,
             writer = writer,
             prefs = prefs,
             strings = FakeStringProvider(),
+            analytics = analytics,
             defaultDispatcher = dispatcher,
         )
 
@@ -149,6 +156,20 @@ class DuplicatesViewModelTest {
         vm.link(vm.uiState.value.groups[0])
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(10L, 20L), writer.linked)
+        job.cancel()
+    }
+
+    @Test fun `link and dismiss log analytics events`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        val group = vm.uiState.value.groups[0]
+        vm.link(group)
+        vm.dismiss(group)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(analytics.events.any { it is AnalyticsEvent.ContactsLink })
+        assertTrue(analytics.events.any { it is AnalyticsEvent.DuplicateDismiss })
         job.cancel()
     }
 
