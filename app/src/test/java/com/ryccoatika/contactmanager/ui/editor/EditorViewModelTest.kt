@@ -22,6 +22,7 @@ import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -74,6 +75,7 @@ class EditorViewModelTest {
     private var accountsList = listOf(googleAccount, whatsappAccount)
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = accountsList
+        override fun observeAccounts() = flow { emit(accountsList) }
     }
 
     /** Probe reports max name length 12 for subscription 1. */
