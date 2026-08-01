@@ -1,0 +1,19 @@
+<resources>
+    <!-- HomeViewModel snackbar/event messages (ui/home/HomeViewModel.kt) -->
+    <string name="home_msg_readonly_move">Selected contacts are managed by their apps and can\'t be moved.</string>
+    <string name="home_msg_readonly_delete">Selected contacts are managed by their apps and can\'t be deleted.</string>
+    <string name="home_msg_delete_readonly_named">%1$s is managed by its app and can\'t be deleted.</string>
+    <string name="home_msg_deleted_named">Deleted %1$s.</string>
+    <string name="home_msg_busy">Another operation is still running — try again when it finishes.</string>
+    <string name="home_msg_moving_label">Moving %1$d to %2$s</string>
+    <string name="home_msg_this_device">this device</string>
+
+    <plurals name="home_msg_deleted_entries">
+        <item quantity="one">Deleted %1$d contact entry.</item>
+        <item quantity="other">Deleted %1$d contact entries.</item>
+    </plurals>
+    <plurals name="home_msg_merged">
+        <item quantity="one">Merged %1$d entry into one contact.</item>
+        <item quantity="other">Merged %1$d entries into one contact.</item>
+    </plurals>
+</resources>

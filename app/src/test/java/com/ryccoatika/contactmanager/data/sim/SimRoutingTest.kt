@@ -53,6 +53,19 @@ class SimRoutingTest {
         assertFalse(SimRouting.isSimRawContactId(42L))
     }
 
+    @Test fun `nativeSimSlot maps samsung sim account types to physical slots`() {
+        assertEquals(0, SimRouting.nativeSimSlot("vnd.sec.contact.sim"))
+        assertEquals(1, SimRouting.nativeSimSlot("vnd.sec.contact.sim2"))
+        assertEquals(2, SimRouting.nativeSimSlot("vnd.sec.contact.sim3"))
+        assertEquals(0, SimRouting.nativeSimSlot("com.android.contacts.sim"))
+    }
+
+    @Test fun `nativeSimSlot returns null for unmappable types`() {
+        assertNull(SimRouting.nativeSimSlot("USIM Account"))
+        assertNull(SimRouting.nativeSimSlot("com.google"))
+        assertNull(SimRouting.nativeSimSlot(null))
+    }
+
     @Test fun `normalizeNumber strips formatting keeps dialable chars`() {
         assertEquals("+62812345", SimRouting.normalizeNumber("+62 812-345"))
         assertEquals("0812345", SimRouting.normalizeNumber("(0812) 345"))

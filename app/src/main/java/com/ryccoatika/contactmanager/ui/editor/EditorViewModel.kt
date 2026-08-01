@@ -3,13 +3,18 @@ package com.ryccoatika.contactmanager.ui.editor
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.StringProvider
+import com.ryccoatika.contactmanager.data.analytics.Analytics
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.toMessage
 import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.SimContactValidator
@@ -102,6 +107,8 @@ class EditorViewModel @Inject constructor(
     private val writer: ContactsWriter,
     private val simRepository: SimRepository,
     private val appPrefs: AppPrefs,
+    private val strings: StringProvider,
+    private val analytics: Analytics,
 ) : ViewModel() {
 
     private val rawContactId: Long? = savedStateHandle["rawContactId"]
@@ -170,7 +177,11 @@ class EditorViewModel @Inject constructor(
                     birthday = raw.birthday.orEmpty(),
                     anniversary = raw.anniversary.orEmpty(),
                     note = raw.note.orEmpty(),
-                    fixedAccountLabel = "${raw.accountName ?: "Device"} (${raw.accountType ?: "local"})",
+                    fixedAccountLabel = strings.get(
+                        R.string.editor_fixed_account_label,
+                        raw.accountName ?: strings.get(R.string.editor_device),
+                        raw.accountType ?: strings.get(R.string.editor_account_local),
+                    ),
                     simMode = simMode,
                     simMaxNameLength = simCaps?.maxNameLength ?: it.simMaxNameLength,
                     loadedSnapshot = EditorFormSnapshot(
@@ -292,7 +303,18 @@ class EditorViewModel @Inject constructor(
                 )
             }
             when (result) {
-                is ContactOpResult.Success -> _events.emit(EditorEvent.Saved)
+                is ContactOpResult.Success -> {
+                    if (rawContactId != null) {
+                        analytics.logEvent(AnalyticsEvent.ContactUpdate)
+                    } else {
+                        analytics.logEvent(
+                            AnalyticsEvent.ContactCreate(
+                                AccountClassifier.classify(state.selectedAccount?.type).name,
+                            ),
+                        )
+                    }
+                    _events.emit(EditorEvent.Saved)
+                }
                 is ContactOpResult.Failure -> {
                     _uiState.update { it.copy(saving = false) }
                     _events.emit(EditorEvent.ShowMessage(result.message))
@@ -313,7 +335,7 @@ class EditorViewModel @Inject constructor(
         val caps = SimCapabilities(canRead = true, canWrite = true, maxNameLength = state.simMaxNameLength)
         when (val validation = SimContactValidator.validate(name, number, caps)) {
             is SimValidation.Error -> {
-                _uiState.update { it.copy(simError = validation.message) }
+                _uiState.update { it.copy(simError = validation.error.toMessage(strings)) }
                 return null
             }
             SimValidation.Ok -> Unit

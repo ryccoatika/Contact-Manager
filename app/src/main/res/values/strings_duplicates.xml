@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="duplicates_title">Duplicates</string>
+    <string name="duplicates_back">Back</string>
+    <string name="duplicates_empty">No duplicates found</string>
+    <string name="duplicates_merge_into">Merge into</string>
+    <string name="duplicates_merge">Merge</string>
+    <string name="duplicates_link">Link</string>
+    <string name="duplicates_not_duplicate">Not duplicate</string>
+    <string name="duplicates_cancel">Cancel</string>
+    <string name="duplicates_confidence_high">Likely duplicate</string>
+    <string name="duplicates_confidence_medium">Possible duplicate</string>
+    <string name="duplicates_merge_linked">%1$s will be linked (managed by app).</string>
+    <string name="duplicates_reason_phone">Same phone number</string>
+    <string name="duplicates_reason_email">Same email</string>
+    <string name="duplicates_reason_name">Similar name</string>
+
+    <plurals name="duplicates_merge_title">
+        <item quantity="one">Merge %1$d entry?</item>
+        <item quantity="other">Merge %1$d entries?</item>
+    </plurals>
+    <plurals name="duplicates_merge_body">
+        <item quantity="one">%1$d entry will be merged into %2$s (%3$s) and removed.</item>
+        <item quantity="other">%1$d entries will be merged into %2$s (%3$s) and removed.</item>
+    </plurals>
+</resources>

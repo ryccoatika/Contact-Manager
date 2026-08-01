@@ -5,6 +5,7 @@ import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimContactSource
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.di.ContactsContractWriter
 import com.ryccoatika.contactmanager.domain.SimContactValidator
 import com.ryccoatika.contactmanager.domain.SimValidation
@@ -29,6 +30,7 @@ class SimAwareContactsWriter @Inject constructor(
     private val simIntegration: SimAccountsIntegration,
     private val simRepository: SimRepository,
     private val contactsSource: ContactsSource,
+    private val strings: StringProvider,
 ) : ContactsWriter {
 
     override suspend fun createContact(
@@ -106,7 +108,7 @@ class SimAwareContactsWriter @Inject constructor(
         SimRouting.isSimAccount(targetType) -> {
             val raw = findRawContact(rawContactId)
             if (raw == null) {
-                ContactOpResult.Failure("Could not find the contact to copy.")
+                ContactOpResult.Failure(strings.get(R.string.saw_error_copy_not_found))
             } else {
                 insertToSim(
                     subId = SimRouting.subscriptionIdOf(targetType),
@@ -180,7 +182,7 @@ class SimAwareContactsWriter @Inject constructor(
         return if (failed == 0) {
             ContactOpResult.Success
         } else {
-            ContactOpResult.Failure(firstMessage ?: "Could not move some contacts.")
+            ContactOpResult.Failure(firstMessage ?: strings.get(R.string.saw_error_move_some))
         }
     }
 
@@ -208,7 +210,7 @@ class SimAwareContactsWriter @Inject constructor(
         }
 
     private fun simAggregationFailure() =
-        ContactOpResult.Failure("SIM contacts can't be linked — move them to an account first")
+        ContactOpResult.Failure(strings.get(R.string.saw_error_sim_no_link))
 
     // --- SIM primitives -------------------------------------------------
 
@@ -221,10 +223,10 @@ class SimAwareContactsWriter @Inject constructor(
     private suspend fun validate(subId: Int?, name: String, number: String): ContactOpResult.Failure? {
         val caps = simRepository.capabilities(subId)
         if (!caps.canWrite) {
-            return ContactOpResult.Failure("This SIM does not allow writing contacts.")
+            return ContactOpResult.Failure(strings.get(R.string.saw_error_sim_readonly))
         }
         return when (val validation = SimContactValidator.validate(name, number, caps)) {
-            is SimValidation.Error -> ContactOpResult.Failure(validation.message)
+            is SimValidation.Error -> ContactOpResult.Failure(validation.error.toMessage(strings))
             SimValidation.Ok -> null
         }
     }
@@ -233,7 +235,7 @@ class SimAwareContactsWriter @Inject constructor(
         simIntegration.resolveSimContact(rawContactId)
 
     private fun staleSimEntry() =
-        ContactOpResult.Failure("This SIM entry is no longer available — it may have changed on the SIM.")
+        ContactOpResult.Failure(strings.get(R.string.saw_error_sim_stale))
 
     private suspend fun deleteSimEntry(rawContactId: Long): ContactOpResult {
         val resolved = resolve(rawContactId) ?: return staleSimEntry()
@@ -265,7 +267,7 @@ class SimAwareContactsWriter @Inject constructor(
         snapshot: List<Contact>,
     ): ContactOpResult {
         val raw = findRawContact(rawContactId, snapshot)
-            ?: return ContactOpResult.Failure("Could not find the contact to move.")
+            ?: return ContactOpResult.Failure(strings.get(R.string.saw_error_move_not_found))
         val copied = insertToSim(
             subId = subId,
             name = raw.simName(),

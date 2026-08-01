@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar -->
+    <string name="home_title">Contacts</string>
+    <string name="home_clear_selection">Clear selection</string>
+    <string name="home_duplicates">Duplicates</string>
+    <string name="home_accounts">Accounts</string>
+
+    <!-- Selection actions -->
+    <string name="home_move_to">Move to…</string>
+    <string name="home_delete">Delete</string>
+    <string name="home_merge">Merge</string>
+    <string name="home_move_anyway">Move anyway</string>
+    <string name="home_cancel">Cancel</string>
+
+    <!-- FAB / batch progress -->
+    <string name="home_new_contact">New contact</string>
+    <string name="home_cancel_batch_operation">Cancel batch operation</string>
+
+    <!-- Search -->
+    <string name="home_search_hint">Search %1$d contacts</string>
+    <string name="home_clear_search">Clear search</string>
+
+    <!-- Account filter chips -->
+    <string name="home_filter_all">All</string>
+    <string name="home_account_chip_count">" · %1$d"</string>
+
+    <!-- Move picker -->
+    <string name="home_on_this_device">On this device</string>
+
+    <!-- Field-loss dialog -->
+    <string name="home_fields_lost_title">Some fields will be lost</string>
+    <string name="home_fields_lost_text">Moving to %1$s will drop: %2$s.</string>
+
+    <!-- Merge dialog -->
+    <string name="home_merge_member">%1$s (%2$s)</string>
+    <string name="home_merge_linked_suffix">" will be linked (managed by app)."</string>
+
+    <!-- Delete dialog -->
+    <string name="home_delete_disclaimer">Entries managed by other apps are skipped. This cannot be undone.</string>
+    <string name="home_delete_contact_title">Delete %1$s?</string>
+
+    <!-- Empty states -->
+    <string name="home_empty_search_title">No matches for \"%1$s\"</string>
+    <string name="home_empty_search_hint">Try a different name, number or email.</string>
+    <string name="home_empty_account_title">No contacts in this account</string>
+    <string name="home_empty_account_hint">Pick another account or move contacts into it.</string>
+    <string name="home_empty_none_title">No contacts yet</string>
+    <string name="home_empty_none_hint">Tap + to add your first contact.</string>
+
+    <!-- Plurals -->
+    <plurals name="home_moved_contacts">
+        <item quantity="one">Moved %1$d contact</item>
+        <item quantity="other">Moved %1$d contacts</item>
+    </plurals>
+    <plurals name="home_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="home_move_selected_to">
+        <item quantity="one">Move %1$d selected to</item>
+        <item quantity="other">Move %1$d selected to</item>
+    </plurals>
+    <plurals name="home_merge_selected_into">
+        <item quantity="one">Merge %1$d selected into</item>
+        <item quantity="other">Merge %1$d selected into</item>
+    </plurals>
+    <plurals name="home_merge_entries_title">
+        <item quantity="one">Merge %1$d entry?</item>
+        <item quantity="other">Merge %1$d entries?</item>
+    </plurals>
+    <plurals name="home_merge_summary">
+        <item quantity="one">%1$d entry will be merged into %2$s (%3$s) and removed.</item>
+        <item quantity="other">%1$d entries will be merged into %2$s (%3$s) and removed.</item>
+    </plurals>
+    <plurals name="home_delete_contacts_title">
+        <item quantity="one">Delete %1$d contact?</item>
+        <item quantity="other">Delete %1$d contacts?</item>
+    </plurals>
+</resources>

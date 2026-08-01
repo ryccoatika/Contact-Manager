@@ -7,6 +7,9 @@ import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
@@ -19,6 +22,7 @@ import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -71,6 +75,7 @@ class EditorViewModelTest {
     private var accountsList = listOf(googleAccount, whatsappAccount)
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = accountsList
+        override fun observeAccounts() = flow { emit(accountsList) }
     }
 
     /** Probe reports max name length 12 for subscription 1. */
@@ -132,22 +137,33 @@ class EditorViewModelTest {
         ): ContactOpResult = result
     }
 
-    private fun newVm(writer: ContactsWriter = FakeWriter()) = EditorViewModel(
+    private fun newVm(
+        writer: ContactsWriter = FakeWriter(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = EditorViewModel(
         savedStateHandle = SavedStateHandle(),
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
         writer = writer,
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
+        strings = FakeStringProvider(),
+        analytics = analytics,
     )
 
-    private fun editVm(rawContactId: Long = 10, writer: ContactsWriter = FakeWriter()) = EditorViewModel(
+    private fun editVm(
+        rawContactId: Long = 10,
+        writer: ContactsWriter = FakeWriter(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = EditorViewModel(
         savedStateHandle = SavedStateHandle(mapOf("rawContactId" to rawContactId)),
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
         writer = writer,
         simRepository = simRepository,
         appPrefs = FakeAppPrefs(),
+        strings = FakeStringProvider(),
+        analytics = analytics,
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
@@ -171,7 +187,9 @@ class EditorViewModelTest {
         assertEquals(listOf("budi@x.com"), state.emails)
         assertEquals("PT Maju", state.organization)
         assertEquals("VIP", state.note)
-        assertEquals("a@gmail.com (com.google)", state.fixedAccountLabel)
+        // fixedAccountLabel is now formatted via StringProvider; the fake encodes id + args.
+        assertTrue(state.fixedAccountLabel!!.contains("a@gmail.com"))
+        assertTrue(state.fixedAccountLabel!!.contains("com.google"))
     }
 
     @Test fun `save disabled with blank name and no phones or emails`() = runTest(dispatcher) {
@@ -223,6 +241,25 @@ class EditorViewModelTest {
         assertEquals("catatan", contact.note)
         assertEquals(listOf<EditorEvent>(EditorEvent.Saved), events)
         job.cancel()
+    }
+
+    @Test fun `save logs contact_create in new mode and contact_update in edit mode`() = runTest(dispatcher) {
+        val createAnalytics = FakeAnalytics()
+        val newVm = newVm(analytics = createAnalytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        newVm.setName("Budi")
+        newVm.setPhone(0, "0812")
+        newVm.save()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(createAnalytics.events.any { it is AnalyticsEvent.ContactCreate })
+
+        val editAnalytics = FakeAnalytics()
+        val editVm = editVm(analytics = editAnalytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        editVm.setName("Budi S")
+        editVm.save()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(editAnalytics.events.contains(AnalyticsEvent.ContactUpdate))
     }
 
     @Test fun `save in edit mode updates the raw contact`() = runTest(dispatcher) {

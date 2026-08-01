@@ -59,7 +59,7 @@ class DuplicateFinderTest {
         )
         assertEquals(1, groups.size)
         assertEquals(MatchConfidence.HIGH, groups[0].confidence)
-        assertEquals("Same phone number", groups[0].matchReason)
+        assertEquals(MatchReason.PHONE, groups[0].matchReason)
         assertEquals(listOf(1L, 2L), groups[0].contacts.map { it.contactId })
     }
 
@@ -83,14 +83,14 @@ class DuplicateFinderTest {
         )
         assertEquals(1, groups.size)
         assertEquals(MatchConfidence.HIGH, groups[0].confidence)
-        assertEquals("Same email", groups[0].matchReason)
+        assertEquals(MatchReason.EMAIL, groups[0].matchReason)
     }
 
     @Test fun `diacritic-folded names group as MEDIUM`() {
         val groups = DuplicateFinder.find(listOf(contact(1, "Renée"), contact(2, "renee")))
         assertEquals(1, groups.size)
         assertEquals(MatchConfidence.MEDIUM, groups[0].confidence)
-        assertEquals("Similar name", groups[0].matchReason)
+        assertEquals(MatchReason.NAME, groups[0].matchReason)
     }
 
     @Test fun `token-swapped names group as MEDIUM`() {
@@ -119,7 +119,7 @@ class DuplicateFinderTest {
         assertEquals(1, groups.size)
         assertEquals(listOf(1L, 2L, 3L), groups[0].contacts.map { it.contactId })
         assertEquals(MatchConfidence.HIGH, groups[0].confidence)
-        assertEquals("Same phone number", groups[0].matchReason)
+        assertEquals(MatchReason.PHONE, groups[0].matchReason)
     }
 
     @Test fun `name-only edge joining a phone group keeps HIGH confidence`() {
@@ -177,7 +177,7 @@ class DuplicateFinderTest {
         val group = DuplicateGroup(
             confidence = MatchConfidence.HIGH,
             contacts = listOf(contact(9, "A"), contact(2, "B")),
-            matchReason = "Same phone number",
+            matchReason = MatchReason.PHONE,
         )
         assertEquals("2-9", DuplicateFinder.groupKey(group))
     }

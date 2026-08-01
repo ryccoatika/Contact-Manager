@@ -5,6 +5,20 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Firebase is optional: wire google-services only when the json (kept in the
+// gitignored release/ folder, next to the keystores) is present. The plugin
+// only scans app/, so bridge the file into place first. Absent → no FirebaseApp
+// → NoOpAnalytics, and the build/tests still pass.
+val googleServicesJson = rootProject.file("release/google-services.json")
+if (googleServicesJson.exists()) {
+    googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
+    apply(plugin = "com.google.gms.google-services")
+}
+
+// versionCode is CI-driven so Play testing tracks always get a monotonically
+// increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
+val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.ryccoatika.contactmanager"
     compileSdk {
@@ -17,17 +31,51 @@ android {
         applicationId = "com.ryccoatika.contactmanager"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = appVersionCode
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
-        release {
-            optimization {
-                enable = false
+    signingConfigs {
+        // Shared debug keystore so every machine/CI produces the same debug
+        // signature (stable SHA-1 for API-console registrations). These are the
+        // well-known public Android debug credentials — not secrets.
+        getByName("debug") {
+            storeFile = rootProject.file("release/app-debug.jks")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        // Real release key. Guarded by existence so the project still builds on
+        // machines/CI without the keystore. Passwords come from Gradle properties
+        // (~/.gradle/gradle.properties or -P/env) — never hardcoded here.
+        if (rootProject.file("release/app-release.jks").exists()) {
+            create("release") {
+                storeFile = rootProject.file("release/app-release.jks")
+                storePassword = properties["CONTACTMANAGER_RELEASE_KEYSTORE_PWD"]?.toString().orEmpty()
+                keyAlias = "contactmanager"
+                keyPassword = properties["CONTACTMANAGER_RELEASE_KEY_PWD"]?.toString().orEmpty()
             }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Picks up the reconfigured debug signingConfig above.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        release {
+            // Signed only when release/app-release.jks is present; null → unsigned.
+            signingConfig = signingConfigs.findByName("release")
+            // R8 in full mode (default since AGP 8.0; pinned in gradle.properties).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                // Optimizing defaults — never proguard-android.txt (forces -dontoptimize).
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
@@ -43,6 +91,8 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive)
+    implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -57,6 +107,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.datastore.preferences)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <!-- pine background -->
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1024" y2="500">
+      <stop offset="0" stop-color="#0F5F55"/>
+      <stop offset="1" stop-color="#0A3B38"/>
+    </linearGradient>
+    <!-- app-icon gradient (matches ic_launcher_background) -->
+    <linearGradient id="iconBg" gradientUnits="userSpaceOnUse" x1="20" y1="8" x2="88" y2="100">
+      <stop offset="0" stop-color="#1C7A75"/>
+      <stop offset="1" stop-color="#0C3F42"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="72" y="110" width="280" height="280" rx="62"/>
+    </clipPath>
+    <!-- keep decorative bg shapes from spilling past the canvas -->
+    <clipPath id="frame">
+      <rect x="0" y="0" width="1024" height="500"/>
+    </clipPath>
+  </defs>
+
+  <!-- background -->
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <g clip-path="url(#frame)">
+    <path d="M-40,150 C 220,40 620,20 1120,120 L 1120,-40 L -40,-40 Z" fill="#FFFFFF" fill-opacity="0.05"/>
+    <circle cx="930" cy="430" r="150" fill="#FFFFFF" fill-opacity="0.03"/>
+    <circle cx="600" cy="60" r="80" fill="#FFFFFF" fill-opacity="0.03"/>
+  </g>
+
+  <!-- app icon tile (background + person + account dots, from the launcher drawables) -->
+  <g clip-path="url(#tile)">
+    <g transform="translate(72,110) scale(2.59259)">
+      <rect x="0" y="0" width="108" height="108" fill="url(#iconBg)"/>
+      <path d="M-10,34 C 18,10 58,4 118,18 L 118,-10 L -10,-10 Z" fill="#FFFFFF" fill-opacity="0.078"/>
+      <g transform="translate(54,54) scale(0.82) translate(-54,-54)">
+        <path d="M50,44 m-13,0 a13,13 0 1,1 26,0 a13,13 0 1,1 -26,0" fill="#FAF7F2"/>
+        <path d="M28,80 C 28,67.5 37.8,61 50,61 C 62.2,61 72,67.5 72,80 C 72,81.7 70.7,83 69,83 L 31,83 C 29.3,83 28,81.7 28,80 Z" fill="#FAF7F2"/>
+        <path d="M72,28 m-4.5,0 a4.5,4.5 0 1,1 9,0 a4.5,4.5 0 1,1 -9,0" fill="#E58A6B"/>
+        <path d="M80,40.5 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0" fill="#EBC46B"/>
+        <path d="M83,53.5 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0" fill="#8FD8D2"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- wordmark + tagline (two-line title keeps everything inside 1024px) -->
+  <g font-family="Manrope, 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" fill="#F4F6F3">
+    <text x="400" y="212" font-size="58" font-weight="800" letter-spacing="-1"
+          textLength="520" lengthAdjust="spacingAndGlyphs">Contact Manager</text>
+    <rect x="404" y="236" width="104" height="7" rx="3.5" fill="#CBA45A"/>
+    <text x="404" y="292" font-size="29" font-weight="600" fill="#CDE7E2"
+          textLength="548" lengthAdjust="spacingAndGlyphs">Move, merge &amp; declutter your contacts</text>
+    <text x="404" y="334" font-size="21" font-weight="500" fill="#8FB8B2"
+          textLength="400" lengthAdjust="spacingAndGlyphs">Google · SIM · device — all in one list</text>
+  </g>
+</svg>

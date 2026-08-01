@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accounts_title">Accounts</string>
+    <string name="accounts_back">Back</string>
+    <string name="accounts_account_actions">Account actions</string>
+    <string name="accounts_on_this_device">On this device</string>
+    <string name="accounts_move_all_source_contacts_to">Move all %1$s contacts to</string>
+    <string name="accounts_move_all_contacts_to">Move all contacts to…</string>
+    <string name="accounts_managed_by_app">Managed by app</string>
+    <string name="accounts_hide_from_selector">Hide from selector</string>
+    <string name="accounts_show_in_selector">Show in selector</string>
+    <string name="accounts_hidden_from_selector">Hidden from selector</string>
+    <string name="accounts_some_fields_lost">Some fields will be lost</string>
+    <string name="accounts_move_dialog_body">All contacts in %1$s will be moved to %2$s.</string>
+    <string name="accounts_move">Move</string>
+    <string name="accounts_move_anyway">Move anyway</string>
+    <string name="accounts_cancel">Cancel</string>
+
+    <plurals name="accounts_move_contacts_title">
+        <item quantity="one">Move %1$d contact?</item>
+        <item quantity="other">Move %1$d contacts?</item>
+    </plurals>
+    <plurals name="accounts_move_dialog_losses">
+        <item quantity="one">%1$d of them will lose: %2$s.</item>
+        <item quantity="other">%1$d of them will lose: %2$s.</item>
+    </plurals>
+</resources>
