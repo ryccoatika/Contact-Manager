@@ -18,6 +18,9 @@
     <!-- Account provenance labels (ui/common/AccountVisuals.kt) -->
     <string name="account_device">Device</string>
     <string name="account_phone">Phone</string>
+
+    <!-- Tablet adaptive layout (ui/adaptive/) -->
+    <string name="tablet_select_contact">Select a contact to see details</string>
     <string name="account_google">Google</string>
     <string name="account_samsung">Samsung</string>
     <string name="account_whatsapp">WhatsApp</string>
