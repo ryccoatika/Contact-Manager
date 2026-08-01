@@ -16,6 +16,7 @@ import com.ryccoatika.contactmanager.ui.detail.DetailScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.editor.EditorScreen
 import com.ryccoatika.contactmanager.ui.home.HomeScreen
+import com.ryccoatika.contactmanager.ui.adaptive.AdaptiveApp
 import com.ryccoatika.contactmanager.ui.onboarding.OnboardingScreen
 import com.ryccoatika.contactmanager.ui.onboarding.OnboardingViewModel
 import com.ryccoatika.contactmanager.ui.permission.PermissionGate
@@ -42,12 +43,12 @@ fun AppNav(onboardingViewModel: OnboardingViewModel = hiltViewModel()) {
         // Brief blank while the flag loads — avoids flashing the app then onboarding.
         null -> Surface(color = MaterialTheme.colorScheme.background) {}
         true -> OnboardingScreen(onDone = onboardingViewModel::complete)
-        false -> MainNavGraph()
+        false -> AdaptiveApp()
     }
 }
 
 @Composable
-private fun MainNavGraph() {
+internal fun MainNavGraph() {
     val navController = rememberNavController()
     PermissionGate {
         NavHost(navController = navController, startDestination = Routes.HOME) {
