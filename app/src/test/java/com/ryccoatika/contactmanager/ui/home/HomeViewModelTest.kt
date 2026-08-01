@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -63,6 +64,7 @@ class HomeViewModelTest {
             ContactAccount("acc", "com.google", AccountCapability.FULL_CRUD, 2),
             ContactAccount("acc", "com.whatsapp", AccountCapability.READ_ONLY, 2),
         )
+        override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
     private class FakeWriter : ContactsWriter {

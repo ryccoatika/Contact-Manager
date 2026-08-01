@@ -64,22 +64,18 @@ class HomeViewModel @Inject constructor(
 
     private val query = MutableStateFlow("")
     private val selectedAccountKey = MutableStateFlow<String?>(null)
-    private val accounts = MutableStateFlow<List<ContactAccount>>(emptyList())
     private val selectedContactIds = MutableStateFlow<Set<Long>>(emptySet())
 
-    /** Accounts the user hid from the selector, paired with the account list. */
+    /** Accounts the user hid from the selector, paired with the live account list
+     *  (re-queried on every provider change so the per-account counts stay current). */
     private val accountsAndHidden = combine(
-        accounts, appPrefs.observeHiddenAccountKeys(),
+        accountsSource.observeAccounts(), appPrefs.observeHiddenAccountKeys(),
     ) { accounts, hidden -> accounts to hidden }
 
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
 
     val batchProgress: StateFlow<BatchProgress?> = batchManager.progress
-
-    init {
-        viewModelScope.launch { accounts.value = accountsSource.getAccounts() }
-    }
 
     /** Contacts paired with their duplicate-group count (dismissed groups excluded). */
     private val contactsWithDuplicateCount = combine(

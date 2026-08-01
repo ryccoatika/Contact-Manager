@@ -20,6 +20,7 @@ object AccountVisuals {
     // callable from non-composable lambdas (buildString/joinToString) too.
     fun label(context: Context, accountType: String?, accountName: String?): String = when {
         accountType == null -> context.getString(R.string.account_device)
+        accountType == "vnd.sec.contact.phone" -> context.getString(R.string.account_phone)
         accountType == "com.google" -> accountName ?: context.getString(R.string.account_google)
         accountType == "com.osp.app.signin" -> context.getString(R.string.account_samsung)
         accountType == "com.whatsapp" -> context.getString(R.string.account_whatsapp)
