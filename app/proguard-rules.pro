@@ -21,6 +21,12 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
+# --- Play In-App Review -----------------------------------------------------
+# review-ktx references a compile-only play-services annotation that isn't on
+# the runtime classpath. It's metadata only — never loaded — so suppress the
+# R8 missing-class warning rather than keeping anything.
+-dontwarn com.google.android.gms.common.annotation.NoNullnessRewrite
+
 # --- Notes ------------------------------------------------------------------
 # getSystemService(TelephonyManager::class.java) and friends reference framework
 # class tokens only — no app class is reflected, so nothing to keep for SIM code.
