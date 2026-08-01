@@ -13,6 +13,9 @@ platform :android do
       aab: AAB_PATH,
     )
     UI.success("Internal App Sharing URL: #{url}")
+    # Expose the download URL to the workflow (for the Telegram notification).
+    github_output = ENV["GITHUB_OUTPUT"]
+    File.write(github_output, "ias_url=#{url}\n", mode: "a") if github_output
   end
 
   desc "Upload the release AAB to the closed 'alpha' testing track (merges to main)"
