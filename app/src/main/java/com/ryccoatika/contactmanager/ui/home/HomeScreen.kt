@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -129,6 +130,8 @@ fun HomeScreen(
     val batchProgress by viewModel.batchProgress.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    // In selection mode, Back clears the selection instead of leaving the app.
+    BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
     var showMovePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }

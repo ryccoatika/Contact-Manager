@@ -1,6 +1,8 @@
 package com.ryccoatika.contactmanager.data
 
 import android.content.Context
+import android.database.ContentObserver
+import android.os.Build
 import android.provider.ContactsContract.RawContacts
 import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
@@ -14,10 +16,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 
 interface AccountsSource {
     suspend fun getAccounts(): List<ContactAccount>
+
+    /** Emits on subscription and again on every contact-provider change, so
+     *  per-account counts stay live as contacts are added/deleted/moved/merged. */
+    fun observeAccounts(): Flow<List<ContactAccount>>
 }
 
 @Singleton
@@ -45,6 +60,21 @@ class AccountRepository @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    override fun observeAccounts(): Flow<List<ContactAccount>> =
+        contentChanges().debounce(300)
+            .mapLatest { getAccounts() }
+            .flowOn(ioDispatcher)
+
+    private fun contentChanges(): Flow<Unit> = callbackFlow {
+        val observer = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) { trySend(Unit) }
+        }
+        context.contentResolver.registerContentObserver(RawContacts.CONTENT_URI, true, observer)
+        trySend(Unit) // emit current accounts on subscription
+        awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+    }.conflate()
+
     private suspend fun getAccountsOrThrow(): List<ContactAccount> {
         val counts = HashMap<Pair<String?, String?>, Int>()
         context.contentResolver.query(
@@ -56,6 +86,14 @@ class AccountRepository @Inject constructor(
                 val key = c.getString(0) to c.getString(1)
                 counts[key] = (counts[key] ?: 0) + 1
             }
+        }
+        // Keep the on-device local account (e.g. Samsung's "Phone") always
+        // selectable so a contact can be created or moved into local storage even
+        // when it currently holds none. If a local account already exists (any
+        // name), leave it untouched; otherwise seed it with a zero count.
+        val localType = deviceLocalAccountType()
+        if (counts.keys.none { it.first == localType }) {
+            counts[localType to localType] = 0
         }
         // Slot -> subscription, so native SIM accounts (e.g. Samsung's opaque
         // "primary.sim2.account_name") can be labeled "SIM 2 · carrier" + number.
@@ -78,6 +116,20 @@ class AccountRepository @Inject constructor(
             )
         }.sortedByDescending { it.contactCount }
         return providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
+    }
+
+    /**
+     * The account type the local contacts provider uses for on-device storage.
+     * OEMs override the AOSP null-local with their own writable local type
+     * (Samsung "vnd.sec.contact.phone", etc.); everything else falls back to the
+     * AOSP null local, which the provider remaps to its device store on write.
+     */
+    private fun deviceLocalAccountType(): String? = when (Build.MANUFACTURER.lowercase()) {
+        "samsung" -> "vnd.sec.contact.phone"
+        "huawei" -> "com.android.huawei.phone"
+        "oppo", "realme" -> "com.oppo.contacts.device"
+        "oneplus" -> "vnd.oneplus.contact.phone"
+        else -> null
     }
 
     private companion object {
