@@ -80,6 +80,7 @@ import com.ryccoatika.contactmanager.R
 @Composable
 fun DuplicatesScreen(
     onBack: () -> Unit,
+    embedded: Boolean = false,
     viewModel: DuplicatesViewModel = hiltViewModel(),
 ) {
     TrackScreenView("duplicates")
@@ -95,20 +96,22 @@ fun DuplicatesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.duplicates_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.duplicates_back),
-                        )
-                    }
-                },
-            )
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.duplicates_title)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.duplicates_back),
+                            )
+                        }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
