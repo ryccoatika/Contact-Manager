@@ -44,6 +44,10 @@ class DuplicatesViewModel @Inject constructor(
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
 
+    /** Fires after a merge completes — the screen asks Play for an in-app review. */
+    private val _requestReview = MutableSharedFlow<Unit>()
+    val requestReview: SharedFlow<Unit> = _requestReview
+
     /** Finder already sorts groups HIGH first; dismissals re-emit through the prefs flow. */
     val uiState: StateFlow<DuplicatesUiState> = combine(
         contactsSource.observeContacts(), prefs.observeDismissedKeys(),
@@ -74,6 +78,7 @@ class DuplicatesViewModel @Inject constructor(
                 is ContactOpResult.Success -> {
                     analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
                     _events.emit(strings.getQuantity(R.plurals.duplicates_msg_merged, sources.size, sources.size))
+                    _requestReview.emit(Unit)
                 }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }

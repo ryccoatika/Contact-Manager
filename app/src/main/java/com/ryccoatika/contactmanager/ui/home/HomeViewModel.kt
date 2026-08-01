@@ -75,6 +75,10 @@ class HomeViewModel @Inject constructor(
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
 
+    /** Fires after a merge completes — the screen asks Play for an in-app review. */
+    private val _requestReview = MutableSharedFlow<Unit>()
+    val requestReview: SharedFlow<Unit> = _requestReview
+
     val batchProgress: StateFlow<BatchProgress?> = batchManager.progress
 
     /** Contacts paired with their duplicate-group count (dismissed groups excluded). */
@@ -175,6 +179,7 @@ class HomeViewModel @Inject constructor(
                 is ContactOpResult.Success -> {
                     analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
                     _events.emit(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size))
+                    _requestReview.emit(Unit)
                 }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
