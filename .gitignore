@@ -25,3 +25,4 @@ app/google-services.json
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/test_output
+/.idea/deviceManager.xml
