@@ -4,7 +4,15 @@ import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 
 sealed interface SimValidation {
     data object Ok : SimValidation
-    data class Error(val message: String) : SimValidation
+    data class Error(val error: SimError) : SimValidation
+}
+
+/** Typed validation failure; resolved to user-facing text at the UI/data edge. */
+sealed interface SimError {
+    data object BlankName : SimError
+    data class NameTooLong(val max: Int) : SimError
+    data object BlankNumber : SimError
+    data object InvalidNumber : SimError
 }
 
 /**
@@ -17,12 +25,11 @@ object SimContactValidator {
     private val NUMBER_REGEX = Regex("^[+]?[0-9*#]{1,20}$")
 
     fun validate(name: String, number: String, caps: SimCapabilities): SimValidation = when {
-        name.isBlank() -> SimValidation.Error("Name is required.")
+        name.isBlank() -> SimValidation.Error(SimError.BlankName)
         name.length > caps.maxNameLength ->
-            SimValidation.Error("Name too long for SIM (max ${caps.maxNameLength}).")
-        number.isBlank() -> SimValidation.Error("Phone number is required.")
-        !NUMBER_REGEX.matches(number) ->
-            SimValidation.Error("Phone number may only contain digits, +, * and #.")
+            SimValidation.Error(SimError.NameTooLong(caps.maxNameLength))
+        number.isBlank() -> SimValidation.Error(SimError.BlankNumber)
+        !NUMBER_REGEX.matches(number) -> SimValidation.Error(SimError.InvalidNumber)
         else -> SimValidation.Ok
     }
 }

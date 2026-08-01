@@ -45,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +55,8 @@ import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.DuplicateGroup
 import com.ryccoatika.contactmanager.domain.MatchConfidence
+import com.ryccoatika.contactmanager.domain.MatchReason
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.RawContact
@@ -69,13 +74,17 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
+import com.ryccoatika.contactmanager.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuplicatesScreen(
     onBack: () -> Unit,
+    embedded: Boolean = false,
     viewModel: DuplicatesViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("duplicates")
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var mergePickerGroup by remember { mutableStateOf<DuplicateGroup?>(null) }
@@ -87,17 +96,22 @@ fun DuplicatesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Duplicates") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.duplicates_title)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.duplicates_back),
+                            )
+                        }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -116,7 +130,10 @@ fun DuplicatesScreen(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("No duplicates found", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.duplicates_empty),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
         } else {
             LazyColumn(
@@ -137,12 +154,13 @@ fun DuplicatesScreen(
     }
 
     mergePickerGroup?.let { group ->
+        TrackScreenView("merge_target_picker")
         ModalBottomSheet(
             onDismissRequest = { mergePickerGroup = null },
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
             Text(
-                "Merge into",
+                stringResource(R.string.duplicates_merge_into),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
@@ -159,7 +177,7 @@ fun DuplicatesScreen(
                         },
                         headlineContent = { Text(contact.displayName) },
                         supportingContent = {
-                            Text(AccountVisuals.label(raw.accountType, raw.accountName))
+                            Text(AccountVisuals.label(context, raw.accountType, raw.accountName))
                         },
                         leadingContent = {
                             Box(
@@ -179,24 +197,36 @@ fun DuplicatesScreen(
         val readOnly = sources.filter { (_, raw) ->
             AccountClassifier.classify(raw.accountType) == AccountCapability.READ_ONLY
         }
+        TrackScreenView("merge_confirm")
         AlertDialog(
             onDismissRequest = { pendingMerge = null },
-            title = { Text("Merge ${sources.size + 1} entries?") },
+            title = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.duplicates_merge_title,
+                        sources.size + 1,
+                        sources.size + 1,
+                    ),
+                )
+            },
             text = {
+                val mergedLine = pluralStringResource(
+                    R.plurals.duplicates_merge_body,
+                    sources.size,
+                    sources.size,
+                    targetContact.displayName,
+                    AccountVisuals.label(context, target.accountType, target.accountName),
+                )
+                val linkedNames = readOnly.joinToString { (c, raw) ->
+                    "${c.displayName} (${AccountVisuals.label(context, raw.accountType, raw.accountName)})"
+                }
+                val linkedLine = stringResource(R.string.duplicates_merge_linked, linkedNames)
                 Text(
                     buildString {
-                        append(
-                            "${sources.size} entries will be merged into ${targetContact.displayName} " +
-                                "(${AccountVisuals.label(target.accountType, target.accountName)}) and removed.",
-                        )
+                        append(mergedLine)
                         if (readOnly.isNotEmpty()) {
                             append("\n\n")
-                            append(
-                                readOnly.joinToString { (c, raw) ->
-                                    "${c.displayName} (${AccountVisuals.label(raw.accountType, raw.accountName)})"
-                                },
-                            )
-                            append(" will be linked (managed by app).")
+                            append(linkedLine)
                         }
                     },
                 )
@@ -205,10 +235,12 @@ fun DuplicatesScreen(
                 TextButton(onClick = {
                     pendingMerge = null
                     viewModel.merge(group, target)
-                }) { Text("Merge") }
+                }) { Text(stringResource(R.string.duplicates_merge)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingMerge = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingMerge = null }) {
+                    Text(stringResource(R.string.duplicates_cancel))
+                }
             },
         )
     }
@@ -230,7 +262,7 @@ private fun DuplicateGroupCard(
             ConfidenceChip(group.confidence)
             Spacer(Modifier.weight(1f))
             Text(
-                group.matchReason,
+                matchReasonText(group.matchReason),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.extendedColors.brass,
             )
@@ -242,18 +274,29 @@ private fun DuplicateGroupCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onDismiss) { Text("Not duplicate") }
-            TextButton(onClick = onLink) { Text("Link") }
-            Button(onClick = onMerge) { Text("Merge") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.duplicates_not_duplicate)) }
+            TextButton(onClick = onLink) { Text(stringResource(R.string.duplicates_link)) }
+            Button(onClick = onMerge) { Text(stringResource(R.string.duplicates_merge)) }
         }
     }
 }
 
 @Composable
+private fun matchReasonText(reason: MatchReason): String = stringResource(
+    when (reason) {
+        MatchReason.PHONE -> R.string.duplicates_reason_phone
+        MatchReason.EMAIL -> R.string.duplicates_reason_email
+        MatchReason.NAME -> R.string.duplicates_reason_name
+    },
+)
+
+@Composable
 private fun ConfidenceChip(confidence: MatchConfidence) {
     val (label, container) = when (confidence) {
-        MatchConfidence.HIGH -> "Likely duplicate" to MaterialTheme.colorScheme.errorContainer
-        MatchConfidence.MEDIUM -> "Possible duplicate" to MaterialTheme.colorScheme.tertiaryContainer
+        MatchConfidence.HIGH ->
+            stringResource(R.string.duplicates_confidence_high) to MaterialTheme.colorScheme.errorContainer
+        MatchConfidence.MEDIUM ->
+            stringResource(R.string.duplicates_confidence_medium) to MaterialTheme.colorScheme.tertiaryContainer
     }
     AssistChip(
         onClick = {},
@@ -292,7 +335,7 @@ private fun MemberRow(contact: Contact) {
 private fun DuplicateGroupPreview() {
     val group = DuplicateGroup(
         confidence = MatchConfidence.HIGH,
-        matchReason = "Same number · +44 7700 900312",
+        matchReason = MatchReason.PHONE,
         contacts = listOf(
             Contact(
                 1L, "Amelia Hartwell",

@@ -30,10 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.ryccoatika.contactmanager.R
 
 private val CONTACT_PERMISSIONS = arrayOf(
     Manifest.permission.READ_CONTACTS,
@@ -81,20 +83,20 @@ fun PermissionGate(content: @Composable () -> Unit) {
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "Contact access needed",
+            stringResource(R.string.permission_title),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "This app organizes the contacts already on your device — across Google, Samsung, SIM and app accounts. Nothing leaves your phone.",
+            stringResource(R.string.permission_rationale),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
         Button(onClick = { launcher.launch(CONTACT_PERMISSIONS) }) {
-            Text("Allow access")
+            Text(stringResource(R.string.permission_allow))
         }
         if (denied) {
             Spacer(Modifier.height(8.dp))
@@ -103,7 +105,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.fromParts("package", context.packageName, null)),
                 )
-            }) { Text("Open settings") }
+            }) { Text(stringResource(R.string.permission_open_settings)) }
         }
     }
 }

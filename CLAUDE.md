@@ -6,9 +6,12 @@ The project guide lives in **AGENTS.md** — read it. It is imported below.
 
 ## Claude Code specifics
 
-- **Verify UI changes on a real device**, don't just compile. Invoke the
-  `run-on-device` skill for the install → launch → screenshot loop, then Read the
-  PNG to actually look at the result. Unit tests never touch the UI.
+- **Don't device-verify UI changes by default.** `./gradlew compileDebugKotlin`
+  and the unit tests are the standard gate; unit tests never touch the UI, and
+  that's fine. Run the app on a real device **only when the user asks**, or when
+  they invoke the **`/verify-ui`** command (`.claude/commands/verify-ui.md`),
+  which drives the build → install → launch → screenshot loop via the
+  `run-on-device` skill.
 - **After every edit, `./gradlew compileDebugKotlin`.** Fix compile errors before
   moving on; don't batch a screen's worth of edits blind.
 - **Commit trailer** (required by this environment):

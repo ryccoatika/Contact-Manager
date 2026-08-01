@@ -5,10 +5,13 @@ import java.text.Normalizer
 
 enum class MatchConfidence { HIGH, MEDIUM }
 
+/** Why a group is considered duplicates; resolved to text at the UI edge. */
+enum class MatchReason { PHONE, EMAIL, NAME }
+
 data class DuplicateGroup(
     val confidence: MatchConfidence,
     val contacts: List<Contact>,
-    val matchReason: String, // e.g. "Same phone number", "Same email", "Similar name"
+    val matchReason: MatchReason,
 )
 
 /**
@@ -89,9 +92,9 @@ object DuplicateFinder {
                 },
                 contacts = members.sortedBy { it.contactId },
                 matchReason = when {
-                    Reason.PHONE in reasons -> "Same phone number"
-                    Reason.EMAIL in reasons -> "Same email"
-                    else -> "Similar name"
+                    Reason.PHONE in reasons -> MatchReason.PHONE
+                    Reason.EMAIL in reasons -> MatchReason.EMAIL
+                    else -> MatchReason.NAME
                 },
             )
         }

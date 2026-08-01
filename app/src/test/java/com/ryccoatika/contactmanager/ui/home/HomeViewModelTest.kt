@@ -1,12 +1,17 @@
 package com.ryccoatika.contactmanager.ui.home
 
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -17,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -58,6 +64,7 @@ class HomeViewModelTest {
             ContactAccount("acc", "com.google", AccountCapability.FULL_CRUD, 2),
             ContactAccount("acc", "com.whatsapp", AccountCapability.READ_ONLY, 2),
         )
+        override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
     private class FakeWriter : ContactsWriter {
@@ -126,17 +133,36 @@ class HomeViewModelTest {
         }
     }
 
-    private fun vm(writer: FakeWriter = FakeWriter()) = HomeViewModel(
+    private fun vm(
+        writer: FakeWriter = FakeWriter(),
+        appPrefs: AppPrefs = FakeAppPrefs(),
+        analytics: FakeAnalytics = FakeAnalytics(),
+    ) = HomeViewModel(
         contactsSource = fakeContacts,
         accountsSource = fakeAccounts,
         writer = writer,
         batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
         duplicatePrefs = fakePrefs,
+        appPrefs = appPrefs,
+        strings = FakeStringProvider(),
+        analytics = analytics,
         defaultDispatcher = dispatcher,
     )
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
+
+    @Test fun `hidden account drops its chip and its only-contacts from All`() = runTest(dispatcher) {
+        val vm = vm(appPrefs = FakeAppPrefs(hiddenAccountKeys = setOf("com.whatsapp/acc")))
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        val state = vm.uiState.value
+        // WhatsApp chip is gone.
+        assertEquals(listOf("com.google"), state.accounts.map { it.type })
+        // Budi (WhatsApp-only) is hidden; Citra stays (also in Google).
+        assertEquals(listOf("Andi Wijaya", "Citra Lestari"), state.contacts.map { it.displayName })
+        job.cancel()
+    }
 
     @Test fun `emits all contacts and accounts`() = runTest(dispatcher) {
         val vm = vm()
@@ -216,6 +242,31 @@ class HomeViewModelTest {
         assertEquals("com.google" to "b@gmail.com", writer.moveTarget)
         assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
         job.cancel()
+    }
+
+    @Test fun `moveSelectedTo logs contact_move with count and capability`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.moveSelectedTo(googleTarget)
+        dispatcher.scheduler.advanceUntilIdle()
+        val move = analytics.events.filterIsInstance<AnalyticsEvent.ContactMove>().single()
+        assertEquals(2, move.count)
+        job.cancel()
+    }
+
+    @Test fun `setQuery logs search with query length`() = runTest(dispatcher) {
+        val analytics = FakeAnalytics()
+        val vm = vm(analytics = analytics)
+        vm.setQuery("andi")
+        assertEquals(
+            AnalyticsEvent.Search(4),
+            analytics.events.filterIsInstance<AnalyticsEvent.Search>().single(),
+        )
     }
 
     @Test fun `moveSelectedTo with only read-only raws emits message and moves nothing`() = runTest(dispatcher) {

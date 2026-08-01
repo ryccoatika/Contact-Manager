@@ -25,10 +25,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.ui.theme.AvatarPalette
 import com.ryccoatika.contactmanager.ui.theme.extendedColors
@@ -73,7 +75,11 @@ fun SelectedAvatar(modifier: Modifier = Modifier, size: Dp = 44.dp) {
         modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.onPrimary)
+        Icon(
+            Icons.Default.Check,
+            contentDescription = stringResource(R.string.common_selected),
+            tint = MaterialTheme.colorScheme.onPrimary,
+        )
     }
 }
 
@@ -89,11 +95,15 @@ fun CapabilityTag(capability: AccountCapability, writable: Boolean = true) {
     val brass = MaterialTheme.extendedColors
     val (label, container, onContainer) = when (capability) {
         AccountCapability.FULL_CRUD ->
-            Triple("Full access", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+            Triple(stringResource(R.string.common_capability_full), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
         AccountCapability.READ_ONLY ->
-            Triple("Read-only", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+            Triple(stringResource(R.string.common_capability_readonly), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
         AccountCapability.SIM ->
-            Triple(if (writable) "SIM" else "SIM · limited", brass.brassContainer, brass.brass)
+            Triple(
+                stringResource(if (writable) R.string.common_capability_sim else R.string.common_capability_sim_limited),
+                brass.brassContainer,
+                brass.brass,
+            )
     }
     Text(
         label,

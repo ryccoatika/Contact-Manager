@@ -101,6 +101,50 @@ class SimAccountsIntegrationTest {
         assertEquals(0, source.probes)
     }
 
+    @Test fun `partial native coverage surfaces the uncovered SIM via icc pseudo account`() = runTest {
+        // Physical SIM in slot 0 (icc-only) + eSIM in slot 1 that the provider
+        // surfaces natively as vnd.sec.contact.sim2. Only slot 0 should get icc.
+        val subs = listOf(
+            SimSubscription(1, "SIM 1 · Telkomsel", slotIndex = 0),
+            SimSubscription(3, "SIM 2 · XL", slotIndex = 1),
+        )
+        val source = FakeSimContactSource(
+            capsBySub = mapOf(
+                1 to SimCapabilities(canRead = true, canWrite = true),
+                3 to SimCapabilities(canRead = true, canWrite = true),
+            ),
+            contactsBySub = mutableMapOf(1 to mutableListOf(SimContact(1, "Budi", "0812", 1))),
+        )
+        val nativeSim2 = ContactAccount("SIM", "vnd.sec.contact.sim2", AccountCapability.SIM, 2)
+        val accounts = integration(source, subs).simPseudoAccounts(listOf(nativeSim2))
+        assertEquals(1, accounts.size)
+        assertEquals("icc/1", accounts.single().type)
+    }
+
+    @Test fun `partial native coverage still reads the uncovered SIM contacts`() = runTest {
+        val subs = listOf(
+            SimSubscription(1, "SIM 1", slotIndex = 0),
+            SimSubscription(3, "SIM 2", slotIndex = 1),
+        )
+        val source = FakeSimContactSource(
+            capsBySub = mapOf(
+                1 to SimCapabilities(true, true),
+                3 to SimCapabilities(true, true),
+            ),
+            contactsBySub = mutableMapOf(
+                1 to mutableListOf(SimContact(1, "Budi", "0812", 1)),
+                3 to mutableListOf(SimContact(1, "OnEsim", "0899", 3)),
+            ),
+        )
+        val nativeEsim = Contact(
+            contactId = 9, displayName = "OnEsim",
+            rawContacts = listOf(RawContact(90, "vnd.sec.contact.sim2", "sim2")),
+        )
+        val contacts = integration(source, subs).simContacts(listOf(nativeEsim))
+        assertEquals(listOf("Budi"), contacts.map { it.displayName })
+        assertEquals("icc/1", contacts.single().rawContacts.single().accountType)
+    }
+
     @Test fun `pseudo account per readable subscription with count and writability`() = runTest {
         val source = FakeSimContactSource(
             capsBySub = mapOf(
@@ -126,6 +170,12 @@ class SimAccountsIntegrationTest {
         assertEquals("icc/2", sim2.type)
         assertEquals(1, sim2.contactCount)
         assertTrue(!sim2.writable)
+    }
+
+    @Test fun `no subscriptions yields no SIM accounts or contacts`() = runTest {
+        val integration = integration(FakeSimContactSource(), subs = emptyList())
+        assertTrue(integration.simPseudoAccounts(emptyList()).isEmpty())
+        assertTrue(integration.simContacts(emptyList()).isEmpty())
     }
 
     @Test fun `unreadable subscription produces no pseudo account`() = runTest {

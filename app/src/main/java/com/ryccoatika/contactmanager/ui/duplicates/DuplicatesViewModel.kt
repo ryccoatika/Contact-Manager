@@ -2,10 +2,14 @@ package com.ryccoatika.contactmanager.ui.duplicates
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
+import com.ryccoatika.contactmanager.data.StringProvider
+import com.ryccoatika.contactmanager.data.analytics.Analytics
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.DuplicateGroup
@@ -32,6 +36,8 @@ class DuplicatesViewModel @Inject constructor(
     contactsSource: ContactsSource,
     private val writer: ContactsWriter,
     private val prefs: DuplicatePrefs,
+    private val strings: StringProvider,
+    private val analytics: Analytics,
     @DefaultDispatcher defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -50,8 +56,10 @@ class DuplicatesViewModel @Inject constructor(
     fun link(group: DuplicateGroup) {
         viewModelScope.launch {
             when (val result = writer.linkContacts(group.rawContactIds())) {
-                is ContactOpResult.Success ->
-                    _events.emit("Linked ${group.contacts.size} contacts into one.")
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactsLink(group.contacts.size))
+                    _events.emit(strings.getQuantity(R.plurals.duplicates_msg_linked, group.contacts.size, group.contacts.size))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -63,8 +71,10 @@ class DuplicatesViewModel @Inject constructor(
             val sources = group.contacts.flatMap { it.rawContacts }
                 .filter { it.rawContactId != target.rawContactId }
             when (val result = writer.mergeContacts(target, sources)) {
-                is ContactOpResult.Success ->
-                    _events.emit("Merged ${sources.size} entries into one contact.")
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
+                    _events.emit(strings.getQuantity(R.plurals.duplicates_msg_merged, sources.size, sources.size))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -73,6 +83,7 @@ class DuplicatesViewModel @Inject constructor(
     /** Persists the dismissal; the provider KEEP_SEPARATE is best-effort only. */
     fun dismiss(group: DuplicateGroup) {
         viewModelScope.launch {
+            analytics.logEvent(AnalyticsEvent.DuplicateDismiss)
             prefs.dismiss(DuplicateFinder.groupKey(group))
             writer.keepSeparate(group.rawContactIds()) // failure ignored: prefs already hide the group
         }

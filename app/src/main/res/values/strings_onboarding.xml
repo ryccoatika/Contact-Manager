@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_page1_title">All your contacts in one place</string>
+    <string name="onboarding_page1_body">See everyone from Google, SIM, WhatsApp and your phone together in a single list.</string>
+    <string name="onboarding_page2_title">Put each contact where it belongs</string>
+    <string name="onboarding_page2_body">Keep some contacts in your Google account, others on your SIM. Move a contact to the right account with a tap.</string>
+    <string name="onboarding_page3_title">Merge duplicates into one</string>
+    <string name="onboarding_page3_body">Got the same person saved twice? Combine them into a single, clean contact.</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get started</string>
+</resources>
