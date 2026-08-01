@@ -1,0 +1,126 @@
+<!doctype html>
+<!--
+  BEFORE PUBLISHING — review/replace:
+    • Developer / entity name ............ search "Ryccoatika"
+    • Contact email ...................... search "your-email@example.com"
+    • Last-updated date .................. currently "1 August 2026"
+    • (optional) your website / company address
+  Then host this file at a public URL and paste that URL into
+  Play Console → App content → Privacy policy, and into your store listing.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Contact Manager</title>
+<style>
+  :root {
+    --pine: #0E5A51; --ink: #14201B; --muted: #5D6B64;
+    --ground: #F4F6F3; --surface: #FFFFFF; --line: #C2CBC5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 17px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  header { border-bottom: 2px solid var(--pine); padding-bottom: 20px; margin-bottom: 8px; }
+  h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.5px; }
+  .updated { color: var(--muted); font-size: 15px; }
+  h2 { margin: 36px 0 10px; font-size: 21px; color: var(--pine); }
+  h3 { margin: 22px 0 6px; font-size: 17px; }
+  p, li { color: #24312B; }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  a { color: var(--pine); }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 20px; margin: 18px 0;
+  }
+  .lead { font-size: 18px; }
+  strong { color: var(--ink); }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground:#0F1512; --surface:#171E1A; --ink:#E8EEEA; --muted:#9BAAA3; --line:#2A342F; --pine:#74D6C6; }
+    p, li { color: #CFD9D3; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Privacy Policy</h1>
+    <div class="updated">Contact Manager &middot; Last updated: 1 August 2026</div>
+  </header>
+
+  <p class="lead">Contact Manager (&ldquo;the app&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) helps you view, organize, move, and de-duplicate the contacts already stored on your Android device. This policy explains what the app accesses, what little it collects, and how that information is handled.</p>
+
+  <div class="card">
+    <strong>The short version:</strong> Your contacts stay on your device. The app reads them directly from Android to show and manage them, and <strong>never uploads, transmits, or stores your contacts on any server</strong>. We collect only anonymous usage statistics and crash reports to fix bugs and improve the app.
+  </div>
+
+  <h2>1. Information the app accesses on your device</h2>
+  <p>To do its job, the app reads and writes the contacts stored on your device — including names, phone numbers, email addresses, organizations, and similar fields — and which account each contact belongs to (Google, Samsung, SIM, your phone, or app accounts such as WhatsApp).</p>
+  <p><strong>This contact data is processed entirely on your device.</strong> It is never sent to us, and it is never shared with any third party. When you move, merge, edit, or delete a contact, those changes are written directly to your device&rsquo;s contacts through Android&rsquo;s standard contacts provider.</p>
+
+  <h2>2. Information we collect</h2>
+  <p>We collect a limited amount of <strong>non-personal, anonymous</strong> information through Google Firebase to understand how the app is used and to detect problems. This does <strong>not</strong> include your contacts, their names, numbers, emails, or account names.</p>
+  <h3>Usage analytics (Firebase Analytics)</h3>
+  <ul>
+    <li>Which screens are viewed and which actions are performed (for example, that a &ldquo;move&rdquo;, &ldquo;merge&rdquo;, or &ldquo;delete&rdquo; happened, and how many contacts were affected).</li>
+    <li>A Google-generated, app-specific installation identifier, plus general device and app information (device model, OS version, app version, language, country).</li>
+  </ul>
+  <h3>Crash and diagnostic reports (Firebase Crashlytics)</h3>
+  <ul>
+    <li>If the app crashes, we receive a diagnostic report: the error and stack trace, device state, OS and app version. This helps us fix the problem.</li>
+  </ul>
+
+  <h2>3. Permissions we request and why</h2>
+  <ul>
+    <li><strong>Contacts (read &amp; write)</strong> — required. Used to display your contacts and to move, merge, edit, and delete them at your request.</li>
+    <li><strong>Phone state / phone numbers</strong> — optional. Requested only to label your SIM cards (for example &ldquo;SIM 1 &middot; Carrier&rdquo;) and show SIM numbers on dual-SIM devices. If you decline, the app still works.</li>
+  </ul>
+  <p>The app has no account, no sign-up, and shows no ads.</p>
+
+  <h2>4. How we use information</h2>
+  <ul>
+    <li>To provide the app&rsquo;s core features (viewing and organizing your on-device contacts).</li>
+    <li>To understand which features are used so we can improve them.</li>
+    <li>To identify, diagnose, and fix crashes and bugs.</li>
+  </ul>
+
+  <h2>5. Sharing and third parties</h2>
+  <p>We do not sell your data and we do not share your contacts with anyone. The anonymous analytics and crash data described above are processed by <strong>Google Firebase</strong> (Google Analytics for Firebase and Firebase Crashlytics) acting as our service provider. Their handling of that data is governed by Google&rsquo;s privacy policy:</p>
+  <ul>
+    <li><a href="https://policies.google.com/privacy" rel="noopener" target="_blank">Google Privacy Policy</a></li>
+    <li><a href="https://firebase.google.com/support/privacy" rel="noopener" target="_blank">Firebase &amp; Privacy</a></li>
+  </ul>
+
+  <h2>6. Data retention</h2>
+  <p>Your contacts remain on your device and under your control; the app keeps no separate copy. Anonymous analytics and crash data are retained by Firebase according to Google&rsquo;s standard retention periods.</p>
+
+  <h2>7. Security</h2>
+  <p>Because your contacts never leave your device, they are protected by your device&rsquo;s own security. Analytics and crash data are transmitted to Firebase over encrypted connections.</p>
+
+  <h2>8. Your choices</h2>
+  <ul>
+    <li>You can grant or revoke the app&rsquo;s permissions at any time in your device&rsquo;s <em>Settings &rarr; Apps &rarr; Contact Manager &rarr; Permissions</em>.</li>
+    <li>You can stop all analytics and crash collection by uninstalling the app.</li>
+    <li>You control your contacts directly — the app only changes them when you ask it to.</li>
+  </ul>
+
+  <h2>9. Children</h2>
+  <p>The app is not directed to children under 13, and we do not knowingly collect personal information from children.</p>
+
+  <h2>10. Changes to this policy</h2>
+  <p>We may update this policy from time to time. Changes will be posted on this page with a new &ldquo;Last updated&rdquo; date.</p>
+
+  <h2>11. Contact us</h2>
+  <p>Questions about this policy or your data? Contact us at <a href="mailto:me@ryccoatika.com">me@ryccoatika.com</a>.</p>
+
+  <footer>
+    &copy; 2026 Rycco Atika. Contact Manager. All rights reserved.
+  </footer>
+</div>
+</body>
+</html>
