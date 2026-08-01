@@ -77,6 +77,7 @@ import com.ryccoatika.contactmanager.ui.theme.TabularNums
 fun AccountsScreen(
     onBack: () -> Unit,
     onAccountClick: (String) -> Unit,
+    embedded: Boolean = false,
     viewModel: AccountsViewModel = hiltViewModel(),
 ) {
     TrackScreenView("accounts")
@@ -92,20 +93,22 @@ fun AccountsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.accounts_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.accounts_back),
-                        )
-                    }
-                },
-            )
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.accounts_title)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.accounts_back),
+                            )
+                        }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->

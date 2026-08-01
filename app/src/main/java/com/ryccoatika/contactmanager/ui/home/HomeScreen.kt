@@ -123,6 +123,7 @@ fun HomeScreen(
     onDuplicatesClick: () -> Unit,
     pendingFilterAccountKey: String? = null,
     onPendingFilterConsumed: () -> Unit = {},
+    embedded: Boolean = false,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     TrackScreenView("home")
@@ -190,7 +191,7 @@ fun HomeScreen(
                         navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 )
-            } else {
+            } else if (!embedded) {
                 TopAppBar(
                     title = { Text(stringResource(R.string.home_title)) },
                     colors = TopAppBarDefaults.topAppBarColors(
