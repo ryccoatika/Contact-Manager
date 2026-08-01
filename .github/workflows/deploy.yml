@@ -61,9 +61,49 @@ jobs:
             app/build/outputs/mapping/release/mapping.txt
 
       - name: Publish to Internal App Sharing (develop)
+        id: publish_ias
         if: github.ref == 'refs/heads/develop'
         run: bundle exec fastlane android internal_sharing
 
       - name: Publish to Closed Testing – alpha (main)
         if: github.ref == 'refs/heads/main'
         run: bundle exec fastlane android closed_testing
+
+      # Announce a successful publish to the team's Telegram topic. Only runs
+      # when every prior step (including the branch's publish) succeeded.
+      - name: Notify Telegram
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          # Supergroup 3958527097; the Bot API addresses it with a -100 prefix.
+          TELEGRAM_CHAT_ID: "-1003958527097"
+          TELEGRAM_TOPIC_ID: "3"
+          IAS_URL: ${{ steps.publish_ias.outputs.ias_url }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN secret is not set"; exit 1
+          fi
+
+          if [ "$GITHUB_REF" = "refs/heads/develop" ]; then
+            TRACK="Internal App Sharing"
+          else
+            TRACK="Closed testing (alpha)"
+          fi
+          COMMIT_SUBJECT=$(git log -1 --pretty=%s)
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          TEXT=$(printf '\xE2\x9C\x85 ContactManager deployed\nTrack: %s\nVersion: 1.0 (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
+            "$TRACK" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
+          if [ -n "${IAS_URL:-}" ]; then
+            TEXT=$(printf '%s\nInstall: %s' "$TEXT" "$IAS_URL")
+          fi
+          TEXT=$(printf '%s\nRun: %s' "$TEXT" "$RUN_URL")
+
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "message_thread_id=${TELEGRAM_TOPIC_ID}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=${TEXT}" \
+            -o /dev/null
