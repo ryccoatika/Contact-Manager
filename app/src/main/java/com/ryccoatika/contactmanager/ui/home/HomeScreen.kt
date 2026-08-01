@@ -108,6 +108,7 @@ import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
+import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
@@ -131,6 +132,7 @@ fun HomeScreen(
     val batchProgress by viewModel.batchProgress.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val launchReview = rememberReviewLauncher()
     // In selection mode, Back clears the selection instead of leaving the app.
     BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
     var showMovePicker by remember { mutableStateOf(false) }
@@ -149,10 +151,17 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
+    // A completed merge is a review-worthy moment; ask Play (it decides + throttles).
+    LaunchedEffect(Unit) {
+        viewModel.requestReview.collect { launchReview() }
+    }
     LaunchedEffect(Unit) {
         viewModel.batchProgress.collect { progress ->
             if (progress?.finished == true) {
                 viewModel.onBatchFinishedShown()
+                // Only a clean move (no error) counts as a review-worthy moment;
+                // fire before the snackbar, which suspends until it's dismissed.
+                if (progress.error == null) launchReview()
                 snackbarHostState.showSnackbar(
                     progress.error ?: context.resources.getQuantityString(
                         R.plurals.home_moved_contacts,
