@@ -86,6 +86,18 @@ fun ContactsTwoPane() {
     }
 }
 
+@androidx.compose.ui.tooling.preview.Preview(name = "Empty detail", widthDp = 720, heightDp = 800)
+@androidx.compose.ui.tooling.preview.Preview(
+    name = "Empty detail · dark",
+    widthDp = 720,
+    heightDp = 800,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+)
+@Composable
+private fun EmptyDetailPreview() {
+    com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme { EmptyDetail() }
+}
+
 /** Friendly placeholder shown in the detail pane before a contact is picked. */
 @Composable
 private fun EmptyDetail() {
