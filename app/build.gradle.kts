@@ -9,10 +9,16 @@ plugins {
 // gitignored release/ folder, next to the keystores) is present. The plugin
 // only scans app/, so bridge the file into place first. Absent → no FirebaseApp
 // → NoOpAnalytics, and the build/tests still pass.
+//
+// The Crashlytics plugin is mandatory whenever the crashlytics SDK ships: it
+// generates the com.google.firebase.crashlytics.build_id resource that
+// CrashlyticsCore.onPreExecute() requires, and its absence is a hard crash at
+// FirebaseApp init — not a degraded no-op.
 val googleServicesJson = rootProject.file("release/google-services.json")
 if (googleServicesJson.exists()) {
     googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
     apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 // versionCode is CI-driven so Play testing tracks always get a monotonically

@@ -18,6 +18,7 @@ coroutinesTest = "1.10.2"
 materialIconsExtended = "1.7.8"
 datastore = "1.1.7"
 googleServices = "4.5.0"
+firebaseCrashlyticsPlugin = "3.0.7"
 firebaseBom = "34.15.0"
 playReview = "2.0.2"
 
@@ -59,4 +60,5 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
 
