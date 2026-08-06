@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -363,6 +364,10 @@ fun HomeScreen(
             // of the width left after "All", padding and spacing, clamped 120..280dp.
             val screenWidth = LocalConfiguration.current.screenWidthDp.dp
             val accountCount = state.accounts.size
+            // A lone account (e.g. just "Phone") shouldn't be stretched to fill the
+            // row — that looks like a broken full-width button. Let it wrap its
+            // content; only share the width when there are several to line up.
+            val singleAccount = accountCount == 1
             val chipWidth = if (accountCount > 0) {
                 ((screenWidth - 104.dp - 8.dp * accountCount) / accountCount).coerceIn(120.dp, 280.dp)
             } else {
@@ -384,20 +389,24 @@ fun HomeScreen(
                     FilterChip(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
-                        modifier = Modifier.width(chipWidth),
+                        modifier = if (singleAccount) Modifier else Modifier.width(chipWidth),
                         label = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Name fills the chip and scrolls if long; count pinned right.
+                                // Name scrolls if long; count pinned right. When it's the
+                                // only chip, cap the width instead of filling so the pill
+                                // hugs its content; otherwise it takes an equal share.
                                 Text(
                                     AccountVisuals.label(context, account.type, account.name),
                                     maxLines = 1,
                                     // Loop forever with no pause, even while the row scrolls.
-                                    modifier = Modifier.weight(1f).basicMarquee(
-                                        iterations = Int.MAX_VALUE,
-                                        repeatDelayMillis = 0,
-                                        initialDelayMillis = 0,
-                                    ),
+                                    modifier = (if (singleAccount) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f))
+                                        .basicMarquee(
+                                            iterations = Int.MAX_VALUE,
+                                            repeatDelayMillis = 0,
+                                            initialDelayMillis = 0,
+                                        ),
                                 )
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     stringResource(R.string.home_account_chip_count, account.contactCount),
                                     maxLines = 1,
