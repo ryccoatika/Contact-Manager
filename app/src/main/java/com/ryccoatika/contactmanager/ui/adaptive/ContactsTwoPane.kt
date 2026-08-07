@@ -42,8 +42,8 @@ fun ContactsTwoPane() {
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.width(360.dp)) {
             HomeScreen(
-                onContactClick = { id ->
-                    detailNav.navigate(Routes.detail(id)) {
+                onContactClick = { contact ->
+                    detailNav.navigate(Routes.detail(contact.contactId)) {
                         popUpTo(PANE_EMPTY)
                         launchSingleTop = true
                     }
@@ -60,7 +60,11 @@ fun ContactsTwoPane() {
                 composable(PANE_EMPTY) { EmptyDetail() }
                 composable(
                     Routes.DETAIL,
-                    arguments = listOf(navArgument("contactId") { type = NavType.LongType }),
+                    arguments = listOf(
+                        navArgument("contactId") { type = NavType.LongType },
+                        navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("photo") { type = NavType.StringType; defaultValue = "" },
+                    ),
                 ) {
                     DetailScreen(
                         onBack = {

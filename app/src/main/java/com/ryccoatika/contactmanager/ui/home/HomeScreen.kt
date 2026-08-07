@@ -108,6 +108,9 @@ import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -116,16 +119,20 @@ import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeScreen(
-    onContactClick: (Long) -> Unit,
+    onContactClick: (Contact) -> Unit,
     onAddClick: () -> Unit,
     onAccountsClick: () -> Unit,
     onDuplicatesClick: () -> Unit,
     pendingFilterAccountKey: String? = null,
     onPendingFilterConsumed: () -> Unit = {},
     embedded: Boolean = false,
+    // Set only from the phone nav graph, to morph a row's avatar into the detail
+    // header. Null on tablet / in previews — the avatar just renders in place.
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     TrackScreenView("home")
@@ -459,10 +466,12 @@ fun HomeScreen(
                                     swipeEnabled = !state.selectionMode,
                                     onClick = {
                                         if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
-                                        else onContactClick(contact.contactId)
+                                        else onContactClick(contact)
                                     },
                                     onLongClick = { viewModel.toggleSelect(contact.contactId) },
                                     onSwipeDelete = { pendingDeleteContact = contact },
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedVisibilityScope = animatedVisibilityScope,
                                     modifier = Modifier.animateItem(),
                                 )
                             }
@@ -860,7 +869,7 @@ private fun EmptyState(query: String, accountFiltered: Boolean) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 private fun ContactRow(
     contact: Contact,
@@ -869,6 +878,8 @@ private fun ContactRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSwipeDelete: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -903,7 +914,18 @@ private fun ContactRow(
                     if (isSelected) {
                         SelectedAvatar()
                     } else {
-                        ContactAvatar(contact.displayName, contact.photoThumbnailUri)
+                        val avatarModifier =
+                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    )
+                                }
+                            } else {
+                                Modifier
+                            }
+                        ContactAvatar(contact.displayName, contact.photoThumbnailUri, modifier = avatarModifier)
                     }
                 }
             },
