@@ -43,7 +43,8 @@ jobs:
 
       - name: Compute versionCode
         id: version
-        run: echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+        # The workflow run number — simple and monotonic per workflow.
+        run: echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Build signed release AAB + APK
         env:

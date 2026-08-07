@@ -5,6 +5,7 @@
 default_platform(:android)
 
 AAB_PATH = "app/build/outputs/bundle/release/app-release.aab".freeze
+MAPPING_PATH = "app/build/outputs/mapping/release/mapping.txt".freeze
 
 platform :android do
   desc "Upload the release AAB to Internal App Sharing (merges to develop)"
@@ -23,6 +24,8 @@ platform :android do
     upload_to_play_store(
       track: "alpha",
       aab: AAB_PATH,
+      # Upload the R8 mapping so Play can deobfuscate crash stack traces.
+      mapping: MAPPING_PATH,
       release_status: "draft",
       skip_upload_metadata: true,
       skip_upload_changelogs: true,
