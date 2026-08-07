@@ -81,6 +81,13 @@ android {
             // R8 in full mode (default since AGP 8.0; pinned in gradle.properties).
             isMinifyEnabled = true
             isShrinkResources = true
+            // Bundle native debug symbols into the AAB so Play can symbolicate
+            // native crash stack traces — silences the "App Bundle contains native
+            // code without debug symbols" upload warning. Play reads them straight
+            // from the bundle, so no extra upload step is needed.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             proguardFiles(
                 // Optimizing defaults — never proguard-android.txt (forces -dontoptimize).
                 getDefaultProguardFile("proguard-android-optimize.txt"),
