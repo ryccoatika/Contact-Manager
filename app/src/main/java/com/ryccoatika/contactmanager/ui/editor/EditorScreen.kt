@@ -2,7 +2,10 @@ package com.ryccoatika.contactmanager.ui.editor
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -77,10 +80,17 @@ import java.util.TimeZone
 @Composable
 fun EditorScreen(
     onBack: () -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     viewModel: EditorViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     TrackScreenView(if (state.isEdit) "editor_edit" else "editor_new")
+    // While the open transition is still running, keep the screen light (top bar
+    // only) so the spread stays smooth; compose the heavy form once it settles.
+    // Only defers on ENTER — on exit the form stays put and animates out intact.
+    val entering = animatedVisibilityScope?.transition?.let {
+        it.targetState == EnterExitState.Visible && it.currentState != EnterExitState.Visible
+    } ?: false
     val snackbarHostState = remember { SnackbarHostState() }
     var showDiscardConfirm by remember { mutableStateOf(false) }
     val requestClose = {
@@ -144,6 +154,11 @@ fun EditorScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        if (entering) {
+            // Spread animates an empty screen (top bar only); form comes next frame.
+            Box(Modifier.padding(padding).fillMaxSize())
+            return@Scaffold
+        }
         if (state.loading) {
             CardsSkeleton(Modifier.padding(padding), count = 4, height = 84.dp)
             return@Scaffold

@@ -1,5 +1,8 @@
 package com.ryccoatika.contactmanager.ui.detail
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,12 +81,22 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     onBack: () -> Unit,
     onEditRawContact: (Long) -> Unit,
     embedded: Boolean = false,
+    // Identity handed over from the list row so the hero avatar can render while
+    // the full contact still loads — the open shared-element morph needs a target
+    // on its first frame. 0L / blank (tablet, previews) keeps the plain skeleton.
+    contactId: Long = 0L,
+    initialName: String = "",
+    initialPhotoUri: String? = null,
+    // The far end of the avatar shared element started in HomeScreen's list row.
+    // Null on tablet / previews — the avatar just renders in place.
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
     TrackScreenView("contact_detail")
@@ -129,7 +142,17 @@ fun DetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        val current = state.contact
+        // While loading, stand in a minimal contact from the handed-over identity
+        // so the hero (and its shared avatar) is on screen for the open transition.
+        val current = state.contact ?: if (state.loading && contactId != 0L) {
+            Contact(
+                contactId = contactId,
+                displayName = initialName,
+                photoThumbnailUri = initialPhotoUri?.ifEmpty { null },
+            )
+        } else {
+            null
+        }
         if (current == null) {
             DetailSkeleton(Modifier.padding(padding))
         } else {
@@ -162,6 +185,8 @@ fun DetailScreen(
                         }
                     },
                     onEdit = { editableRawId?.let(onEditRawContact) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
                 )
                 Spacer(Modifier.height(16.dp))
                 current.rawContacts.forEach { raw ->
@@ -204,6 +229,7 @@ fun DetailScreen(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DetailHero(
     contact: Contact,
@@ -212,6 +238,8 @@ private fun DetailHero(
     onCall: () -> Unit,
     onMessage: () -> Unit,
     onEdit: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     SectionCard(Modifier.fillMaxWidth()) {
         Column(
@@ -230,7 +258,18 @@ private fun DetailHero(
                         ),
                     ),
                 )
-                ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 88.dp)
+                val avatarModifier =
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 88.dp, modifier = avatarModifier)
             }
             Spacer(Modifier.height(10.dp))
             Text(
