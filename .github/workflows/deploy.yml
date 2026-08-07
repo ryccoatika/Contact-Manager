@@ -81,7 +81,7 @@ jobs:
           VERSION_CODE: ${{ steps.version.outputs.code }}
         run: |
           set -euo pipefail
-          VERSION_NAME=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_NAME=$(grep -E 'appVersionName\s*=\s*"' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
           TAG="v${VERSION_NAME}"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -89,12 +89,9 @@ jobs:
             exit 0
           fi
 
-          # Pull this version's section out of CHANGELOG.md for the release notes.
-          NOTES=$(awk -v ver="$VERSION_NAME" '
-            $0 ~ "^## \\[" ver "\\]" { grab=1; next }
-            grab && /^## / { exit }
-            grab { print }
-          ' CHANGELOG.md)
+          # Release notes come from the gradle-changelog-plugin: this version's
+          # section with the header and summary stripped.
+          NOTES=$(./gradlew -q :app:getChangelog --no-header --no-summary || true)
           [ -z "$NOTES" ] && NOTES="Release $TAG"
 
           gh release create "$TAG" \

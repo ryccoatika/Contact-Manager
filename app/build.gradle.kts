@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.changelog)
 }
 
 // Firebase is optional: wire google-services only when the json (kept in the
@@ -24,6 +25,9 @@ if (googleServicesJson.exists()) {
 // versionCode is CI-driven so Play testing tracks always get a monotonically
 // increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
 val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+// Single source of truth for the version name — used by the manifest and by the
+// gradle-changelog-plugin (so `getChangelog` returns this version's section).
+val appVersionName = "1.0"
 
 android {
     namespace = "com.ryccoatika.contactmanager"
@@ -38,7 +42,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = appVersionCode
-        versionName = "1.0"
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -91,6 +95,14 @@ android {
     buildFeatures {
         compose = true
     }
+}
+
+changelog {
+    version.set(appVersionName)
+    // CHANGELOG.md lives at the repo root, not inside the module.
+    path.set(rootProject.file("CHANGELOG.md").canonicalPath)
+    // Our versionName is "1.0", not strict SemVer — accept 2+ number segments.
+    headerParserRegex.set("""\d+(\.\d+)+""".toRegex())
 }
 
 dependencies {

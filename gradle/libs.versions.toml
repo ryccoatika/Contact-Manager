@@ -21,6 +21,7 @@ googleServices = "4.5.0"
 firebaseCrashlyticsPlugin = "3.0.7"
 firebaseBom = "34.15.0"
 playReview = "2.0.2"
+changelog = "2.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -60,5 +61,6 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
 
