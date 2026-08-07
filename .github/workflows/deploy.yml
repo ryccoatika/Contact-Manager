@@ -43,8 +43,10 @@ jobs:
 
       - name: Compute versionCode
         id: version
-        # The workflow run number — simple and monotonic per workflow.
-        run: echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        # Derived from the workflow run number so it's simple and monotonic.
+        # The 100 base keeps it above the codes already uploaded to Play
+        # (last was 114) — Play requires each versionCode to strictly increase.
+        run: echo "code=$(( 100 + ${{ github.run_number }} ))" >> "$GITHUB_OUTPUT"
 
       - name: Build signed release AAB + APK
         env:
