@@ -15,6 +15,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the release + tag on main via the GITHUB_TOKEN
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,6 +70,40 @@ jobs:
       - name: Publish to Closed Testing – alpha (main)
         if: github.ref == 'refs/heads/main'
         run: bundle exec fastlane android closed_testing
+
+      # Tag the released version and cut a GitHub Release with the matching
+      # CHANGELOG section as notes and the AAB/APK/mapping attached. Idempotent:
+      # skips if the tag's release already exists.
+      - name: Create GitHub release + tag (main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          TAG="v${VERSION_NAME}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping."
+            exit 0
+          fi
+
+          # Pull this version's section out of CHANGELOG.md for the release notes.
+          NOTES=$(awk -v ver="$VERSION_NAME" '
+            $0 ~ "^## \\[" ver "\\]" { grab=1; next }
+            grab && /^## / { exit }
+            grab { print }
+          ' CHANGELOG.md)
+          [ -z "$NOTES" ] && NOTES="Release $TAG"
+
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG (build ${VERSION_CODE})" \
+            --notes "$NOTES" \
+            app/build/outputs/bundle/release/*.aab \
+            app/build/outputs/apk/release/*.apk \
+            app/build/outputs/mapping/release/mapping.txt
 
       # Announce a successful publish to the team's Telegram topic. Only runs
       # when every prior step (including the branch's publish) succeeded.
