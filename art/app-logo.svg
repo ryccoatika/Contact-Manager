@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <defs>
+    <!-- ic_launcher_background.xml gradient -->
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="20" y1="8" x2="88" y2="100">
+      <stop offset="0" stop-color="#1C7A75"/>
+      <stop offset="1" stop-color="#0C3F42"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ic_launcher_background.xml -->
+  <path d="M0,0h108v108h-108z" fill="url(#bg)"/>
+  <!-- subtle highlight arc, top-left (#14FFFFFF = white @ 8%) -->
+  <path d="M-10,34 C 18,10 58,4 118,18 L 118,-10 L -10,-10 Z" fill="#FFFFFF" fill-opacity="0.078"/>
+
+  <!-- ic_launcher_foreground.xml (group scaleX/scaleY 0.82 about pivot 54,54) -->
+  <g transform="translate(54,54) scale(0.82) translate(-54,-54)">
+    <!-- head -->
+    <path d="M50,44 m-13,0 a13,13 0 1,1 26,0 a13,13 0 1,1 -26,0" fill="#FAF7F2"/>
+    <!-- shoulders (rounded capsule top) -->
+    <path d="M28,80 C 28,67.5 37.8,61 50,61 C 62.2,61 72,67.5 72,80 C 72,81.7 70.7,83 69,83 L 31,83 C 29.3,83 28,81.7 28,80 Z" fill="#FAF7F2"/>
+    <!-- account dots arcing beside the head -->
+    <path d="M72,28 m-4.5,0 a4.5,4.5 0 1,1 9,0 a4.5,4.5 0 1,1 -9,0" fill="#E58A6B"/>
+    <path d="M80,40.5 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0" fill="#EBC46B"/>
+    <path d="M83,53.5 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0" fill="#8FD8D2"/>
+  </g>
+</svg>

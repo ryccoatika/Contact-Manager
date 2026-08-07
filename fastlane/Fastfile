@@ -1,0 +1,33 @@
+# Publishes the release AAB to Google Play. The AAB is built beforehand by
+# Gradle (:app:bundleRelease); these lanes only upload it. Auth + package name
+# come from the Appfile (release/play-account.json service-account key).
+
+default_platform(:android)
+
+AAB_PATH = "app/build/outputs/bundle/release/app-release.aab".freeze
+
+platform :android do
+  desc "Upload the release AAB to Internal App Sharing (merges to develop)"
+  lane :internal_sharing do
+    url = upload_to_play_store_internal_app_sharing(
+      aab: AAB_PATH,
+    )
+    UI.success("Internal App Sharing URL: #{url}")
+    # Expose the download URL to the workflow (for the Telegram notification).
+    github_output = ENV["GITHUB_OUTPUT"]
+    File.write(github_output, "ias_url=#{url}\n", mode: "a") if github_output
+  end
+
+  desc "Upload the release AAB to the closed 'alpha' testing track (merges to main)"
+  lane :closed_testing do
+    upload_to_play_store(
+      track: "alpha",
+      aab: AAB_PATH,
+      release_status: "draft",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end

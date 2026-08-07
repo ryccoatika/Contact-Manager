@@ -45,11 +45,13 @@ cache database, no backend.
 - **Compile after every non-trivial edit** — Compose errors are cheap to catch and
   the whole module compiles in seconds.
 
-### Running it on a device
+### Running it on a device (on demand only)
 
-The unit tests don't exercise the UI. To verify a UI change actually renders,
-install and drive the app over `adb` and screenshot it — see the
-`run-on-device` skill (`.claude/skills/run-on-device/SKILL.md`). Short version:
+Device verification is **not automatic** — compile + unit tests are the default
+gate, even for UI changes. Run the app on a device only when the user asks, or
+when they invoke the **`/verify-ui`** command (`.claude/commands/verify-ui.md`),
+which drives the build → install → launch → screenshot loop (see the
+`run-on-device` skill, `.claude/skills/run-on-device/SKILL.md`). Manual version:
 
 ```bash
 ./gradlew :app:assembleDebug

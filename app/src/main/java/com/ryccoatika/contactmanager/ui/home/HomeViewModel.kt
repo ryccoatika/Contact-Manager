@@ -2,13 +2,18 @@ package com.ryccoatika.contactmanager.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
+import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.BatchProgress
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
+import com.ryccoatika.contactmanager.data.StringProvider
+import com.ryccoatika.contactmanager.data.analytics.Analytics
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
@@ -51,22 +56,30 @@ class HomeViewModel @Inject constructor(
     private val writer: ContactsWriter,
     private val batchManager: BatchOperationManager,
     duplicatePrefs: DuplicatePrefs,
+    appPrefs: AppPrefs,
+    private val strings: StringProvider,
+    private val analytics: Analytics,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
     private val selectedAccountKey = MutableStateFlow<String?>(null)
-    private val accounts = MutableStateFlow<List<ContactAccount>>(emptyList())
     private val selectedContactIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Accounts the user hid from the selector, paired with the live account list
+     *  (re-queried on every provider change so the per-account counts stay current). */
+    private val accountsAndHidden = combine(
+        accountsSource.observeAccounts(), appPrefs.observeHiddenAccountKeys(),
+    ) { accounts, hidden -> accounts to hidden }
 
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events
 
-    val batchProgress: StateFlow<BatchProgress?> = batchManager.progress
+    /** Fires after a merge completes — the screen asks Play for an in-app review. */
+    private val _requestReview = MutableSharedFlow<Unit>()
+    val requestReview: SharedFlow<Unit> = _requestReview
 
-    init {
-        viewModelScope.launch { accounts.value = accountsSource.getAccounts() }
-    }
+    val batchProgress: StateFlow<BatchProgress?> = batchManager.progress
 
     /** Contacts paired with their duplicate-group count (dismissed groups excluded). */
     private val contactsWithDuplicateCount = combine(
@@ -76,12 +89,14 @@ class HomeViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        contactsWithDuplicateCount, accounts, query, selectedAccountKey, selectedContactIds,
-    ) { (contacts, duplicateCount), accounts, query, accountKey, selected ->
+        contactsWithDuplicateCount, accountsAndHidden, query, selectedAccountKey, selectedContactIds,
+    ) { (contacts, duplicateCount), (allAccounts, hidden), query, accountKey, selected ->
+        // A hidden account can't stay selected: its chip is gone, so fall back to All.
+        val effectiveKey = accountKey?.takeIf { it !in hidden }
         HomeUiState(
-            contacts = contacts.filtered(query, accountKey),
-            accounts = accounts,
-            selectedAccountKey = accountKey,
+            contacts = contacts.filtered(query, effectiveKey, hidden),
+            accounts = allAccounts.filter { it.key !in hidden },
+            selectedAccountKey = effectiveKey,
             query = query,
             loading = false,
             selectedContactIds = selected,
@@ -90,7 +105,10 @@ class HomeViewModel @Inject constructor(
     }.flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
-    fun setQuery(q: String) { query.value = q }
+    fun setQuery(q: String) {
+        query.value = q
+        if (q.isNotBlank()) analytics.logEvent(AnalyticsEvent.Search(q.trim().length))
+    }
 
     fun selectAccount(key: String?) { selectedAccountKey.value = key }
 
@@ -109,19 +127,24 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         if (movable.isEmpty()) {
             viewModelScope.launch {
-                _events.emit("Selected contacts are managed by their apps and can't be moved.")
+                _events.emit(strings.get(R.string.home_msg_readonly_move))
             }
             return
         }
+        val targetName = target.name ?: strings.get(R.string.home_msg_this_device)
         val started = batchManager.moveContacts(
             rawContactIds = movable.map { it.rawContactId },
             targetType = target.type,
             targetName = target.name,
-            label = "Moving ${movable.size} to ${target.name ?: "this device"}",
+            label = strings.get(R.string.home_msg_moving_label, movable.size, targetName),
         )
-        if (!started) {
+        if (started) {
+            analytics.logEvent(
+                AnalyticsEvent.ContactMove(movable.size, AccountClassifier.classify(target.type).name),
+            )
+        } else {
             viewModelScope.launch {
-                _events.emit("Another operation is still running — try again when it finishes.")
+                _events.emit(strings.get(R.string.home_msg_busy))
             }
         }
     }
@@ -131,11 +154,14 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             if (ids.isEmpty()) {
-                _events.emit("Selected contacts are managed by their apps and can't be deleted.")
+                _events.emit(strings.get(R.string.home_msg_readonly_delete))
                 return@launch
             }
             when (val result = writer.deleteRawContacts(ids)) {
-                is ContactOpResult.Success -> _events.emit("Deleted ${ids.size} contact entries.")
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
+                    _events.emit(strings.getQuantity(R.plurals.home_msg_deleted_entries, ids.size, ids.size))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -150,7 +176,32 @@ class HomeViewModel @Inject constructor(
         clearSelection()
         viewModelScope.launch {
             when (val result = writer.mergeContacts(target, sources)) {
-                is ContactOpResult.Success -> _events.emit("Merged ${sources.size} entries into one contact.")
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
+                    _events.emit(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size))
+                    _requestReview.emit(Unit)
+                }
+                is ContactOpResult.Failure -> _events.emit(result.message)
+            }
+        }
+    }
+
+    /** Deletes one contact (its writable raw contacts) — used by swipe-to-delete. */
+    fun deleteContact(contactId: Long) {
+        val contact = uiState.value.contacts.firstOrNull { it.contactId == contactId } ?: return
+        val ids = contact.rawContacts
+            .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
+            .map { it.rawContactId }
+        viewModelScope.launch {
+            if (ids.isEmpty()) {
+                _events.emit(strings.get(R.string.home_msg_delete_readonly_named, contact.displayName))
+                return@launch
+            }
+            when (val result = writer.deleteRawContacts(ids)) {
+                is ContactOpResult.Success -> {
+                    analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
+                    _events.emit(strings.get(R.string.home_msg_deleted_named, contact.displayName))
+                }
                 is ContactOpResult.Failure -> _events.emit(result.message)
             }
         }
@@ -171,11 +222,20 @@ class HomeViewModel @Inject constructor(
         selectedRawContacts()
             .filter { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
 
-    private fun List<Contact>.filtered(query: String, accountKey: String?): List<Contact> {
+    private fun List<Contact>.filtered(
+        query: String,
+        accountKey: String?,
+        hidden: Set<String>,
+    ): List<Contact> {
         var result = this
         if (accountKey != null) {
             result = result.filter { contact ->
                 contact.rawContacts.any { "${it.accountType}/${it.accountName}" == accountKey }
+            }
+        } else if (hidden.isNotEmpty()) {
+            // "All" view: drop contacts that live only in hidden accounts.
+            result = result.filter { contact ->
+                contact.rawContacts.any { "${it.accountType}/${it.accountName}" !in hidden }
             }
         }
         if (query.isNotBlank()) {

@@ -1,5 +1,8 @@
 package com.ryccoatika.contactmanager.ui.detail
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,11 +53,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -65,6 +70,9 @@ import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.DetailSkeleton
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.QuickActionPill
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -73,13 +81,26 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     onBack: () -> Unit,
     onEditRawContact: (Long) -> Unit,
+    embedded: Boolean = false,
+    // Identity handed over from the list row so the hero avatar can render while
+    // the full contact still loads — the open shared-element morph needs a target
+    // on its first frame. 0L / blank (tablet, previews) keeps the plain skeleton.
+    contactId: Long = 0L,
+    initialName: String = "",
+    initialPhotoUri: String? = null,
+    // The far end of the avatar shared element started in HomeScreen's list row.
+    // Null on tablet / previews — the avatar just renders in place.
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("contact_detail")
+    val analytics = LocalAnalytics.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -102,21 +123,36 @@ fun DetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+            if (!embedded) {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.detail_cd_back),
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                    ),
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        val current = state.contact
+        // While loading, stand in a minimal contact from the handed-over identity
+        // so the hero (and its shared avatar) is on screen for the open transition.
+        val current = state.contact ?: if (state.loading && contactId != 0L) {
+            Contact(
+                contactId = contactId,
+                displayName = initialName,
+                photoThumbnailUri = initialPhotoUri?.ifEmpty { null },
+            )
+        } else {
+            null
+        }
         if (current == null) {
             DetailSkeleton(Modifier.padding(padding))
         } else {
@@ -136,9 +172,21 @@ fun DetailScreen(
                     contact = current,
                     phone = heroPhone,
                     canEdit = editableRawId != null,
-                    onCall = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it"))) } },
-                    onMessage = { heroPhone?.let { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$it"))) } },
+                    onCall = {
+                        heroPhone?.let {
+                            analytics.logEvent(AnalyticsEvent.CallContact)
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it")))
+                        }
+                    },
+                    onMessage = {
+                        heroPhone?.let {
+                            analytics.logEvent(AnalyticsEvent.MessageContact)
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$it")))
+                        }
+                    },
                     onEdit = { editableRawId?.let(onEditRawContact) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedVisibilityScope = animatedVisibilityScope,
                 )
                 Spacer(Modifier.height(16.dp))
                 current.rawContacts.forEach { raw ->
@@ -154,29 +202,34 @@ fun DetailScreen(
     }
 
     pendingDelete?.let { raw ->
+        TrackScreenView("delete_contact_confirm")
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete contact entry?") },
+            title = { Text(stringResource(R.string.detail_delete_dialog_title)) },
             text = {
                 Text(
-                    "This removes the entry from " +
-                        "${AccountVisuals.label(raw.accountType, raw.accountName)}. " +
-                        "This cannot be undone.",
+                    stringResource(
+                        R.string.detail_delete_dialog_message,
+                        AccountVisuals.label(context, raw.accountType, raw.accountName),
+                    ),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDelete = null
                     viewModel.deleteRawContact(raw.rawContactId)
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.detail_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.detail_cancel))
+                }
             },
         )
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DetailHero(
     contact: Contact,
@@ -185,6 +238,8 @@ private fun DetailHero(
     onCall: () -> Unit,
     onMessage: () -> Unit,
     onEdit: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     SectionCard(Modifier.fillMaxWidth()) {
         Column(
@@ -203,7 +258,18 @@ private fun DetailHero(
                         ),
                     ),
                 )
-                ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 88.dp)
+                val avatarModifier =
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                ContactAvatar(contact.displayName, contact.photoThumbnailUri, size = 88.dp, modifier = avatarModifier)
             }
             Spacer(Modifier.height(10.dp))
             Text(
@@ -224,11 +290,11 @@ private fun DetailHero(
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (phone != null) {
-                        QuickActionPill("Call", Icons.Default.Call, onCall, Modifier.weight(1f))
-                        QuickActionPill("Message", Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_call), Icons.Default.Call, onCall, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_message), Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
                     }
                     if (canEdit) {
-                        QuickActionPill("Edit", Icons.Default.Edit, onEdit, Modifier.weight(1f))
+                        QuickActionPill(stringResource(R.string.detail_action_edit), Icons.Default.Edit, onEdit, Modifier.weight(1f))
                     }
                 }
             }
@@ -242,9 +308,10 @@ private fun RawContactCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val context = LocalContext.current
     val capability = AccountClassifier.classify(raw.accountType)
     val readOnly = capability == AccountCapability.READ_ONLY
-    val accountLabel = AccountVisuals.label(raw.accountType, raw.accountName)
+    val accountLabel = AccountVisuals.label(context, raw.accountType, raw.accountName)
 
     SectionCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,16 +324,16 @@ private fun RawContactCard(
             }
         }
         Spacer(Modifier.height(8.dp))
-        raw.phones.forEach { LabeledValueRow(it, fallbackLabel = "Phone") }
-        raw.emails.forEach { LabeledValueRow(it, fallbackLabel = "Email") }
-        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = "Website") }
-        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = "Address") }
-        raw.organization?.let { FieldRow(label = "Company", value = it) }
-        raw.jobTitle?.let { FieldRow(label = "Job title", value = it) }
-        raw.nickname?.let { FieldRow(label = "Nickname", value = it) }
-        raw.birthday?.let { FieldRow(label = "Birthday", value = formatContactDate(it)) }
-        raw.anniversary?.let { FieldRow(label = "Anniversary", value = formatContactDate(it)) }
-        raw.note?.let { FieldRow(label = "Note", value = it) }
+        raw.phones.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_phone)) }
+        raw.emails.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_email)) }
+        raw.websites.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_website)) }
+        raw.addresses.forEach { LabeledValueRow(it, fallbackLabel = stringResource(R.string.detail_label_address)) }
+        raw.organization?.let { FieldRow(label = stringResource(R.string.detail_label_company), value = it) }
+        raw.jobTitle?.let { FieldRow(label = stringResource(R.string.detail_label_job_title), value = it) }
+        raw.nickname?.let { FieldRow(label = stringResource(R.string.detail_label_nickname), value = it) }
+        raw.birthday?.let { FieldRow(label = stringResource(R.string.detail_label_birthday), value = formatContactDate(it)) }
+        raw.anniversary?.let { FieldRow(label = stringResource(R.string.detail_label_anniversary), value = formatContactDate(it)) }
+        raw.note?.let { FieldRow(label = stringResource(R.string.detail_label_note), value = it) }
         Spacer(Modifier.height(8.dp))
         if (readOnly) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,15 +344,15 @@ private fun RawContactCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Managed by $accountLabel — edit in that app",
+                    stringResource(R.string.detail_managed_by, accountLabel),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEdit) { Text("Edit") }
-                OutlinedButton(onClick = onDelete) { Text("Delete") }
+                OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.detail_edit)) }
+                OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.detail_delete)) }
             }
         }
     }

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar / discard dialog -->
+    <string name="editor_title_new">New contact</string>
+    <string name="editor_title_edit">Edit contact</string>
+    <string name="editor_cancel">Cancel</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_ok">OK</string>
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_message">Your edits have not been saved.</string>
+    <string name="editor_discard_confirm">Discard</string>
+    <string name="editor_discard_keep_editing">Keep editing</string>
+
+    <!-- Account picker -->
+    <string name="editor_editing_in">Editing in %1$s</string>
+    <string name="editor_save_to">Save to</string>
+    <string name="editor_device">Device</string>
+    <string name="editor_account_local">local</string>
+    <string name="editor_account_option">%1$s · %2$s</string>
+    <string name="editor_fixed_account_label">%1$s (%2$s)</string>
+
+    <!-- Field groups / labels / placeholders -->
+    <string name="editor_name">Name</string>
+    <string name="editor_full_name">Full name</string>
+    <string name="editor_nickname">Nickname</string>
+    <string name="editor_company">Company</string>
+    <string name="editor_job_title">Job title</string>
+    <string name="editor_phone">Phone</string>
+    <string name="editor_email">Email</string>
+    <string name="editor_website">Website</string>
+    <string name="editor_address">Address</string>
+    <string name="editor_dates">Dates</string>
+    <string name="editor_birthday">Birthday</string>
+    <string name="editor_anniversary">Anniversary</string>
+    <string name="editor_note">Note</string>
+    <string name="editor_add_note">Add a note</string>
+
+    <!-- Variable-length value rows -->
+    <string name="editor_add_field">Add %1$s</string>
+    <string name="editor_remove_field">Remove %1$s</string>
+    <string name="editor_clear_field">Clear %1$s</string>
+
+    <!-- SIM form -->
+    <string name="editor_sim_contact">SIM contact</string>
+    <string name="editor_sim_name_counter">%1$d/%2$d</string>
+    <string name="editor_sim_name_counter_too_long">%1$d/%2$d — too long for SIM</string>
+    <string name="editor_sim_hint">SIM contacts store a name and one phone number only.</string>
+</resources>

@@ -1,7 +1,10 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Difference
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Search
@@ -50,10 +55,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -69,14 +77,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -85,7 +100,6 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import android.content.res.Configuration
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.ui.common.AccountDot
@@ -94,27 +108,44 @@ import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
+import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeScreen(
-    onContactClick: (Long) -> Unit,
+    onContactClick: (Contact) -> Unit,
     onAddClick: () -> Unit,
     onAccountsClick: () -> Unit,
     onDuplicatesClick: () -> Unit,
     pendingFilterAccountKey: String? = null,
     onPendingFilterConsumed: () -> Unit = {},
+    embedded: Boolean = false,
+    // Set only from the phone nav graph, to morph a row's avatar into the detail
+    // header. Null on tablet / in previews — the avatar just renders in place.
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
+    TrackScreenView("home")
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val batchProgress by viewModel.batchProgress.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val launchReview = rememberReviewLauncher()
+    // In selection mode, Back clears the selection instead of leaving the app.
+    BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
     var showMovePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
     var pendingMove by remember { mutableStateOf<Pair<ContactAccount, MovePlan>?>(null) }
     var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
@@ -128,12 +159,23 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
+    // A completed merge is a review-worthy moment; ask Play (it decides + throttles).
+    LaunchedEffect(Unit) {
+        viewModel.requestReview.collect { launchReview() }
+    }
     LaunchedEffect(Unit) {
         viewModel.batchProgress.collect { progress ->
             if (progress?.finished == true) {
                 viewModel.onBatchFinishedShown()
+                // Only a clean move (no error) counts as a review-worthy moment;
+                // fire before the snackbar, which suspends until it's dismissed.
+                if (progress.error == null) launchReview()
                 snackbarHostState.showSnackbar(
-                    progress.error ?: "Moved ${progress.total} contact${if (progress.total == 1) "" else "s"}",
+                    progress.error ?: context.resources.getQuantityString(
+                        R.plurals.home_moved_contacts,
+                        progress.total,
+                        progress.total,
+                    ),
                 )
             }
         }
@@ -143,10 +185,21 @@ fun HomeScreen(
         topBar = {
             if (state.selectionMode) {
                 TopAppBar(
-                    title = { Text("${state.selectedContactIds.size} selected") },
+                    title = {
+                        Text(
+                            pluralStringResource(
+                                R.plurals.home_selected_count,
+                                state.selectedContactIds.size,
+                                state.selectedContactIds.size,
+                            ),
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = viewModel::clearSelection) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear selection")
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.home_clear_selection),
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -155,9 +208,9 @@ fun HomeScreen(
                         navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 )
-            } else {
+            } else if (!embedded) {
                 TopAppBar(
-                    title = { Text("Contacts") },
+                    title = { Text(stringResource(R.string.home_title)) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                     ),
@@ -170,11 +223,17 @@ fun HomeScreen(
                                     }
                                 },
                             ) {
-                                Icon(Icons.Default.Difference, contentDescription = "Duplicates")
+                                Icon(
+                                    Icons.Default.Difference,
+                                    contentDescription = stringResource(R.string.home_duplicates),
+                                )
                             }
                         }
                         IconButton(onClick = onAccountsClick) {
-                            Icon(Icons.Default.ManageAccounts, contentDescription = "Accounts")
+                            Icon(
+                                Icons.Default.ManageAccounts,
+                                contentDescription = stringResource(R.string.home_accounts),
+                            )
                         }
                     },
                 )
@@ -184,14 +243,18 @@ fun HomeScreen(
             if (state.selectionMode) {
                 BottomAppBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showMovePicker = true }) { Text("Move to…") }
+                    TextButton(onClick = { showMovePicker = true }) {
+                        Text(stringResource(R.string.home_move_to))
+                    }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                    TextButton(onClick = { showDeleteConfirm = true }) {
+                        Text(stringResource(R.string.home_delete))
+                    }
                     Spacer(Modifier.width(8.dp))
                     TextButton(
                         onClick = { showMergePicker = true },
                         enabled = state.selectedContactIds.size >= 2,
-                    ) { Text("Merge") }
+                    ) { Text(stringResource(R.string.home_merge)) }
                 }
             }
         },
@@ -208,7 +271,10 @@ fun HomeScreen(
                         Modifier
                     },
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "New contact")
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.home_new_contact),
+                    )
                 }
             }
         },
@@ -245,27 +311,77 @@ fun HomeScreen(
                         Spacer(Modifier.width(4.dp))
                         // IconButton keeps the 48dp minimum touch target.
                         IconButton(onClick = viewModel::cancelBatch) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel batch operation")
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.home_cancel_batch_operation),
+                            )
                         }
                     }
                 }
             }
+            // Local input state keeps the cursor stable while typing; filtering is
+            // debounced to the ViewModel so the list only re-filters after a pause.
+            var queryInput by remember { mutableStateOf(state.query) }
+            LaunchedEffect(state.query) {
+                if (state.query != queryInput) queryInput = state.query
+            }
+            LaunchedEffect(queryInput) {
+                delay(500)
+                if (queryInput != state.query) viewModel.setQuery(queryInput)
+            }
             SearchField(
-                query = state.query,
-                placeholder = "Search ${state.contacts.size} contacts",
-                onQueryChange = viewModel::setQuery,
+                query = queryInput,
+                placeholder = stringResource(R.string.home_search_hint, state.contacts.size),
+                onQueryChange = { queryInput = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = if (state.query.isNotEmpty()) {
+                trailing = if (queryInput.isNotEmpty()) {
                     {
-                        IconButton(onClick = { viewModel.setQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        IconButton(onClick = {
+                            queryInput = ""
+                            viewModel.setQuery("")
+                        }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.home_clear_search),
+                            )
                         }
                     }
                 } else {
                     null
                 },
             )
+            val chipsState = rememberLazyListState()
+            // Chip index of the active account ("All" is index 0).
+            val selectedChipIndex = if (state.selectedAccountKey == null) {
+                0
+            } else {
+                state.accounts.indexOfFirst { it.key == state.selectedAccountKey }
+                    .let { if (it >= 0) it + 1 else 0 }
+            }
+            // Keep the active account centered (or at least on screen).
+            LaunchedEffect(selectedChipIndex, state.accounts.size) {
+                val info = chipsState.layoutInfo
+                val viewport = info.viewportEndOffset - info.viewportStartOffset
+                val itemSize = info.visibleItemsInfo.firstOrNull { it.index == selectedChipIndex }?.size ?: 0
+                val centerOffset = -((viewport - itemSize) / 2).coerceAtLeast(0)
+                chipsState.animateScrollToItem(selectedChipIndex, centerOffset)
+            }
+            // Fill the row when only a few accounts fit; stay compact (and let the
+            // row scroll) when there are many. Each account chip gets an equal share
+            // of the width left after "All", padding and spacing, clamped 120..280dp.
+            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+            val accountCount = state.accounts.size
+            // A lone account (e.g. just "Phone") shouldn't be stretched to fill the
+            // row — that looks like a broken full-width button. Let it wrap its
+            // content; only share the width when there are several to line up.
+            val singleAccount = accountCount == 1
+            val chipWidth = if (accountCount > 0) {
+                ((screenWidth - 104.dp - 8.dp * accountCount) / accountCount).coerceIn(120.dp, 280.dp)
+            } else {
+                120.dp
+            }
             LazyRow(
+                state = chipsState,
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -273,14 +389,38 @@ fun HomeScreen(
                     FilterChip(
                         selected = state.selectedAccountKey == null,
                         onClick = { viewModel.selectAccount(null) },
-                        label = { Text("All") },
+                        label = { Text(stringResource(R.string.home_filter_all)) },
                     )
                 }
                 items(state.accounts, key = { it.key }) { account ->
                     FilterChip(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
-                        label = { Text("${AccountVisuals.label(account.type, account.name)} · ${account.contactCount}") },
+                        modifier = if (singleAccount) Modifier else Modifier.width(chipWidth),
+                        label = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Name scrolls if long; count pinned right. When it's the
+                                // only chip, cap the width instead of filling so the pill
+                                // hugs its content; otherwise it takes an equal share.
+                                Text(
+                                    AccountVisuals.label(context, account.type, account.name),
+                                    maxLines = 1,
+                                    // Loop forever with no pause, even while the row scrolls.
+                                    modifier = (if (singleAccount) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f))
+                                        .basicMarquee(
+                                            iterations = Int.MAX_VALUE,
+                                            repeatDelayMillis = 0,
+                                            initialDelayMillis = 0,
+                                        ),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    stringResource(R.string.home_account_chip_count, account.contactCount),
+                                    maxLines = 1,
+                                    style = TabularNums.merge(MaterialTheme.typography.labelLarge),
+                                )
+                            }
+                        },
                         leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     )
                 }
@@ -323,11 +463,16 @@ fun HomeScreen(
                                 ContactRow(
                                     contact = contact,
                                     selected = contact.contactId in state.selectedContactIds,
+                                    swipeEnabled = !state.selectionMode,
                                     onClick = {
                                         if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
-                                        else onContactClick(contact.contactId)
+                                        else onContactClick(contact)
                                     },
                                     onLongClick = { viewModel.toggleSelect(contact.contactId) },
+                                    onSwipeDelete = { pendingDeleteContact = contact },
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    modifier = Modifier.animateItem(),
                                 )
                             }
                         }
@@ -348,12 +493,17 @@ fun HomeScreen(
     }
 
     if (showMovePicker) {
+        TrackScreenView("move_account_picker")
         ModalBottomSheet(
             onDismissRequest = { showMovePicker = false },
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
             Text(
-                "Move ${state.selectedContactIds.size} selected to",
+                pluralStringResource(
+                    R.plurals.home_move_selected_to,
+                    state.selectedContactIds.size,
+                    state.selectedContactIds.size,
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
@@ -374,8 +524,10 @@ fun HomeScreen(
                                 pendingMove = account to plan
                             }
                         },
-                        headlineContent = { Text(AccountVisuals.label(account.type, account.name)) },
-                        supportingContent = { Text(account.name ?: "On this device") },
+                        headlineContent = { Text(AccountVisuals.label(context, account.type, account.name)) },
+                        supportingContent = {
+                            Text(account.name ?: stringResource(R.string.home_on_this_device))
+                        },
                         leadingContent = { AccountDot(account.type, account.name, size = 12.dp) },
                     )
                 }
@@ -384,28 +536,35 @@ fun HomeScreen(
     }
 
     pendingMove?.let { (account, plan) ->
+        TrackScreenView("move_fields_lost")
         AlertDialog(
             onDismissRequest = { pendingMove = null },
-            title = { Text("Some fields will be lost") },
+            title = { Text(stringResource(R.string.home_fields_lost_title)) },
             text = {
                 Text(
-                    "Moving to ${AccountVisuals.label(account.type, account.name)} will drop: " +
-                        plan.losses.flatMap { it.lostFields }.distinct().joinToString() + ".",
+                    stringResource(
+                        R.string.home_fields_lost_text,
+                        AccountVisuals.label(context, account.type, account.name),
+                        plan.losses.flatMap { it.lostFields }.distinct().joinToString(),
+                    ),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingMove = null
                     viewModel.moveSelectedTo(account)
-                }) { Text("Move anyway") }
+                }) { Text(stringResource(R.string.home_move_anyway)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingMove = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingMove = null }) {
+                    Text(stringResource(R.string.home_cancel))
+                }
             },
         )
     }
 
     if (showMergePicker) {
+        TrackScreenView("merge_target_picker")
         val selectedContacts = state.contacts.filter { it.contactId in state.selectedContactIds }
         val memberRaws = selectedContacts.flatMap { contact -> contact.rawContacts.map { contact to it } }
         ModalBottomSheet(
@@ -413,7 +572,11 @@ fun HomeScreen(
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
             Text(
-                "Merge ${state.selectedContactIds.size} selected into",
+                pluralStringResource(
+                    R.plurals.home_merge_selected_into,
+                    state.selectedContactIds.size,
+                    state.selectedContactIds.size,
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
@@ -430,7 +593,7 @@ fun HomeScreen(
                         },
                         headlineContent = { Text(contact.displayName) },
                         supportingContent = {
-                            Text(AccountVisuals.label(raw.accountType, raw.accountName))
+                            Text(AccountVisuals.label(context, raw.accountType, raw.accountName))
                         },
                         leadingContent = { AccountDot(raw.accountType, raw.accountName, size = 12.dp) },
                     )
@@ -447,24 +610,41 @@ fun HomeScreen(
         val readOnly = sources.filter { (_, raw) ->
             AccountClassifier.classify(raw.accountType) == AccountCapability.READ_ONLY
         }
+        val mergeSummary = pluralStringResource(
+            R.plurals.home_merge_summary,
+            sources.size,
+            sources.size,
+            targetContact.displayName,
+            AccountVisuals.label(context, targetRaw.accountType, targetRaw.accountName),
+        )
+        val memberTemplate = stringResource(R.string.home_merge_member)
+        val linkedSuffix = stringResource(R.string.home_merge_linked_suffix)
         AlertDialog(
             onDismissRequest = { pendingMergeTarget = null },
-            title = { Text("Merge ${sources.size + 1} entries?") },
+            title = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.home_merge_entries_title,
+                        sources.size + 1,
+                        sources.size + 1,
+                    ),
+                )
+            },
             text = {
                 Text(
                     buildString {
-                        append(
-                            "${sources.size} entries will be merged into ${targetContact.displayName} " +
-                                "(${AccountVisuals.label(targetRaw.accountType, targetRaw.accountName)}) and removed.",
-                        )
+                        append(mergeSummary)
                         if (readOnly.isNotEmpty()) {
                             append("\n\n")
                             append(
                                 readOnly.joinToString { (contact, raw) ->
-                                    "${contact.displayName} (${AccountVisuals.label(raw.accountType, raw.accountName)})"
+                                    memberTemplate.format(
+                                        contact.displayName,
+                                        AccountVisuals.label(context, raw.accountType, raw.accountName),
+                                    )
                                 },
                             )
-                            append(" will be linked (managed by app).")
+                            append(linkedSuffix)
                         }
                     },
                 )
@@ -473,31 +653,62 @@ fun HomeScreen(
                 TextButton(onClick = {
                     pendingMergeTarget = null
                     viewModel.mergeSelected(targetRaw)
-                }) { Text("Merge") }
+                }) { Text(stringResource(R.string.home_merge)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingMergeTarget = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingMergeTarget = null }) {
+                    Text(stringResource(R.string.home_cancel))
+                }
             },
         )
     }
 
     if (showDeleteConfirm) {
+        TrackScreenView("delete_selected_confirm")
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete ${state.selectedContactIds.size} contacts?") },
-            text = {
+            title = {
                 Text(
-                    "Entries managed by other apps are skipped. This cannot be undone.",
+                    pluralStringResource(
+                        R.plurals.home_delete_contacts_title,
+                        state.selectedContactIds.size,
+                        state.selectedContactIds.size,
+                    ),
                 )
+            },
+            text = {
+                Text(stringResource(R.string.home_delete_disclaimer))
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
                     viewModel.deleteSelected()
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.home_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.home_cancel))
+                }
+            },
+        )
+    }
+
+    pendingDeleteContact?.let { target ->
+        TrackScreenView("delete_contact_confirm")
+        AlertDialog(
+            onDismissRequest = { pendingDeleteContact = null },
+            title = { Text(stringResource(R.string.home_delete_contact_title, target.displayName)) },
+            text = { Text(stringResource(R.string.home_delete_disclaimer)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDeleteContact = null
+                    viewModel.deleteContact(target.contactId)
+                }) { Text(stringResource(R.string.home_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteContact = null }) {
+                    Text(stringResource(R.string.home_cancel))
+                }
             },
         )
     }
@@ -628,11 +839,12 @@ private fun AlphabetRail(
 @Composable
 private fun EmptyState(query: String, accountFiltered: Boolean) {
     val (title, hint) = when {
-        query.isNotBlank() -> "No matches for \"${query.trim()}\"" to
-            "Try a different name, number or email."
-        accountFiltered -> "No contacts in this account" to
-            "Pick another account or move contacts into it."
-        else -> "No contacts yet" to "Tap + to add your first contact."
+        query.isNotBlank() -> stringResource(R.string.home_empty_search_title, query.trim()) to
+            stringResource(R.string.home_empty_search_hint)
+        accountFiltered -> stringResource(R.string.home_empty_account_title) to
+            stringResource(R.string.home_empty_account_hint)
+        else -> stringResource(R.string.home_empty_none_title) to
+            stringResource(R.string.home_empty_none_hint)
     }
     Column(
         Modifier.fillMaxSize().padding(32.dp),
@@ -657,43 +869,114 @@ private fun EmptyState(query: String, accountFiltered: Boolean) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 private fun ContactRow(
     contact: Contact,
     selected: Boolean,
+    swipeEnabled: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onSwipeDelete: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        modifier = Modifier
-            .heightIn(min = 64.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
-            Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+    val haptic = LocalHapticFeedback.current
+    val row = @Composable {
+        ListItem(
+            modifier = Modifier
+                .heightIn(min = 64.dp)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongClick()
+                    },
+                ),
+            // Opaque so it covers the red delete background until swiped.
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
+            headlineContent = {
+                Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
+            },
+            supportingContent = {
+                contactSubtitle(contact)?.let {
+                    Text(
+                        it,
+                        style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            },
+            leadingContent = {
+                Crossfade(targetState = selected, label = "avatar") { isSelected ->
+                    if (isSelected) {
+                        SelectedAvatar()
+                    } else {
+                        val avatarModifier =
+                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    )
+                                }
+                            } else {
+                                Modifier
+                            }
+                        ContactAvatar(contact.displayName, contact.photoThumbnailUri, modifier = avatarModifier)
+                    }
+                }
+            },
+            trailingContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    contact.rawContacts
+                        .distinctBy { it.accountType to it.accountName }
+                        .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
+                }
+            },
+        )
+    }
+
+    if (!swipeEnabled) {
+        Box(modifier) { row() }
+        return
+    }
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            // Swipe left far enough → buzz + ask to confirm; never auto-delete.
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSwipeDelete()
+            }
+            false
         },
-        supportingContent = {
-            contactSubtitle(contact)?.let {
-                Text(
-                    it,
-                    style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = modifier,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.error),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.home_delete),
+                    tint = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.padding(end = 24.dp),
                 )
             }
         },
-        leadingContent = {
-            if (selected) SelectedAvatar() else ContactAvatar(contact.displayName, contact.photoThumbnailUri)
-        },
-        trailingContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                contact.rawContacts
-                    .distinctBy { it.accountType to it.accountName }
-                    .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
-            }
-        },
-    )
+    ) {
+        row()
+    }
 }
 
 /** First non-blank of: organization, a phone, an email — a hint under the name. */
@@ -723,7 +1006,14 @@ private fun previewContact() = Contact(
 private fun ContactRowPreview() {
     ContactManagerTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            ContactRow(previewContact(), selected = false, onClick = {}, onLongClick = {})
+            ContactRow(
+                previewContact(),
+                selected = false,
+                swipeEnabled = true,
+                onClick = {},
+                onLongClick = {},
+                onSwipeDelete = {},
+            )
         }
     }
 }

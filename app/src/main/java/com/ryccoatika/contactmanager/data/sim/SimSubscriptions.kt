@@ -3,7 +3,11 @@ package com.ryccoatika.contactmanager.data.sim
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
+import android.util.Log
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -16,6 +20,10 @@ data class SimSubscription(
     /** null on the single-SIM/legacy path (plain content://icc/adn). */
     val subscriptionId: Int?,
     val label: String,
+    /** Physical slot this SIM occupies; null on the legacy fallback. */
+    val slotIndex: Int? = null,
+    /** The SIM's own phone number (MSISDN), when the platform exposes it. */
+    val number: String? = null,
 )
 
 interface SimSubscriptionsSource {
@@ -36,6 +44,8 @@ class DefaultSimSubscriptionsSource @Inject constructor(
 
     override suspend fun activeSubscriptions(): List<SimSubscription> = withContext(ioDispatcher) {
         try {
+            // No SIM (physical or eSIM) in any slot → no SIM account at all.
+            if (!anySimPresent()) return@withContext emptyList()
             val granted = context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) ==
                 PackageManager.PERMISSION_GRANTED
             if (!granted) return@withContext FALLBACK
@@ -48,16 +58,63 @@ class DefaultSimSubscriptionsSource @Inject constructor(
                 SimSubscription(
                     subscriptionId = info.subscriptionId,
                     label = "SIM ${info.simSlotIndex + 1}" + (carrier?.let { " · $it" }.orEmpty()),
+                    slotIndex = info.simSlotIndex,
+                    number = numberOf(manager, info),
                 )
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Swallowed silently before; keep a breadcrumb since this path
+            // silently degrades dual-SIM to a single SIM.
+            Log.w(TAG, "activeSubscriptions failed; using single-SIM fallback", e)
             FALLBACK
         }
     }
 
+    /**
+     * The SIM's MSISDN if the platform will share it. Prefers the deprecated
+     * [SubscriptionInfo.getNumber], then [SubscriptionManager.getPhoneNumber]
+     * (API 33+, needs READ_PHONE_NUMBERS). Any denial/failure yields null.
+     */
+    @Suppress("DEPRECATION")
+    private fun numberOf(manager: SubscriptionManager, info: SubscriptionInfo): String? = try {
+        info.number?.takeIf { it.isNotBlank() }
+            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                manager.getPhoneNumber(info.subscriptionId).takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+    } catch (e: Exception) {
+        null
+    }
+
+    /**
+     * True if any slot holds a usable SIM/eSIM. Uses [TelephonyManager.getSimState]
+     * (no permission), so an empty tray or an eSIM with no active profile reports
+     * absent and no SIM account is shown.
+     */
+    private fun anySimPresent(): Boolean = try {
+        val tm = context.getSystemService(TelephonyManager::class.java) ?: return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val slots = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                tm.activeModemCount
+            } else {
+                @Suppress("DEPRECATION") tm.phoneCount
+            }
+            (0 until slots).any { simPresent(tm.getSimState(it)) }
+        } else {
+            simPresent(tm.simState)
+        }
+    } catch (e: Exception) {
+        true // can't tell → don't hide a possibly-real SIM
+    }
+
+    private fun simPresent(state: Int): Boolean =
+        state != TelephonyManager.SIM_STATE_ABSENT && state != TelephonyManager.SIM_STATE_UNKNOWN
+
     private companion object {
-        val FALLBACK = listOf(SimSubscription(subscriptionId = null, label = "SIM"))
+        const val TAG = "SimSubscriptions"
+        val FALLBACK = listOf(SimSubscription(subscriptionId = null, label = "SIM", slotIndex = null))
     }
 }
