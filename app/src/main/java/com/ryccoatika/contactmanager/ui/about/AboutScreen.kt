@@ -1,7 +1,6 @@
 package com.ryccoatika.contactmanager.ui.about
 
 import android.content.res.Configuration
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,11 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -84,8 +83,10 @@ fun AboutScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(8.dp))
-            Image(
-                painter = painterResource(R.mipmap.ic_launcher),
+            AsyncImage(
+                // The launcher icon is an adaptive-icon XML — Coil rasterizes it;
+                // painterResource cannot load adaptive icons.
+                model = R.mipmap.ic_launcher,
                 contentDescription = null,
                 modifier = Modifier
                     .size(88.dp)
