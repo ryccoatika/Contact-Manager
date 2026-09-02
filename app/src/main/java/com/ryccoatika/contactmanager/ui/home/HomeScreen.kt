@@ -34,7 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Difference
-import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
@@ -124,7 +124,7 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     onContactClick: (Contact) -> Unit,
     onAddClick: () -> Unit,
-    onAccountsClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onDuplicatesClick: () -> Unit,
     pendingFilterAccountKey: String? = null,
     onPendingFilterConsumed: () -> Unit = {},
@@ -229,10 +229,10 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = onAccountsClick) {
+                        IconButton(onClick = onSettingsClick) {
                             Icon(
-                                Icons.Default.ManageAccounts,
-                                contentDescription = stringResource(R.string.home_accounts),
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.home_settings),
                             )
                         }
                     },

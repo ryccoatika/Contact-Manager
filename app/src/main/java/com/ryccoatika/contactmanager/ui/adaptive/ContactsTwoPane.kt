@@ -49,7 +49,7 @@ fun ContactsTwoPane() {
                     }
                 },
                 onAddClick = { detailNav.navigate(Routes.EDITOR_NEW) { launchSingleTop = true } },
-                onAccountsClick = {},
+                onSettingsClick = {},
                 onDuplicatesClick = {},
                 embedded = true,
             )
