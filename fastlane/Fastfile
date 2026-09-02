@@ -7,6 +7,16 @@ default_platform(:android)
 AAB_PATH = "app/build/outputs/bundle/release/app-release.aab".freeze
 MAPPING_PATH = "app/build/outputs/mapping/release/mapping.txt".freeze
 
+# Read a key from the project's gradle.properties (single source of truth shared
+# with the Gradle build). Returns `default` when the key is absent.
+def gradle_prop(key, default)
+  path = File.join(Dir.pwd, "gradle.properties")
+  line = File.foreach(path).find { |l| l.strip.start_with?("#{key}=") }
+  line ? line.split("=", 2).last.strip : default
+rescue Errno::ENOENT
+  default
+end
+
 platform :android do
   desc "Upload the release AAB to Internal App Sharing (merges to develop)"
   lane :internal_sharing do
@@ -26,6 +36,8 @@ platform :android do
       aab: AAB_PATH,
       # Upload the R8 mapping so Play can deobfuscate crash stack traces.
       mapping: MAPPING_PATH,
+      # In-app-update priority (0..5) for this release, from gradle.properties.
+      in_app_update_priority: gradle_prop("inAppUpdatePriority", "0").to_i,
       release_status: "draft",
       skip_upload_metadata: true,
       skip_upload_changelogs: true,

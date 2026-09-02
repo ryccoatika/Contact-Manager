@@ -24,15 +24,26 @@ import com.google.android.play.core.install.model.UpdateAvailability
 import com.ryccoatika.contactmanager.R
 import kotlinx.coroutines.launch
 
+// A release's Play priority (0..5, set at upload from gradle.properties) at or
+// above this forces the blocking immediate flow; below it stays flexible.
+private const val IMMEDIATE_PRIORITY = 4
+// Escalate to immediate once a flexible-eligible update has been available this
+// many days, so laggards eventually update even for a low-priority release.
+private const val IMMEDIATE_STALENESS_DAYS = 14
+
 /**
- * Play In-App Updates, flexible flow. On launch it asks Play whether a newer
- * version is available; if so it starts a background download that never blocks
- * the app. When the download finishes, [snackbarHostState] shows a "Restart"
- * prompt that installs it via `completeUpdate()`.
+ * Play In-App Updates. On launch it asks Play whether a newer version is
+ * available and picks the flow from the release's priority/staleness:
  *
- * Only works for Play-installed builds — for debug/sideloaded builds Play reports
- * no update and the whole thing is a no-op. All failures are swallowed by design;
- * a background update is never worth interrupting the user for.
+ * - priority >= [IMMEDIATE_PRIORITY], or available for >= [IMMEDIATE_STALENESS_DAYS]
+ *   days → **immediate** (Play's blocking full-screen updater).
+ * - otherwise → **flexible**: a background download that never blocks the app;
+ *   when it finishes, [snackbarHostState] shows a "Restart" prompt that installs
+ *   it via `completeUpdate()`.
+ *
+ * An interrupted immediate update is resumed on the next resume. Only works for
+ * Play-installed builds — debug/sideload reports no update and it's a no-op. All
+ * failures are swallowed by design; an update is never worth interrupting for.
  */
 @Composable
 fun InAppUpdate(snackbarHostState: SnackbarHostState) {
@@ -68,25 +79,38 @@ fun InAppUpdate(snackbarHostState: SnackbarHostState) {
         onDispose { manager.unregisterListener(listener) }
     }
 
-    // Kick off the check once per launch.
+    // Kick off the check once per launch, choosing flexible vs immediate.
     LaunchedEffect(Unit) {
         manager.appUpdateInfo.addOnSuccessListener { info ->
-            if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
-                info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
-            ) {
+            if (info.updateAvailability() != UpdateAvailability.UPDATE_AVAILABLE) return@addOnSuccessListener
+            val stalenessDays = info.clientVersionStalenessDays() ?: 0
+            val type =
+                if (info.updatePriority() >= IMMEDIATE_PRIORITY || stalenessDays >= IMMEDIATE_STALENESS_DAYS) {
+                    AppUpdateType.IMMEDIATE
+                } else {
+                    AppUpdateType.FLEXIBLE
+                }
+            if (info.isUpdateTypeAllowed(type)) {
                 manager.startUpdateFlowForResult(
                     info,
                     updateLauncher,
-                    AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build(),
+                    AppUpdateOptions.newBuilder(type).build(),
                 )
             }
         }
     }
 
-    // On resume, re-offer the restart if a download completed while we were away
-    // (the listener above may not be registered at that moment).
     LifecycleResumeEffect(Unit) {
         manager.appUpdateInfo.addOnSuccessListener { info ->
+            // Resume an immediate update that was interrupted (e.g. app killed).
+            if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                manager.startUpdateFlowForResult(
+                    info,
+                    updateLauncher,
+                    AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
+                )
+            }
+            // Re-offer the restart if a flexible download finished while away.
             if (info.installStatus() == InstallStatus.DOWNLOADED) promptRestart()
         }
         onPauseOrDispose { }
