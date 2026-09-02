@@ -4,7 +4,7 @@
     <string name="home_title">Contacts</string>
     <string name="home_clear_selection">Clear selection</string>
     <string name="home_duplicates">Duplicates</string>
-    <string name="home_accounts">Accounts</string>
+    <string name="home_settings">Settings</string>
 
     <!-- Selection actions -->
     <string name="home_move_to">Move to…</string>

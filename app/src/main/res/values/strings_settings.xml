@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="settings_back">Back</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_accounts">Accounts</string>
+    <string name="settings_accounts_desc">See and manage where your contacts live</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_desc">App info and contact the developer</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_description">Contact Manager brings every contact source on your phone — Google, Samsung, SIM, your device, and app accounts — into one clean list. Move contacts to the account they belong in, merge duplicates, and tidy up your address book. Everything happens on your device; nothing is uploaded.</string>
+    <string name="about_contact_developer">Contact developer</string>
+
+    <!-- Contact developer -->
+    <string name="contact_title">Contact developer</string>
+    <string name="contact_intro">Have a suggestion, a question, or something to share? Send me a note and it\'ll open in your email app.</string>
+    <string name="contact_category_label">Category</string>
+    <string name="contact_category_suggestion">Suggestion</string>
+    <string name="contact_category_review">Review</string>
+    <string name="contact_category_ask">Ask</string>
+    <string name="contact_category_other">Other</string>
+    <string name="contact_subject_label">Subject</string>
+    <string name="contact_message_label">Message</string>
+    <string name="contact_send">Send</string>
+    <string name="contact_no_email_app">No email app found on this device.</string>
+</resources>

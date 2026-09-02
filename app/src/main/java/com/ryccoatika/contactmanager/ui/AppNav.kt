@@ -24,7 +24,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ryccoatika.contactmanager.domain.model.Contact
+import com.ryccoatika.contactmanager.ui.about.AboutScreen
+import com.ryccoatika.contactmanager.ui.about.ContactDeveloperScreen
 import com.ryccoatika.contactmanager.ui.accounts.AccountsScreen
+import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
 import com.ryccoatika.contactmanager.ui.detail.DetailScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.editor.EditorScreen
@@ -44,6 +47,9 @@ object Routes {
     const val EDITOR_EDIT = "editor/{rawContactId}"
     const val ACCOUNTS = "accounts"
     const val DUPLICATES = "duplicates"
+    const val SETTINGS = "settings"
+    const val ABOUT = "about"
+    const val CONTACT_DEVELOPER = "contact_developer"
 
     /** Home backstack-entry key used by Accounts to hand back an account filter. */
     const val FILTER_ACCOUNT_KEY = "filterAccountKey"
@@ -135,7 +141,7 @@ internal fun MainNavGraph() {
                         )
                     },
                     onAddClick = { navController.navigate(Routes.EDITOR_NEW) },
-                    onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
+                    onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                     onDuplicatesClick = { navController.navigate(Routes.DUPLICATES) },
                     pendingFilterAccountKey = pendingFilter,
                     onPendingFilterConsumed = {
@@ -196,14 +202,31 @@ internal fun MainNavGraph() {
             composable(Routes.DUPLICATES) {
                 DuplicatesScreen(onBack = { navController.popBackStack() })
             }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
+                    onAboutClick = { navController.navigate(Routes.ABOUT) },
+                )
+            }
+            composable(Routes.ABOUT) {
+                AboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
+                )
+            }
+            composable(Routes.CONTACT_DEVELOPER) {
+                ContactDeveloperScreen(onBack = { navController.popBackStack() })
+            }
             composable(Routes.ACCOUNTS) {
                 AccountsScreen(
                     onBack = { navController.popBackStack() },
                     onAccountClick = { accountKey ->
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(Routes.FILTER_ACCOUNT_KEY, accountKey)
-                        navController.popBackStack()
+                        // Accounts sits under Settings now — hand the filter to Home
+                        // directly and pop the whole way back, whatever the depth.
+                        navController.getBackStackEntry(Routes.HOME)
+                            .savedStateHandle[Routes.FILTER_ACCOUNT_KEY] = accountKey
+                        navController.popBackStack(Routes.HOME, inclusive = false)
                     },
                 )
             }
