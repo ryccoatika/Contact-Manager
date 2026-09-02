@@ -25,9 +25,10 @@ if (googleServicesJson.exists()) {
 // versionCode is CI-driven so Play testing tracks always get a monotonically
 // increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
 val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
-// Single source of truth for the version name — used by the manifest and by the
-// gradle-changelog-plugin (so `getChangelog` returns this version's section).
-val appVersionName = "1.0"
+// Version name lives in gradle.properties (single source shared with CI) — used
+// by the manifest and the gradle-changelog-plugin (so `getChangelog` returns
+// this version's section).
+val appVersionName = (project.findProperty("appVersionName") as String?) ?: "1.0"
 
 android {
     namespace = "com.ryccoatika.contactmanager"
