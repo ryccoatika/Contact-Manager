@@ -119,11 +119,12 @@ class BillingManager @Inject constructor(
                 .build()
         }
         val params = QueryProductDetailsParams.newBuilder().setProductList(products).build()
-        client.queryProductDetailsAsync(params) { result, list ->
+        client.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode != BillingResponseCode.OK) return@queryProductDetailsAsync
+            val details = queryResult.productDetailsList
             productDetails.clear()
-            list.forEach { productDetails[it.productId] = it }
-            _prices.value = list.associate { detail ->
+            details.forEach { productDetails[it.productId] = it }
+            _prices.value = details.associate { detail ->
                 detail.productId to (detail.oneTimePurchaseOfferDetails?.formattedPrice.orEmpty())
             }
         }
