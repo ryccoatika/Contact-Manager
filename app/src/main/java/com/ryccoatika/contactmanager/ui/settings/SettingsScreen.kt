@@ -8,11 +8,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,36 +23,46 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.StarRate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.domain.model.ThemeMode
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -57,12 +70,37 @@ fun SettingsScreen(
     onContactClick: () -> Unit,
     onAboutClick: () -> Unit,
     embedded: Boolean = false,
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    SettingsContent(
+        themeMode = themeMode,
+        onThemeSelected = viewModel::setThemeMode,
+        onBack = onBack,
+        onAccountsClick = onAccountsClick,
+        onContactClick = onContactClick,
+        onAboutClick = onAboutClick,
+        embedded = embedded,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsContent(
+    themeMode: ThemeMode,
+    onThemeSelected: (ThemeMode) -> Unit,
+    onBack: () -> Unit,
+    onAccountsClick: () -> Unit,
+    onContactClick: () -> Unit,
+    onAboutClick: () -> Unit,
+    embedded: Boolean,
 ) {
     TrackScreenView("settings")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val noStore = stringResource(R.string.settings_no_store)
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     val rateApp: () -> Unit = {
         val pkg = context.packageName
@@ -81,6 +119,17 @@ fun SettingsScreen(
                 scope.launch { snackbarHostState.showSnackbar(noStore) }
             }
         }
+    }
+
+    if (showThemeDialog) {
+        ThemeDialog(
+            current = themeMode,
+            onSelect = {
+                onThemeSelected(it)
+                showThemeDialog = false
+            },
+            onDismiss = { showThemeDialog = false },
+        )
     }
 
     Scaffold(
@@ -118,6 +167,13 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_accounts_desc),
                     onClick = onAccountsClick,
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                SettingsRow(
+                    icon = Icons.Default.Palette,
+                    title = stringResource(R.string.settings_theme),
+                    subtitle = themeModeLabel(themeMode),
+                    onClick = { showThemeDialog = true },
+                )
             }
             SectionCard(Modifier.fillMaxWidth()) {
                 SettingsRow(
@@ -144,6 +200,54 @@ fun SettingsScreen(
         }
     }
 }
+
+@Composable
+private fun ThemeDialog(
+    current: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    TrackScreenView("theme_dialog")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.theme_dialog_title)) },
+        text = {
+            Column {
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .selectable(
+                                selected = mode == current,
+                                onClick = { onSelect(mode) },
+                                role = Role.RadioButton,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == current, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(themeModeLabel(mode), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun themeModeLabel(mode: ThemeMode): String = stringResource(
+    when (mode) {
+        ThemeMode.SYSTEM -> R.string.theme_system
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
+    },
+)
 
 @Composable
 private fun SettingsRow(
@@ -197,6 +301,14 @@ private fun SettingsRow(
 @Composable
 private fun SettingsScreenPreview() {
     ContactManagerTheme {
-        SettingsScreen(onBack = {}, onAccountsClick = {}, onContactClick = {}, onAboutClick = {})
+        SettingsContent(
+            themeMode = ThemeMode.SYSTEM,
+            onThemeSelected = {},
+            onBack = {},
+            onAccountsClick = {},
+            onContactClick = {},
+            onAboutClick = {},
+            embedded = false,
+        )
     }
 }
