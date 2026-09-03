@@ -23,7 +23,7 @@ firebaseBom = "34.15.0"
 playReview = "2.0.2"
 appUpdate = "2.1.0"
 androidxBrowser = "1.8.0"
-billing = "7.1.1"
+billing = "8.0.0"
 changelog = "2.2.1"
 
 [libraries]
