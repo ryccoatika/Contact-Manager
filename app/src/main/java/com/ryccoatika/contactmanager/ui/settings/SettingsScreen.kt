@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
@@ -48,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -59,7 +62,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.ThemeMode
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
-import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import kotlinx.coroutines.launch
 
@@ -160,7 +162,7 @@ private fun SettingsContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SectionCard(Modifier.fillMaxWidth()) {
+            SettingsCard {
                 SettingsRow(
                     icon = Icons.Default.ManageAccounts,
                     title = stringResource(R.string.settings_accounts),
@@ -175,7 +177,7 @@ private fun SettingsContent(
                     onClick = { showThemeDialog = true },
                 )
             }
-            SectionCard(Modifier.fillMaxWidth()) {
+            SettingsCard {
                 SettingsRow(
                     icon = Icons.Default.StarRate,
                     title = stringResource(R.string.settings_rate),
@@ -249,6 +251,23 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
     },
 )
 
+/** Rounded, bordered container whose rows go edge-to-edge (unlike SectionCard,
+ *  which pads its content) so a row's press ripple fills the card and is clipped
+ *  to its rounded corners. */
+@Composable
+private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+    ) {
+        Column(content = content)
+    }
+}
+
 @Composable
 private fun SettingsRow(
     icon: ImageVector,
@@ -264,7 +283,10 @@ private fun SettingsRow(
             // the divider stays centered and top/bottom padding reads even. (No extra
             // vertical padding: it would make the taller row exceed this floor again.)
             .heightIn(min = 72.dp)
-            .clickable(onClick = onClick),
+            // clickable before padding → the ripple spans the full card width
+            // (clipped to the card's rounded corners); padding only insets content.
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
