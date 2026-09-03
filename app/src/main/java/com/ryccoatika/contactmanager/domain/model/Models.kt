@@ -35,6 +35,9 @@ data class Contact(
 
 enum class AccountCapability { FULL_CRUD, READ_ONLY, SIM }
 
+/** User's app theme choice; SYSTEM follows the device dark-mode setting. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 data class ContactAccount(
     val name: String?,
     val type: String?,
