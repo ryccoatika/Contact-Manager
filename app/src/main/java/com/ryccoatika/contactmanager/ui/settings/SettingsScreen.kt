@@ -146,9 +146,12 @@ private fun SettingsRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            // A floor tall enough for a 2-line subtitle so every row settles to the
+            // same height — with content centered, a 1-line and 2-line row match, so
+            // the divider stays centered and top/bottom padding reads even. (No extra
+            // vertical padding: it would make the taller row exceed this floor again.)
+            .heightIn(min = 72.dp)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
