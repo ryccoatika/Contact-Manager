@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.annotation.StringRes
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -42,9 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.R
@@ -62,7 +68,7 @@ private enum class ContactCategory(@StringRes val label: Int, val tag: String) {
     OTHER(R.string.contact_category_other, "Other"),
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ContactDeveloperScreen(
     onBack: () -> Unit,
@@ -79,12 +85,14 @@ fun ContactDeveloperScreen(
     var message by remember { mutableStateOf("") }
 
     val noEmailApp = stringResource(R.string.contact_no_email_app)
-    val send: () -> Unit = {
-        // Subject: "[Contact Manager][<Category>] - <subject>".
-        val fullSubject = "[Contact Manager][${category.tag}] - ${subject.trim()}"
+    val emailCopied = stringResource(R.string.contact_email_copied)
+    val clipboard = LocalClipboardManager.current
+
+    // Compose to the developer; blank subject/body = a plain "email me" tap.
+    val launchEmail: (String, String) -> Unit = { fullSubject, body ->
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$DEVELOPER_EMAIL")).apply {
-            putExtra(Intent.EXTRA_SUBJECT, fullSubject)
-            putExtra(Intent.EXTRA_TEXT, message.trim())
+            if (fullSubject.isNotEmpty()) putExtra(Intent.EXTRA_SUBJECT, fullSubject)
+            if (body.isNotEmpty()) putExtra(Intent.EXTRA_TEXT, body)
         }
         // Let the user pick which email app to use rather than jumping to a default.
         val chooser = Intent.createChooser(intent, context.getString(R.string.contact_chooser_title))
@@ -93,6 +101,14 @@ fun ContactDeveloperScreen(
         } catch (_: ActivityNotFoundException) {
             scope.launch { snackbarHostState.showSnackbar(noEmailApp) }
         }
+    }
+    // Subject: "[Contact Manager][<Category>] - <subject>".
+    val send: () -> Unit = {
+        launchEmail("[Contact Manager][${category.tag}] - ${subject.trim()}", message.trim())
+    }
+    val copyEmail: () -> Unit = {
+        clipboard.setText(AnnotatedString(DEVELOPER_EMAIL))
+        scope.launch { snackbarHostState.showSnackbar(emailCopied) }
     }
 
     Scaffold(
@@ -125,11 +141,25 @@ fun ContactDeveloperScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                stringResource(R.string.contact_intro),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.contact_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    DEVELOPER_EMAIL,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                    // Tap emails the developer; long-press copies the address.
+                    modifier = Modifier.combinedClickable(
+                        onClick = { launchEmail("", "") },
+                        onLongClick = copyEmail,
+                    ),
+                )
+            }
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
