@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,8 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,7 +40,6 @@ import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 @Composable
 fun AboutScreen(
     onBack: () -> Unit,
-    onContactClick: () -> Unit,
     embedded: Boolean = false,
 ) {
     TrackScreenView("about")
@@ -112,17 +108,6 @@ fun AboutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = onContactClick,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Default.MailOutline, contentDescription = null)
-                Text(
-                    stringResource(R.string.about_contact_developer),
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
         }
     }
 }
@@ -132,6 +117,6 @@ fun AboutScreen(
 @Composable
 private fun AboutScreenPreview() {
     ContactManagerTheme {
-        AboutScreen(onBack = {}, onContactClick = {})
+        AboutScreen(onBack = {})
     }
 }
