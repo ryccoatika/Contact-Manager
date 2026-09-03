@@ -11,6 +11,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -111,8 +114,14 @@ internal fun MainNavGraph() {
     PermissionGate {
         // Hosts the cross-screen shared elements (the contact avatar). Each
         // destination's AnimatedContentScope is the visibility scope the avatar
-        // animates within; both are handed to the screens below.
-        SharedTransitionLayout {
+        // animates within; both are handed to the screens below. The themed
+        // background fills the fade/scale gap during transitions so nothing flashes
+        // the window background (white in dark mode) through it.
+        SharedTransitionLayout(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
             val sharedScope = this
             NavHost(
                 navController = navController,
@@ -206,14 +215,12 @@ internal fun MainNavGraph() {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
+                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
                     onAboutClick = { navController.navigate(Routes.ABOUT) },
                 )
             }
             composable(Routes.ABOUT) {
-                AboutScreen(
-                    onBack = { navController.popBackStack() },
-                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
-                )
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.CONTACT_DEVELOPER) {
                 ContactDeveloperScreen(onBack = { navController.popBackStack() })

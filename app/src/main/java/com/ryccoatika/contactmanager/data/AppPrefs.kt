@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ryccoatika.contactmanager.domain.model.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
@@ -30,6 +32,10 @@ interface AppPrefs {
     /** False until the user finishes the first-launch onboarding. */
     fun observeOnboardingSeen(): Flow<Boolean>
     suspend fun setOnboardingSeen()
+
+    /** The user's theme choice; SYSTEM (follow device) until they pick otherwise. */
+    fun observeThemeMode(): Flow<ThemeMode>
+    suspend fun setThemeMode(mode: ThemeMode)
 }
 
 private val Context.appPrefsDataStore by preferencesDataStore(name = "app_prefs")
@@ -81,9 +87,27 @@ class DataStoreAppPrefs @Inject constructor(
         }
     }
 
+    override fun observeThemeMode(): Flow<ThemeMode> =
+        context.appPrefsDataStore.data
+            .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+            .map { prefs ->
+                // Unknown/absent value falls back to following the system.
+                prefs[THEME_MODE]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
+                    ?: ThemeMode.SYSTEM
+            }
+
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        try {
+            context.appPrefsDataStore.edit { prefs -> prefs[THEME_MODE] = mode.name }
+        } catch (_: IOException) {
+            // Best-effort: the theme simply stays as it was.
+        }
+    }
+
     private companion object {
         val PHONE_PERMISSION_ASKED = booleanPreferencesKey("phone_permission_asked")
         val HIDDEN_ACCOUNT_KEYS = stringSetPreferencesKey("hidden_account_keys")
         val ONBOARDING_SEEN = booleanPreferencesKey("onboarding_seen")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 }

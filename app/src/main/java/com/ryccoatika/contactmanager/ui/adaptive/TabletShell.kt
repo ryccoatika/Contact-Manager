@@ -80,6 +80,7 @@ private fun SettingsPane() {
             SettingsScreen(
                 onBack = {},
                 onAccountsClick = { nav.navigate(Routes.ACCOUNTS) },
+                onContactClick = { nav.navigate(Routes.CONTACT_DEVELOPER) },
                 onAboutClick = { nav.navigate(Routes.ABOUT) },
                 embedded = true,
             )
@@ -88,10 +89,7 @@ private fun SettingsPane() {
             AccountsScreen(onBack = { nav.popBackStack() }, onAccountClick = {})
         }
         composable(Routes.ABOUT) {
-            AboutScreen(
-                onBack = { nav.popBackStack() },
-                onContactClick = { nav.navigate(Routes.CONTACT_DEVELOPER) },
-            )
+            AboutScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.CONTACT_DEVELOPER) {
             ContactDeveloperScreen(onBack = { nav.popBackStack() })
