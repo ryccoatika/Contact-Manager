@@ -8,6 +8,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - New Settings screen (from the Contacts top bar): Accounts, Theme, a "Rate this
   app" shortcut to Google Play, Contact developer, and About.
 - Light, Dark, or System theme, chosen from Settings and remembered.
+- Optional "Support development" donations via Google Play in-app purchase
+  (Coffee, Smoothie, Pizza, Fancy meal).
 - Contact developer form — choose a category, write a message; the developer
   email is tappable to compose or long-press to copy.
 - About screen with app info, description, and a Privacy Policy link.
