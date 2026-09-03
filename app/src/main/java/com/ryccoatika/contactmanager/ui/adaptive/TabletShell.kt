@@ -27,7 +27,6 @@ import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.Routes
 import com.ryccoatika.contactmanager.ui.about.AboutScreen
 import com.ryccoatika.contactmanager.ui.about.ContactDeveloperScreen
-import com.ryccoatika.contactmanager.ui.about.LicensesScreen
 import com.ryccoatika.contactmanager.ui.accounts.AccountsScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
@@ -90,13 +89,7 @@ private fun SettingsPane() {
             AccountsScreen(onBack = { nav.popBackStack() }, onAccountClick = {})
         }
         composable(Routes.ABOUT) {
-            AboutScreen(
-                onBack = { nav.popBackStack() },
-                onLicensesClick = { nav.navigate(Routes.LICENSES) },
-            )
-        }
-        composable(Routes.LICENSES) {
-            LicensesScreen(onBack = { nav.popBackStack() })
+            AboutScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.CONTACT_DEVELOPER) {
             ContactDeveloperScreen(onBack = { nav.popBackStack() })

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,12 +13,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,7 +40,6 @@ import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 @Composable
 fun AboutScreen(
     onBack: () -> Unit,
-    onLicensesClick: () -> Unit,
     embedded: Boolean = false,
 ) {
     TrackScreenView("about")
@@ -112,17 +108,6 @@ fun AboutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(32.dp))
-            OutlinedButton(
-                onClick = onLicensesClick,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null)
-                Text(
-                    stringResource(R.string.about_licenses),
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
         }
     }
 }
@@ -132,6 +117,6 @@ fun AboutScreen(
 @Composable
 private fun AboutScreenPreview() {
     ContactManagerTheme {
-        AboutScreen(onBack = {}, onLicensesClick = {})
+        AboutScreen(onBack = {})
     }
 }

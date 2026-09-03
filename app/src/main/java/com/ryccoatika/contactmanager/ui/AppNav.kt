@@ -26,7 +26,6 @@ import androidx.navigation.navArgument
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.ui.about.AboutScreen
 import com.ryccoatika.contactmanager.ui.about.ContactDeveloperScreen
-import com.ryccoatika.contactmanager.ui.about.LicensesScreen
 import com.ryccoatika.contactmanager.ui.accounts.AccountsScreen
 import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
 import com.ryccoatika.contactmanager.ui.detail.DetailScreen
@@ -50,7 +49,6 @@ object Routes {
     const val DUPLICATES = "duplicates"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
-    const val LICENSES = "licenses"
     const val CONTACT_DEVELOPER = "contact_developer"
 
     /** Home backstack-entry key used by Accounts to hand back an account filter. */
@@ -213,13 +211,7 @@ internal fun MainNavGraph() {
                 )
             }
             composable(Routes.ABOUT) {
-                AboutScreen(
-                    onBack = { navController.popBackStack() },
-                    onLicensesClick = { navController.navigate(Routes.LICENSES) },
-                )
-            }
-            composable(Routes.LICENSES) {
-                LicensesScreen(onBack = { navController.popBackStack() })
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.CONTACT_DEVELOPER) {
                 ContactDeveloperScreen(onBack = { navController.popBackStack() })
