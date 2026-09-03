@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.StarRate
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +54,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     onAccountsClick: () -> Unit,
+    onContactClick: () -> Unit,
     onAboutClick: () -> Unit,
     embedded: Boolean = false,
 ) {
@@ -126,6 +128,13 @@ fun SettingsScreen(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 SettingsRow(
+                    icon = Icons.Default.MailOutline,
+                    title = stringResource(R.string.settings_contact),
+                    subtitle = stringResource(R.string.settings_contact_desc),
+                    onClick = onContactClick,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                SettingsRow(
                     icon = Icons.Default.Info,
                     title = stringResource(R.string.settings_about),
                     subtitle = stringResource(R.string.settings_about_desc),
@@ -188,6 +197,6 @@ private fun SettingsRow(
 @Composable
 private fun SettingsScreenPreview() {
     ContactManagerTheme {
-        SettingsScreen(onBack = {}, onAccountsClick = {}, onAboutClick = {})
+        SettingsScreen(onBack = {}, onAccountsClick = {}, onContactClick = {}, onAboutClick = {})
     }
 }

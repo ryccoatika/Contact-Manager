@@ -206,14 +206,12 @@ internal fun MainNavGraph() {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
+                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
                     onAboutClick = { navController.navigate(Routes.ABOUT) },
                 )
             }
             composable(Routes.ABOUT) {
-                AboutScreen(
-                    onBack = { navController.popBackStack() },
-                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
-                )
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.CONTACT_DEVELOPER) {
                 ContactDeveloperScreen(onBack = { navController.popBackStack() })
