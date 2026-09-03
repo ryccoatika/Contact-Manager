@@ -18,7 +18,8 @@
 
     <!-- Contact developer -->
     <string name="contact_title">Contact developer</string>
-    <string name="contact_intro">Have a suggestion, a question, or something to share? Send me a note and it\'ll open in your email app.</string>
+    <string name="contact_intro">Have a suggestion, a question, or something to share? Fill in the form below, or reach me directly at:</string>
+    <string name="contact_email_copied">Email copied to clipboard</string>
     <string name="contact_category_label">Category</string>
     <string name="contact_category_suggestion">Suggestion</string>
     <string name="contact_category_review">Review</string>
