@@ -86,8 +86,10 @@ fun ContactDeveloperScreen(
             putExtra(Intent.EXTRA_SUBJECT, fullSubject)
             putExtra(Intent.EXTRA_TEXT, message.trim())
         }
+        // Let the user pick which email app to use rather than jumping to a default.
+        val chooser = Intent.createChooser(intent, context.getString(R.string.contact_chooser_title))
         try {
-            context.startActivity(intent)
+            context.startActivity(chooser)
         } catch (_: ActivityNotFoundException) {
             scope.launch { snackbarHostState.showSnackbar(noEmailApp) }
         }
