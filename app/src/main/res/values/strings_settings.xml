@@ -22,6 +22,7 @@
     <string name="contact_email_copied">Email copied to clipboard</string>
     <string name="contact_category_label">Category</string>
     <string name="contact_category_suggestion">Suggestion</string>
+    <string name="contact_category_bug">Report Bug</string>
     <string name="contact_category_review">Review</string>
     <string name="contact_category_ask">Ask</string>
     <string name="contact_category_other">Other</string>
