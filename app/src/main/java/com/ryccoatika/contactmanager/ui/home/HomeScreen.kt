@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,18 +55,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -75,11 +74,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -116,6 +122,7 @@ import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -440,6 +447,9 @@ fun HomeScreen(
             } else {
                 val listState = rememberLazyListState()
                 val scope = rememberCoroutineScope()
+                // Only one row may have its delete action revealed: dragging a row
+                // claims this id and every other row closes its reveal.
+                var swipedContactId by remember { mutableStateOf<Long?>(null) }
                 val sections by remember { derivedStateOf { sectionsOf(state.contacts) } }
                 val letterIndex by remember {
                     derivedStateOf {
@@ -470,6 +480,9 @@ fun HomeScreen(
                                     extras = state.rowExtras[contact.contactId],
                                     selected = contact.contactId in state.selectedContactIds,
                                     swipeEnabled = !state.selectionMode,
+                                    closeReveal = listState.isScrollInProgress ||
+                                        (swipedContactId != null && swipedContactId != contact.contactId),
+                                    onSwipeStart = { swipedContactId = contact.contactId },
                                     sharedElementEnabled = contact.contactId == transitionContactId,
                                     onClick = {
                                         if (state.selectionMode) {
@@ -890,6 +903,8 @@ private fun ContactRow(
     extras: ContactRowExtras?,
     selected: Boolean,
     swipeEnabled: Boolean,
+    closeReveal: Boolean = false,
+    onSwipeStart: () -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSwipeDelete: () -> Unit,
@@ -899,12 +914,33 @@ private fun ContactRow(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    // Horizontal drag offset of the row: 0 = settled, -actionWidth = delete
+    // button revealed. Driven manually so a partial swipe can *hold* the reveal
+    // (SwipeToDismissBox only knows settled/dismissed). A plain state written
+    // synchronously from the drag callback — launching per-delta coroutines
+    // raced the release animation and left the row ajar.
+    var offsetPx by remember { mutableFloatStateOf(0f) }
+    val settleBack: () -> Unit = {
+        scope.launch { animate(offsetPx, 0f) { value, _ -> offsetPx = value } }
+    }
+    // List scrolling dismisses an open reveal — a stale delete button shouldn't
+    // ride along while the user browses.
+    LaunchedEffect(closeReveal) {
+        if (closeReveal && offsetPx < 0f) {
+            animate(offsetPx, 0f) { value, _ -> offsetPx = value }
+        }
+    }
+    val rowClick: () -> Unit = {
+        // A tap while the delete button is revealed closes it instead of opening.
+        if (offsetPx < -1f) settleBack() else onClick()
+    }
     val row = @Composable {
         ListItem(
             modifier = Modifier
                 .heightIn(min = 64.dp)
                 .combinedClickable(
-                    onClick = onClick,
+                    onClick = rowClick,
                     onLongClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onLongClick()
@@ -961,40 +997,90 @@ private fun ContactRow(
         return
     }
 
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            // Swipe left far enough → buzz + ask to confirm; never auto-delete.
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onSwipeDelete()
-            }
-            false
-        },
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        modifier = modifier,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.error),
-                contentAlignment = Alignment.CenterEnd,
+    var rowWidthPx by remember { mutableFloatStateOf(0f) }
+    val actionWidthPx = with(LocalDensity.current) { DELETE_ACTION_WIDTH.toPx() }
+    // Crossing this while dragging buzzes; releasing past it confirms right away.
+    val deleteThresholdPx = rowWidthPx * DELETE_SWIPE_THRESHOLD
+    var pastThreshold by remember { mutableStateOf(false) }
+
+    // Pinned at the trailing edge normally; once the drag crosses the threshold
+    // the trash button springs over to hug the row's trailing edge and follows
+    // the finger — signalling "release to delete".
+    val buttonLeftTarget = if (pastThreshold) {
+        rowWidthPx + offsetPx
+    } else {
+        rowWidthPx - actionWidthPx
+    }
+    val buttonLeft by animateFloatAsState(buttonLeftTarget, label = "deleteButton")
+
+    Box(modifier.onSizeChanged { rowWidthPx = it.width.toFloat() }) {
+        // Revealed layer: the tappable delete action under the row.
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(MaterialTheme.colorScheme.error),
+        ) {
+            IconButton(
+                onClick = {
+                    settleBack()
+                    onSwipeDelete()
+                },
+                modifier = Modifier
+                    .offset { IntOffset(buttonLeft.roundToInt(), 0) }
+                    .width(DELETE_ACTION_WIDTH)
+                    .fillMaxHeight(),
             ) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = stringResource(R.string.home_delete),
                     tint = MaterialTheme.colorScheme.onError,
-                    modifier = Modifier.padding(end = 24.dp),
                 )
             }
-        },
-    ) {
-        row()
+        }
+        Box(
+            Modifier
+                .offset { IntOffset(offsetPx.roundToInt(), 0) }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    onDragStarted = { onSwipeStart() },
+                    state = rememberDraggableState { delta ->
+                        val target = (offsetPx + delta).coerceIn(-rowWidthPx, 0f)
+                        val crossed = deleteThresholdPx > 0f && target <= -deleteThresholdPx
+                        if (crossed && !pastThreshold) {
+                            // Reject = the strongest buzz Compose exposes — this is the
+                            // "you're about to delete" moment, make it unmissable.
+                            haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                        }
+                        pastThreshold = crossed
+                        offsetPx = target
+                    },
+                    onDragStopped = {
+                        val settleTo = when {
+                            // Released past the threshold → ask to confirm right away.
+                            pastThreshold -> {
+                                onSwipeDelete()
+                                0f
+                            }
+                            // Button fully uncovered but under the threshold → hold it revealed.
+                            offsetPx <= -actionWidthPx -> -actionWidthPx
+                            // Still (partly) covering the button → snap closed.
+                            else -> 0f
+                        }
+                        pastThreshold = false
+                        animate(offsetPx, settleTo) { value, _ -> offsetPx = value }
+                    },
+                ),
+        ) {
+            row()
+        }
     }
 }
+
+/** Width of the revealed swipe-to-delete action button. */
+private val DELETE_ACTION_WIDTH = 88.dp
+
+/** Fraction of the row width past which releasing confirms deletion directly. */
+private const val DELETE_SWIPE_THRESHOLD = 0.4f
 
 
 private fun previewContact() = Contact(

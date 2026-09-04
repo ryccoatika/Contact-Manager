@@ -18,6 +18,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
 - Smoother fast scrolling of the contact list.
+- Reworked swipe-to-delete: a short swipe reveals a tappable delete button, a
+  long swipe (with a strong buzz) asks to confirm right away.
 
 ## [1.0] - 2026-08-07
 - Initial feature
