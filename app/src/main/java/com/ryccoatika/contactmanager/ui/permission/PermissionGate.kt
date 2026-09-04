@@ -1,6 +1,7 @@
 package com.ryccoatika.contactmanager.ui.permission
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,11 +23,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,23 +48,34 @@ private fun allGranted(context: Context): Boolean = CONTACT_PERMISSIONS.all {
     ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
 }
 
+private fun showPermissionRationale(context: Context): Boolean = CONTACT_PERMISSIONS.any {
+    (context as? Activity)?.shouldShowRequestPermissionRationale(it) == true
+}
+
 /** Shows [content] only when contact permissions are granted; otherwise rationale screen. */
 @Composable
 fun PermissionGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(allGranted(context)) }
-    var denied by remember { mutableStateOf(false) }
+    var shouldShowRationale by remember { mutableStateOf(showPermissionRationale(context)) }
+    // rationale == false is ambiguous: it means "never asked" OR "denied with
+    // 'don't ask again' / denied twice". Only after a request has actually come
+    // back denied with the flag still false do we know it's permanent — that's
+    // when "Open settings" is the only way forward.
+    var requestedOnce by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
+        requestedOnce = true
         granted = result.values.all { it }
-        denied = !granted
+        shouldShowRationale = showPermissionRationale(context)
     }
 
     // Re-check on every resume so a grant made in system settings (after a
     // permanent denial) unlocks the app without a restart.
     LifecycleResumeEffect(Unit) {
         granted = allGranted(context)
+        shouldShowRationale = showPermissionRationale(context)
         onPauseOrDispose { }
     }
 
@@ -81,7 +93,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
     ) {
         PermissionRationale(
             onAllow = { launcher.launch(CONTACT_PERMISSIONS) },
-            denied = denied,
+            permanentlyDenied = requestedOnce && !shouldShowRationale,
             onOpenSettings = {
                 context.startActivity(
                     Intent(
@@ -97,7 +109,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
 @Composable
 private fun PermissionRationale(
     onAllow: () -> Unit,
-    denied: Boolean,
+    permanentlyDenied: Boolean,
     onOpenSettings: () -> Unit,
 ) {
     Column(
@@ -124,13 +136,14 @@ private fun PermissionRationale(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onAllow) {
-            Text(stringResource(R.string.permission_allow))
-        }
-        if (denied) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onOpenSettings) {
+        if (permanentlyDenied) {
+            // The system dialog can no longer be shown — settings is the only way.
+            Button(onClick = onOpenSettings) {
                 Text(stringResource(R.string.permission_open_settings))
+            }
+        } else {
+            Button(onClick = onAllow) {
+                Text(stringResource(R.string.permission_allow))
             }
         }
     }
