@@ -27,6 +27,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
   the contact list.
 - New splash screen that follows the device's dark mode; app launch no longer
   flashes white in the dark theme.
+- A friendly screen appears if the app ever crashes, with a one-tap restart;
+  the error is reported automatically.
 
 ## [1.0] - 2026-08-07
 - Initial feature
