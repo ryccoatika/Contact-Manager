@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var appPrefs: AppPrefs
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Hands the system splash over to the compat handling, then swaps to the
+        // post-splash theme; must run before super.onCreate().
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
