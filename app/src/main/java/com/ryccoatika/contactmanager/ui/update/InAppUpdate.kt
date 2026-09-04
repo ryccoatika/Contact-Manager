@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
@@ -60,11 +61,13 @@ fun InAppUpdate(snackbarHostState: SnackbarHostState) {
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { }
 
+    val downloadedMessage = stringResource(R.string.update_downloaded)
+    val restartLabel = stringResource(R.string.update_restart)
     val promptRestart: () -> Unit = {
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = context.getString(R.string.update_downloaded),
-                actionLabel = context.getString(R.string.update_restart),
+                message = downloadedMessage,
+                actionLabel = restartLabel,
                 duration = SnackbarDuration.Indefinite,
             )
             if (result == SnackbarResult.ActionPerformed) manager.completeUpdate()

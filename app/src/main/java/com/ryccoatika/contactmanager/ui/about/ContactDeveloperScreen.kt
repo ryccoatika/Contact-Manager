@@ -89,6 +89,7 @@ fun ContactDeveloperScreen(
     var message by remember { mutableStateOf("") }
 
     val noEmailApp = stringResource(R.string.contact_no_email_app)
+    val chooserTitle = stringResource(R.string.contact_chooser_title)
     val emailCopied = stringResource(R.string.contact_email_copied)
     val clipboard = LocalClipboardManager.current
 
@@ -99,7 +100,7 @@ fun ContactDeveloperScreen(
             if (body.isNotEmpty()) putExtra(Intent.EXTRA_TEXT, body)
         }
         // Let the user pick which email app to use rather than jumping to a default.
-        val chooser = Intent.createChooser(intent, context.getString(R.string.contact_chooser_title))
+        val chooser = Intent.createChooser(intent, chooserTitle)
         try {
             context.startActivity(chooser)
         } catch (_: ActivityNotFoundException) {

@@ -80,8 +80,10 @@ class DefaultSimSubscriptionsSource
          */
         @Suppress("DEPRECATION")
         private fun numberOf(manager: SubscriptionManager, info: SubscriptionInfo): String? = try {
+            val canReadNumbers = context.checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) ==
+                PackageManager.PERMISSION_GRANTED
             info.number?.takeIf { it.isNotBlank() }
-                ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && canReadNumbers) {
                     manager.getPhoneNumber(info.subscriptionId).takeIf { it.isNotBlank() }
                 } else {
                     null

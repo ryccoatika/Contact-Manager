@@ -1,0 +1,46 @@
+name: Check
+
+# PR gate: formatting, compile, unit tests, Android lint. Deploys stay in
+# deploy.yml; this workflow never touches secrets so it's safe for any PR.
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Spotless (ktlint)
+        run: ./gradlew spotlessCheck
+
+      - name: Compile
+        run: ./gradlew compileDebugKotlin
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Android Lint
+        run: ./gradlew :app:lintDebug
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 14
