@@ -1,2 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources />
+<resources>
+    <!-- Mirrors Compose's GroundLight/GroundDark (Color.kt) for the pre-Compose
+         window: splash screen + window background. Keep in sync with Color.kt. -->
+    <color name="app_background">#F4F6F3</color>
+</resources>

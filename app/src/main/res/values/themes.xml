@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.ContactManager" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Post-splash theme. The themed windowBackground keeps the first frames
+         (before Compose draws) from flashing the wrong brightness. -->
+    <style name="Theme.ContactManager" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+
+    <!-- System-drawn splash: launcher icon on the app background, matching the
+         device's light/dark mode via values-night. (The in-app Theme setting
+         can't apply here — the system draws this before the process starts.) -->
+    <style name="Theme.ContactManager.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/app_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.ContactManager</item>
+    </style>
 </resources>

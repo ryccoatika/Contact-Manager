@@ -25,6 +25,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - The add button tucks away while scrolling down and returns when scrolling up.
 - Long-press an account chip to hide it or move all its contacts, right from
   the contact list.
+- New splash screen that follows the device's dark mode; app launch no longer
+  flashes white in the dark theme.
 
 ## [1.0] - 2026-08-07
 - Initial feature
