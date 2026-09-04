@@ -23,6 +23,7 @@ import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.accounts.PendingMoveAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,6 +31,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -70,7 +73,7 @@ class HomeViewModel @Inject constructor(
     private val writer: ContactsWriter,
     private val batchManager: BatchOperationManager,
     duplicatePrefs: DuplicatePrefs,
-    appPrefs: AppPrefs,
+    private val appPrefs: AppPrefs,
     private val strings: StringProvider,
     private val analytics: Analytics,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
@@ -143,6 +146,57 @@ class HomeViewModel @Inject constructor(
 
     /** Replace the whole selection — used by long-press + drag range select. */
     fun setSelection(ids: Set<Long>) { selectedContactIds.value = ids }
+
+    // --- Account chip long-press actions (mirrors the Accounts screen) --------
+
+    /** Move-all parked for confirmation, with its field-loss report. */
+    private val _pendingMoveAll = MutableStateFlow<PendingMoveAll?>(null)
+    val pendingMoveAll: StateFlow<PendingMoveAll?> = _pendingMoveAll.asStateFlow()
+
+    /** Hide [account] from the selector; it stays manageable in Settings › Accounts. */
+    fun hideAccount(account: ContactAccount) {
+        viewModelScope.launch { appPrefs.setAccountHidden(account.key, true) }
+    }
+
+    /** Plans moving every contact of [source] into [target]; parked for confirmation. */
+    fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
+        viewModelScope.launch {
+            val sources = contactsSource.observeContacts().first()
+                .flatMap { it.rawContacts }
+                .filter { it.accountType == source.type && it.accountName == source.name }
+            val plan = MovePlanner.plan(sources, target.type, target.name)
+            _pendingMoveAll.value = PendingMoveAll(source, target, plan.losses)
+        }
+    }
+
+    fun dismissPendingMoveAll() { _pendingMoveAll.value = null }
+
+    fun confirmPendingMoveAll() {
+        val pending = _pendingMoveAll.value ?: return
+        _pendingMoveAll.value = null
+        viewModelScope.launch {
+            val rawIds = contactsSource.observeContacts().first()
+                .flatMap { it.rawContacts }
+                .filter { it.accountType == pending.source.type && it.accountName == pending.source.name }
+                .map { it.rawContactId }
+            if (rawIds.isEmpty()) {
+                _events.emit(strings.get(R.string.accounts_msg_no_contacts))
+                return@launch
+            }
+            val targetName = pending.target.name ?: strings.get(R.string.accounts_msg_this_device)
+            val started = batchManager.moveContacts(
+                rawContactIds = rawIds,
+                targetType = pending.target.type,
+                targetName = pending.target.name,
+                label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
+            )
+            if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
+            _events.emit(
+                if (started) strings.get(R.string.accounts_msg_move_started)
+                else strings.get(R.string.accounts_msg_busy),
+            )
+        }
+    }
 
     /** Plan for moving the movable part of the selection into [target]. */
     fun planMove(target: ContactAccount): MovePlan =

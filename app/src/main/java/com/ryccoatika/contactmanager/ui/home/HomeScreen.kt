@@ -41,6 +41,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -87,9 +89,12 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -133,6 +138,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -181,6 +187,10 @@ fun HomeScreen(
     // In selection mode, Back clears the selection instead of leaving the app.
     BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
     var showMovePicker by remember { mutableStateOf(false) }
+    // Account-chip long-press menu + its "move all contacts" flow.
+    var accountMenuFor by remember { mutableStateOf<String?>(null) }
+    var moveAllSource by remember { mutableStateOf<ContactAccount?>(null) }
+    val pendingMoveAll by viewModel.pendingMoveAll.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
@@ -434,10 +444,15 @@ fun HomeScreen(
                     )
                 }
                 items(state.accounts, key = { it.key }) { account ->
+                    Box {
                     FilterChip(
                         selected = state.selectedAccountKey == account.key,
                         onClick = { viewModel.selectAccount(account.key) },
-                        modifier = if (singleAccount) Modifier else Modifier.width(chipWidth),
+                        modifier = (if (singleAccount) Modifier else Modifier.width(chipWidth))
+                            .chipLongPress(account.key) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                accountMenuFor = account.key
+                            },
                         label = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 // Name scrolls if long; count pinned right. When it's the
@@ -464,6 +479,40 @@ fun HomeScreen(
                         },
                         leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                     )
+                    // Long-press menu: same actions as Settings › Accounts.
+                    DropdownMenu(
+                        expanded = accountMenuFor == account.key,
+                        onDismissRequest = { accountMenuFor = null },
+                    ) {
+                        val readOnly = account.capability == AccountCapability.READ_ONLY
+                        DropdownMenuItem(
+                            enabled = !readOnly,
+                            text = {
+                                Column {
+                                    Text(stringResource(R.string.accounts_move_all_contacts_to))
+                                    if (readOnly) {
+                                        Text(
+                                            stringResource(R.string.accounts_managed_by_app),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                accountMenuFor = null
+                                moveAllSource = account
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.accounts_hide_from_selector)) },
+                            onClick = {
+                                accountMenuFor = null
+                                viewModel.hideAccount(account)
+                            },
+                        )
+                    }
+                    }
                 }
             }
             if (state.loading) {
@@ -632,6 +681,108 @@ fun HomeScreen(
             dismissButton = {
                 TextButton(onClick = { pendingMove = null }) {
                     Text(stringResource(R.string.home_cancel))
+                }
+            },
+        )
+    }
+
+    // Target picker for the account chip's "Move all contacts to…" action.
+    moveAllSource?.let { source ->
+        TrackScreenView("account_move_target_picker")
+        ModalBottomSheet(
+            onDismissRequest = { moveAllSource = null },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            Text(
+                stringResource(
+                    R.string.accounts_move_all_source_contacts_to,
+                    AccountVisuals.label(context, source.type, source.name),
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            state.accounts
+                .filter {
+                    it.key != source.key &&
+                        (
+                            it.capability == AccountCapability.FULL_CRUD ||
+                                (it.capability == AccountCapability.SIM && it.writable)
+                            )
+                }
+                .forEach { target ->
+                    ListItem(
+                        modifier = Modifier.clickable {
+                            moveAllSource = null
+                            viewModel.requestMoveAll(source, target)
+                        },
+                        headlineContent = { Text(AccountVisuals.label(context, target.type, target.name)) },
+                        supportingContent = {
+                            Text(target.name ?: stringResource(R.string.home_on_this_device))
+                        },
+                        leadingContent = { AccountDot(target.type, target.name, size = 12.dp) },
+                    )
+                }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    // Confirmation (with field-loss report) before the move-all batch runs.
+    pendingMoveAll?.let { pending ->
+        val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
+        TrackScreenView("account_move_confirm")
+        AlertDialog(
+            onDismissRequest = viewModel::dismissPendingMoveAll,
+            title = {
+                Text(
+                    if (lostFields.isEmpty()) {
+                        pluralStringResource(
+                            R.plurals.accounts_move_contacts_title,
+                            pending.source.contactCount,
+                            pending.source.contactCount,
+                        )
+                    } else {
+                        stringResource(R.string.accounts_some_fields_lost)
+                    },
+                )
+            },
+            text = {
+                val moveBody = stringResource(
+                    R.string.accounts_move_dialog_body,
+                    AccountVisuals.label(context, pending.source.type, pending.source.name),
+                    AccountVisuals.label(context, pending.target.type, pending.target.name),
+                )
+                val lossesText = if (lostFields.isNotEmpty()) {
+                    pluralStringResource(
+                        R.plurals.accounts_move_dialog_losses,
+                        pending.losses.size,
+                        pending.losses.size,
+                        lostFields.joinToString(),
+                    )
+                } else {
+                    null
+                }
+                Text(
+                    buildString {
+                        append(moveBody)
+                        if (lossesText != null) {
+                            append("\n\n")
+                            append(lossesText)
+                        }
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmPendingMoveAll) {
+                    Text(
+                        stringResource(
+                            if (lostFields.isEmpty()) R.string.accounts_move else R.string.accounts_move_anyway,
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissPendingMoveAll) {
+                    Text(stringResource(R.string.accounts_cancel))
                 }
             },
         )
@@ -1169,6 +1320,32 @@ private fun Modifier.dragToSelect(
         },
     )
 }
+
+/**
+ * Long-press detector that coexists with a component's own click handling (e.g.
+ * FilterChip): it watches the Initial pass, and only when the press outlasts the
+ * long-press timeout does it fire and swallow the rest of the gesture so the
+ * component's tap doesn't also land.
+ */
+private fun Modifier.chipLongPress(key: Any?, onLongPress: () -> Unit): Modifier =
+    pointerInput(key) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            // null = timed out (long press); true = lifted (tap); false = cancelled
+            // (e.g. the chips row started scrolling).
+            val upBeforeTimeout = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                waitForUpOrCancellation(PointerEventPass.Initial) != null
+            }
+            if (upBeforeTimeout == null) {
+                onLongPress()
+                var event: PointerEvent
+                do {
+                    event = awaitPointerEvent(PointerEventPass.Initial)
+                    event.changes.forEach { it.consume() }
+                } while (event.changes.any { it.pressed })
+            }
+        }
+    }
 
 /** The contact row (Long key) under viewport-relative [y]; headers yield null. */
 private fun LazyListState.contactIdAt(y: Float): Long? =
