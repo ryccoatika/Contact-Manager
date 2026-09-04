@@ -14,6 +14,7 @@ to [Keep a Changelog](https://keepachangelog.com/) and
   email is tappable to compose or long-press to copy.
 - About screen with app info, description, and a Privacy Policy link.
 - Fixed a crash when the contacts permission is revoked while the app runs.
+- Fixed the permission screen title being unreadable in dark mode.
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
 
