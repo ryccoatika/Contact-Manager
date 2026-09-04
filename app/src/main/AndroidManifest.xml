@@ -19,6 +19,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ContactManager">
+        <!-- Crash screen launched by the global uncaught-exception handler. Runs
+             in its own process so it survives the crashed process being killed. -->
+        <activity
+            android:name=".ui.crash.CrashActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@style/Theme.ContactManager" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
