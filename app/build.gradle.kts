@@ -100,6 +100,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    kotlin {
+        compilerOptions {
+            // Warnings are errors: deprecations and compiler nags get fixed, not shipped.
+            allWarningsAsErrors.set(true)
+            // Opt into the future (2.4+) default: constructor-param annotations also
+            // target the property — silences KT-73255 migration warnings coherently.
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+        }
+    }
     buildFeatures {
         compose = true
     }
