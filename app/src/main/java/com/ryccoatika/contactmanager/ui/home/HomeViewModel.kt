@@ -37,8 +37,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Row bits derived from a [Contact] once per data load instead of per-row in
+ *  composition: the subtitle line and the distinct (type, name) provenance dots. */
+data class ContactRowExtras(
+    val subtitle: String?,
+    val accountDots: List<Pair<String?, String?>>,
+)
+
 data class HomeUiState(
     val contacts: List<Contact> = emptyList(),
+    val rowExtras: Map<Long, ContactRowExtras> = emptyMap(),
     val accounts: List<ContactAccount> = emptyList(),
     val selectedAccountKey: String? = null,
     val query: String = "",
@@ -48,6 +56,12 @@ data class HomeUiState(
 ) {
     val selectionMode: Boolean get() = selectedContactIds.isNotEmpty()
 }
+
+/** First non-blank of: organization, a phone, an email — the hint under the name. */
+private fun subtitleOf(contact: Contact): String? =
+    contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }
+        ?: contact.rawContacts.flatMap { it.phones }.firstOrNull()?.value
+        ?: contact.rawContacts.flatMap { it.emails }.firstOrNull()?.value
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -93,8 +107,17 @@ class HomeViewModel @Inject constructor(
     ) { (contacts, duplicateCount), (allAccounts, hidden), query, accountKey, selected ->
         // A hidden account can't stay selected: its chip is gone, so fall back to All.
         val effectiveKey = accountKey?.takeIf { it !in hidden }
+        val filtered = contacts.filtered(query, effectiveKey, hidden)
         HomeUiState(
-            contacts = contacts.filtered(query, effectiveKey, hidden),
+            contacts = filtered,
+            rowExtras = filtered.associate { contact ->
+                contact.contactId to ContactRowExtras(
+                    subtitle = subtitleOf(contact),
+                    accountDots = contact.rawContacts
+                        .map { it.accountType to it.accountName }
+                        .distinct(),
+                )
+            },
             accounts = allAccounts.filter { it.key !in hidden },
             selectedAccountKey = effectiveKey,
             query = query,

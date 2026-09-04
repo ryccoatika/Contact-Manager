@@ -467,6 +467,7 @@ fun HomeScreen(
                             items(section.contacts, key = { it.contactId }) { contact ->
                                 ContactRow(
                                     contact = contact,
+                                    extras = state.rowExtras[contact.contactId],
                                     selected = contact.contactId in state.selectedContactIds,
                                     swipeEnabled = !state.selectionMode,
                                     sharedElementEnabled = contact.contactId == transitionContactId,
@@ -886,6 +887,7 @@ private fun EmptyState(query: String, accountFiltered: Boolean) {
 @Composable
 private fun ContactRow(
     contact: Contact,
+    extras: ContactRowExtras?,
     selected: Boolean,
     swipeEnabled: Boolean,
     onClick: () -> Unit,
@@ -914,7 +916,7 @@ private fun ContactRow(
                 Text(contact.displayName, style = MaterialTheme.typography.titleMedium)
             },
             supportingContent = {
-                contactSubtitle(contact)?.let {
+                extras?.subtitle?.let {
                     Text(
                         it,
                         style = TabularNums.merge(MaterialTheme.typography.bodyMedium),
@@ -948,9 +950,7 @@ private fun ContactRow(
             },
             trailingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    contact.rawContacts
-                        .distinctBy { it.accountType to it.accountName }
-                        .forEach { raw -> AccountDot(raw.accountType, raw.accountName) }
+                    extras?.accountDots?.forEach { (type, name) -> AccountDot(type, name) }
                 }
             },
         )
@@ -996,11 +996,6 @@ private fun ContactRow(
     }
 }
 
-/** First non-blank of: organization, a phone, an email — a hint under the name. */
-private fun contactSubtitle(contact: Contact): String? =
-    contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }
-        ?: contact.rawContacts.flatMap { it.phones }.firstOrNull()?.value
-        ?: contact.rawContacts.flatMap { it.emails }.firstOrNull()?.value
 
 private fun previewContact() = Contact(
     contactId = 1L,
@@ -1025,6 +1020,10 @@ private fun ContactRowPreview() {
         Surface(color = MaterialTheme.colorScheme.background) {
             ContactRow(
                 previewContact(),
+                extras = ContactRowExtras(
+                    subtitle = "+44 7700 900312",
+                    accountDots = listOf("com.google" to "amelia@gmail.com"),
+                ),
                 selected = false,
                 swipeEnabled = true,
                 onClick = {},
