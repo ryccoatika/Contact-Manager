@@ -23,6 +23,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - Long-press and drag to select (or deselect) many contacts in one sweep, with
   edge auto-scroll.
 - The add button tucks away while scrolling down and returns when scrolling up.
+- Long-press an account chip to hide it or move all its contacts, right from
+  the contact list.
 
 ## [1.0] - 2026-08-07
 - Initial feature
