@@ -70,9 +70,16 @@ class AccountRepository @Inject constructor(
         val observer = object : ContentObserver(null) {
             override fun onChange(selfChange: Boolean) { trySend(Unit) }
         }
-        context.contentResolver.registerContentObserver(RawContacts.CONTENT_URI, true, observer)
+        // Registering throws SecurityException if READ_CONTACTS was revoked (user
+        // toggle, Android auto-reset) while the app runs; degrade to a one-shot
+        // emission instead of crashing — downstream queries already return empty.
+        val registered = runCatching {
+            context.contentResolver.registerContentObserver(RawContacts.CONTENT_URI, true, observer)
+        }.isSuccess
         trySend(Unit) // emit current accounts on subscription
-        awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+        awaitClose {
+            if (registered) context.contentResolver.unregisterContentObserver(observer)
+        }
     }.conflate()
 
     private suspend fun getAccountsOrThrow(): List<ContactAccount> {
