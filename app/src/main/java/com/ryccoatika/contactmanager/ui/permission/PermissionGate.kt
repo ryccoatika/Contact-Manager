@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +72,34 @@ fun PermissionGate(content: @Composable () -> Unit) {
         return
     }
 
+    // Surface sets the themed background AND content color — without it the
+    // title falls back to LocalContentColor's default (black) and vanishes in
+    // dark mode.
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        PermissionRationale(
+            onAllow = { launcher.launch(CONTACT_PERMISSIONS) },
+            denied = denied,
+            onOpenSettings = {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    ),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun PermissionRationale(
+    onAllow: () -> Unit,
+    denied: Boolean,
+    onOpenSettings: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -95,17 +124,14 @@ fun PermissionGate(content: @Composable () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        Button(onClick = { launcher.launch(CONTACT_PERMISSIONS) }) {
+        Button(onClick = onAllow) {
             Text(stringResource(R.string.permission_allow))
         }
         if (denied) {
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = {
-                context.startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.fromParts("package", context.packageName, null)),
-                )
-            }) { Text(stringResource(R.string.permission_open_settings)) }
+            TextButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.permission_open_settings))
+            }
         }
     }
 }
