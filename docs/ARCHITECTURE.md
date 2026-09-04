@@ -68,7 +68,7 @@ violations are fixed, never baselined.
 | R3  | ui files that are not `*ViewModel.kt` never import `data.` — composables consume domain types; the ViewModel is the data seam |
 | R4  | No feature package imports another feature package; only `ui/AppNav.kt` and `ui/adaptive/` compose features (the feature list is derived from `ls ui/` at audit time) |
 | R5  | Every project-local ViewModel constructor dependency is an `interface` (fakeable seam); concrete injectables are findings |
-| R6  | No Kotlin file over 500 lines (treat failures as decomposition prompts, not mechanical-split mandates) |
+| R6  | File budget: target ≤ 500 lines (audit warns above); **750 is the hard cap**, allowed only when a file genuinely cannot be decomposed (audit fails above it) |
 | R7  | `Color(0x…)` only under `ui/theme/` (+ the sanctioned `AccountVisuals` provenance palette) |
 | R8  | `Dispatchers.*` referenced only in `di/` — everywhere else dispatchers are injected qualifiers |
 | R9  | `ContactsContract`/`ContentResolver`/`content://icc` only under `data/` (di may wire the resolver) |
@@ -119,7 +119,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    AlertDialogs and three hand-built sheets) into `ui/common/`. Then
    `EditorScreen.kt` (extract the form field kit) and
    `data/ContactsWriteRepository.kt` (split the batch-op builders into
-   focused files under `data/`). Clears R6.
+   focused files under `data/`). Clears R6 and the soft-budget warnings.
 6. **Unify events** — sealed `UiEvent` + a shared snackbar collector in
    `ui/common/`; migrate Home/Accounts/Duplicates VMs off
    `SharedFlow<String>`. Clears R10.

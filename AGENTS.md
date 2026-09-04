@@ -146,7 +146,9 @@ UI conventions:
 ## Conventions
 
 - Kotlin + Compose idioms; match the surrounding file's style and comment
-  density. Prefer small, focused composables; files stay under 500 lines.
+  density. Prefer small, focused composables. **File budget: target ≤ 500
+  lines; 750 is the hard cap** (architecture-audit enforced), reserved for
+  files that genuinely cannot be split — decompose before you get there.
 - **Strings**: everything user-visible in `res/values/strings_<screen>.xml`;
   plurals for counts; ViewModels use `StringProvider`. No hardcoded text.
 - ViewModel constructor deps are **interfaces** with `Fake*` test doubles
