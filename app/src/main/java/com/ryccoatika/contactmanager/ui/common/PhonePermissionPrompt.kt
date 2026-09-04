@@ -34,6 +34,7 @@ fun PhonePermissionPrompt(
 ) {
     val context = LocalContext.current
     val analytics = LocalAnalytics.current
+
     fun granted(permission: String) =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     val alreadyGranted = remember {

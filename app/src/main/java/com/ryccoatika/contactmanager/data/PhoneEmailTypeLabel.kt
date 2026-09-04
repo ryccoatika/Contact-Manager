@@ -11,7 +11,6 @@ import android.provider.ContactsContract.CommonDataKinds.Website
  * so it is JVM-testable.
  */
 object PhoneEmailTypeLabel {
-
     fun from(mimeType: String?, data2Int: Int?, data3: String?): String? = when (mimeType) {
         Phone.CONTENT_ITEM_TYPE -> when (data2Int) {
             0 -> data3?.takeIf { it.isNotBlank() }
@@ -21,6 +20,7 @@ object PhoneEmailTypeLabel {
             7 -> "Other"
             else -> null
         }
+
         Email.CONTENT_ITEM_TYPE -> when (data2Int) {
             0 -> data3?.takeIf { it.isNotBlank() }
             1 -> "Home"
@@ -29,6 +29,7 @@ object PhoneEmailTypeLabel {
             4 -> "Mobile"
             else -> null
         }
+
         Website.CONTENT_ITEM_TYPE -> when (data2Int) {
             0 -> data3?.takeIf { it.isNotBlank() }
             1 -> "Homepage"
@@ -37,6 +38,7 @@ object PhoneEmailTypeLabel {
             7 -> "Other"
             else -> null
         }
+
         StructuredPostal.CONTENT_ITEM_TYPE -> when (data2Int) {
             0 -> data3?.takeIf { it.isNotBlank() }
             1 -> "Home"
@@ -44,6 +46,7 @@ object PhoneEmailTypeLabel {
             3 -> "Other"
             else -> null
         }
+
         else -> null
     }
 }

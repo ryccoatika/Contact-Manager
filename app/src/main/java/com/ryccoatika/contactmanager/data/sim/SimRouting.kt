@@ -6,7 +6,6 @@ package com.ryccoatika.contactmanager.data.sim
  * "icc/<subscriptionId or -1>" account type; everything here decodes that.
  */
 object SimRouting {
-
     const val SIM_TYPE_PREFIX = "icc/"
 
     /** Offset keeping synthetic ids far away from real (positive) provider ids. */

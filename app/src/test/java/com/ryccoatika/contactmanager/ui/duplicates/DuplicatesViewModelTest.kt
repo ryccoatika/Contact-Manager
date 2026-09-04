@@ -32,26 +32,30 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DuplicatesViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private fun contact(id: Long, name: String, phone: String? = null, accType: String? = "com.google") = Contact(
-        contactId = id, displayName = name,
+        contactId = id,
+        displayName = name,
         rawContacts = listOf(
             RawContact(
-                rawContactId = id * 10, accountType = accType, accountName = "acc",
+                rawContactId = id * 10,
+                accountType = accType,
+                accountName = "acc",
                 phones = phone?.let { listOf(LabeledValue(id, it, null)) } ?: emptyList(),
             ),
         ),
     )
 
     // 1+2 share a phone (HIGH), 3+4 match by name only (MEDIUM).
-    private val contactsFlow = MutableStateFlow(listOf(
-        contact(1, "Andi Wijaya", "+62812345678"),
-        contact(2, "Andi W", "0812345678", accType = "com.whatsapp"),
-        contact(3, "Budi Santoso"),
-        contact(4, "Santoso Budi"),
-    ))
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            contact(1, "Andi Wijaya", "+62812345678"),
+            contact(2, "Andi W", "0812345678", accType = "com.whatsapp"),
+            contact(3, "Budi Santoso"),
+            contact(4, "Santoso Budi"),
+        ),
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
@@ -59,8 +63,11 @@ class DuplicatesViewModelTest {
 
     private class FakePrefs : DuplicatePrefs {
         val dismissed = MutableStateFlow<Set<String>>(emptySet())
+
         override fun observeDismissedKeys(): Flow<Set<String>> = dismissed
+
         override suspend fun dismissedKeys(): Set<String> = dismissed.value
+
         override suspend fun dismiss(key: String) {
             dismissed.update { it + key }
         }
@@ -132,8 +139,13 @@ class DuplicatesViewModelTest {
             defaultDispatcher = dispatcher,
         )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `groups flow through sorted HIGH first`() = runTest(dispatcher) {
         val vm = vm()
@@ -198,7 +210,11 @@ class DuplicatesViewModelTest {
         vm.dismiss(group)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(setOf(DuplicateFinder.groupKey(group)), prefs.dismissed.value)
-        assertEquals(listOf(listOf(3L, 4L)), vm.uiState.value.groups.map { g -> g.contacts.map { it.contactId } })
+        assertEquals(
+            listOf(listOf(3L, 4L)),
+            vm.uiState.value.groups
+                .map { g -> g.contacts.map { it.contactId } },
+        )
         assertEquals(listOf(10L, 20L), writer.separated)
         job.cancel()
     }
@@ -213,7 +229,10 @@ class DuplicatesViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vm.uiState.value.groups.size)
         assertNotNull(prefs.dismissed.value.firstOrNull())
-        assertTrue(vm.uiState.value.groups.none { it.confidence == MatchConfidence.HIGH })
+        assertTrue(
+            vm.uiState.value.groups
+                .none { it.confidence == MatchConfidence.HIGH },
+        )
         job.cancel()
     }
 }

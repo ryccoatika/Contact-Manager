@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 // A release's Play priority (0..5, set at upload from gradle.properties) at or
 // above this forces the blocking immediate flow; below it stays flexible.
 private const val IMMEDIATE_PRIORITY = 4
+
 // Escalate to immediate once a flexible-eligible update has been available this
 // many days, so laggards eventually update even for a low-priority release.
 private const val IMMEDIATE_STALENESS_DAYS = 14

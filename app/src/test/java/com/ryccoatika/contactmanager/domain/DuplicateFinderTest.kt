@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DuplicateFinderTest {
-
     private var nextDataId = 0L
 
     private fun contact(

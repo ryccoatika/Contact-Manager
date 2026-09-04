@@ -61,7 +61,10 @@ import kotlinx.coroutines.launch
 /** Developer inbox + the fixed English tags used in the email subject bracket. */
 private const val DEVELOPER_EMAIL = "me@ryccoatika.com"
 
-private enum class ContactCategory(@StringRes val label: Int, val tag: String) {
+private enum class ContactCategory(
+    @StringRes val label: Int,
+    val tag: String,
+) {
     SUGGESTION(R.string.contact_category_suggestion, "Suggestion"),
     BUG(R.string.contact_category_bug, "Bug"),
     REVIEW(R.string.contact_category_review, "Review"),

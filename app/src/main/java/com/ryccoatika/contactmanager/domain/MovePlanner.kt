@@ -23,7 +23,6 @@ data class MovePlan(
  * the plan reports what each raw contact would lose (shown before execution).
  */
 object MovePlanner {
-
     fun plan(sources: List<RawContact>, targetType: String?, targetName: String?): MovePlan {
         val losses = when (AccountClassifier.classify(targetType)) {
             AccountCapability.SIM -> sources.mapNotNull { simLossOf(it) }

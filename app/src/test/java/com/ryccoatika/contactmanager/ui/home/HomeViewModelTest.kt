@@ -22,8 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -38,23 +38,28 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private fun raw(id: Long, accType: String?, phone: String? = null) = RawContact(
-        rawContactId = id, accountType = accType, accountName = "acc",
+        rawContactId = id,
+        accountType = accType,
+        accountName = "acc",
         phones = phone?.let { listOf(LabeledValue(1, it, null)) } ?: emptyList(),
     )
 
     private fun contact(id: Long, name: String, vararg raws: RawContact) = Contact(
-        contactId = id, displayName = name, rawContacts = raws.toList(),
+        contactId = id,
+        displayName = name,
+        rawContacts = raws.toList(),
     )
 
-    private val contactsFlow = MutableStateFlow(listOf(
-        contact(1, "Andi Wijaya", raw(10, "com.google", "+62812111")),
-        contact(2, "Budi Santoso", raw(20, "com.whatsapp")),
-        contact(3, "Citra Lestari", raw(30, "com.google", "+62899000"), raw(31, "com.whatsapp")),
-    ))
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            contact(1, "Andi Wijaya", raw(10, "com.google", "+62812111")),
+            contact(2, "Budi Santoso", raw(20, "com.whatsapp")),
+            contact(3, "Citra Lestari", raw(30, "com.google", "+62899000"), raw(31, "com.whatsapp")),
+        ),
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
@@ -64,6 +69,7 @@ class HomeViewModelTest {
             ContactAccount("acc", "com.google", AccountCapability.FULL_CRUD, 2),
             ContactAccount("acc", "com.whatsapp", AccountCapability.READ_ONLY, 2),
         )
+
         override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
@@ -127,7 +133,9 @@ class HomeViewModelTest {
 
     private val fakePrefs = object : DuplicatePrefs {
         override fun observeDismissedKeys(): Flow<Set<String>> = dismissedKeys
+
         override suspend fun dismissedKeys(): Set<String> = dismissedKeys.value
+
         override suspend fun dismiss(key: String) {
             dismissedKeys.value = dismissedKeys.value + key
         }
@@ -149,8 +157,13 @@ class HomeViewModelTest {
         defaultDispatcher = dispatcher,
     )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `hidden account drops its chip and its only-contacts from All`() = runTest(dispatcher) {
         val vm = vm(appPrefs = FakeAppPrefs(hiddenAccountKeys = setOf("com.whatsapp/acc")))
@@ -180,7 +193,8 @@ class HomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf("Budi Santoso", "Citra Lestari"),
-            vm.uiState.value.contacts.map { it.displayName },
+            vm.uiState.value.contacts
+                .map { it.displayName },
         )
         job.cancel()
     }
@@ -193,7 +207,11 @@ class HomeViewModelTest {
         assertEquals(1, vm.uiState.value.contacts.size)
         vm.setQuery("812111")
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf("Andi Wijaya"), vm.uiState.value.contacts.map { it.displayName })
+        assertEquals(
+            listOf("Andi Wijaya"),
+            vm.uiState.value.contacts
+                .map { it.displayName },
+        )
         job.cancel()
     }
 
@@ -309,7 +327,10 @@ class HomeViewModelTest {
         vm.toggleSelect(1)
         vm.toggleSelect(3)
         dispatcher.scheduler.advanceUntilIdle()
-        val target = contactsFlow.value.first { it.contactId == 1L }.rawContacts.single()
+        val target = contactsFlow.value
+            .first { it.contactId == 1L }
+            .rawContacts
+            .single()
         vm.mergeSelected(target)
         dispatcher.scheduler.advanceUntilIdle()
         val (mergedTarget, sources) = writer.merged!!

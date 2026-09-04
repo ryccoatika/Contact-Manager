@@ -22,7 +22,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SimAwareContactsWriterTest {
-
     private class FakeDelegate : ContactsWriter {
         var created: Triple<String?, String?, EditableContact>? = null
         var updated: Pair<Long, EditableContact>? = null
@@ -202,8 +201,18 @@ class SimAwareContactsWriterTest {
         val result = env.writer.updateRawContact(simId, editable("Budiman", "0899"))
         assertEquals(ContactOpResult.Success, result)
         assertNull(env.delegate.updated)
-        assertEquals("Budiman", env.simSource.contactsBySub[null]!!.single().name)
-        assertEquals("0899", env.simSource.contactsBySub[null]!!.single().number)
+        assertEquals(
+            "Budiman",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .name,
+        )
+        assertEquals(
+            "0899",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .number,
+        )
     }
 
     @Test fun `update with stale sim id fails gracefully`() = runTest {
@@ -280,7 +289,11 @@ class SimAwareContactsWriterTest {
             progress += d to t
         }
         assertEquals(ContactOpResult.Success, result)
-        assertEquals("Budi", env.delegate.created!!.third.displayName)
+        assertEquals(
+            "Budi",
+            env.delegate.created!!
+                .third.displayName,
+        )
         assertTrue(env.simSource.contactsBySub[null]!!.isEmpty())
         assertEquals(listOf(1 to 1), progress)
     }
@@ -298,7 +311,12 @@ class SimAwareContactsWriterTest {
         val env = Env(contacts = listOf(providerContact))
         val result = env.writer.moveRawContacts(listOf(10L), "icc/-1", "SIM") { _, _ -> }
         assertEquals(ContactOpResult.Success, result)
-        assertEquals("Citra Lestari", env.simSource.contactsBySub[null]!!.single().name)
+        assertEquals(
+            "Citra Lestari",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .name,
+        )
         assertEquals(listOf(listOf(10L)), env.delegate.deleted)
     }
 
@@ -314,7 +332,11 @@ class SimAwareContactsWriterTest {
         }
         assertEquals(ContactOpResult.Success, result)
         assertEquals(listOf(10L), env.delegate.moved)
-        assertEquals("Budi", env.delegate.created!!.third.displayName)
+        assertEquals(
+            "Budi",
+            env.delegate.created!!
+                .third.displayName,
+        )
         assertEquals(listOf(1 to 2, 2 to 2), progress)
     }
 
