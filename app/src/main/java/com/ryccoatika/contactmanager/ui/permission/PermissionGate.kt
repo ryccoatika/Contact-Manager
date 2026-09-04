@@ -44,14 +44,6 @@ private val CONTACT_PERMISSIONS = arrayOf(
     Manifest.permission.WRITE_CONTACTS,
 )
 
-// Requested together with contacts so the user sees one flow up front, but the
-// gate never blocks on them: phone permissions are optional and only improve
-// SIM labels (slot + carrier + number). Denying them still unlocks the app.
-private val REQUESTED_PERMISSIONS = CONTACT_PERMISSIONS + arrayOf(
-    Manifest.permission.READ_PHONE_STATE,
-    Manifest.permission.READ_PHONE_NUMBERS,
-)
-
 private fun allGranted(context: Context): Boolean = CONTACT_PERMISSIONS.all {
     ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
 }
@@ -75,8 +67,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
         requestedOnce = true
-        // Only the contacts permissions gate the app; phone results are ignored.
-        granted = CONTACT_PERMISSIONS.all { result[it] == true }
+        granted = result.values.all { it }
         shouldShowRationale = showPermissionRationale(context)
     }
 
@@ -101,7 +92,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
         color = MaterialTheme.colorScheme.background,
     ) {
         PermissionRationale(
-            onAllow = { launcher.launch(REQUESTED_PERMISSIONS) },
+            onAllow = { launcher.launch(CONTACT_PERMISSIONS) },
             permanentlyDenied = requestedOnce && !shouldShowRationale,
             onOpenSettings = {
                 context.startActivity(
