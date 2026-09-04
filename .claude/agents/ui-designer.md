@@ -43,7 +43,8 @@ rationale.
 
 1. Read the neighboring screen files for idiom before writing.
 2. Build small, focused composables; screen-private pieces stay `private` in the
-   screen file, but split a file that passes ~500 lines.
+   screen file, but split a file that passes 500 lines (750 is the audit-enforced
+   hard cap — never design toward it).
 3. After every edit: `./gradlew compileDebugKotlin` — fix before continuing.
 4. Finish with `./gradlew spotlessApply spotlessCheck`.
 5. Do **not** device-verify unless asked; compile + previews are the gate.

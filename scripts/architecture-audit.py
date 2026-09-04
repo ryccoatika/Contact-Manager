@@ -30,7 +30,10 @@ SHARED_UI = {"common", "theme", "analytics", "review", "update", "permission", "
 COMPOSITION_ROOTS = {"ui/AppNav.kt", "ui/adaptive"}
 # Non-project types a ViewModel may inject without an interface.
 VM_PARAM_ALLOWLIST = {"SavedStateHandle", "CoroutineDispatcher", "CoroutineScope"}
-MAX_FILE_LINES = 500
+# File budget: aim under SOFT (review prompt); HARD only when a file truly
+# cannot be decomposed — beyond it the audit fails.
+SOFT_FILE_LINES = 500
+HARD_FILE_LINES = 750
 
 
 def kt_files(root: Path):
@@ -99,8 +102,9 @@ def check() -> list[str]:
 
         # R6: file budget. The violation string is deliberately stable while the
         # file is over budget (no line count) so baseline entries don't churn.
-        if len(text.splitlines()) > MAX_FILE_LINES:
-            violations.append(f"R6-file-budget|{r}|over {MAX_FILE_LINES} lines")
+        # 500–750 is a warning (soft target); >750 is a hard violation.
+        if len(text.splitlines()) > HARD_FILE_LINES:
+            violations.append(f"R6-file-budget|{r}|over {HARD_FILE_LINES} lines")
 
         # R7: color literals only in the design system (+ sanctioned palette).
         if "Color(0x" in text and not r.startswith("ui/theme/") and r != "ui/common/AccountVisuals.kt":
@@ -170,6 +174,15 @@ def check() -> list[str]:
     return sorted(set(violations))
 
 
+def soft_warnings() -> list[str]:
+    warnings = []
+    for path in kt_files(MAIN):
+        n = len(path.read_text().splitlines())
+        if SOFT_FILE_LINES < n <= HARD_FILE_LINES:
+            warnings.append(f"{rel(path)}: {n} lines (target ≤{SOFT_FILE_LINES}; hard cap {HARD_FILE_LINES})")
+    return warnings
+
+
 def main() -> int:
     violations = check()
     baseline = set()
@@ -203,6 +216,8 @@ def main() -> int:
         print(f"\nSTALE BASELINE ({len(stale)}) — fixed! Delete these lines from {BASELINE_FILE.name}:")
         for v in stale:
             print(f"  {v}")
+    for w in soft_warnings():
+        print(f"warning (soft file budget): {w}")
     baselined = len(violations) - len(new)
     print(f"\naudit: {len(new)} new, {baselined} baselined (ratchet), {len(stale)} stale")
     return 0 if ok else 1

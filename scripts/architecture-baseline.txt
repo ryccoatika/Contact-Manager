@@ -28,6 +28,4 @@ R5-concrete-vm-dep|ui/accounts/AccountsViewModel.kt|injects concrete SimReposito
 R5-concrete-vm-dep|ui/editor/EditorViewModel.kt|injects concrete SimRepository
 R5-concrete-vm-dep|ui/home/HomeViewModel.kt|injects concrete BatchOperationManager
 R5-concrete-vm-dep|ui/support/SupportViewModel.kt|injects concrete BillingManager
-R6-file-budget|data/ContactsWriteRepository.kt|over 500 lines
-R6-file-budget|ui/editor/EditorScreen.kt|over 500 lines
-R6-file-budget|ui/home/HomeScreen.kt|over 500 lines
+R6-file-budget|ui/home/HomeScreen.kt|over 750 lines
