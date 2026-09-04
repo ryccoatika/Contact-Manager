@@ -70,12 +70,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -151,6 +157,22 @@ fun HomeScreen(
     val haptic = LocalHapticFeedback.current
     val snackbarHostState = remember { SnackbarHostState() }
     val launchReview = rememberReviewLauncher()
+    // Hoisted from the list: the FAB (in the Scaffold slot) reacts to its scroll.
+    val listState = rememberLazyListState()
+    // FAB hides while scrolling down, shows when scrolling up or back at the top.
+    var fabVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var lastIndex = 0
+        var lastOffset = 0
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                val scrollingDown = index > lastIndex || (index == lastIndex && offset > lastOffset)
+                val atTop = index == 0 && offset == 0
+                fabVisible = atTop || !scrollingDown
+                lastIndex = index
+                lastOffset = offset
+            }
+    }
     // The one row whose avatar carries the shared-element modifier: the last
     // tapped contact. Keeps every other row free of shared-element bookkeeping
     // during scroll. Saveable so the pop-back morph still finds the row after
@@ -275,7 +297,11 @@ fun HomeScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!state.selectionMode) {
+            AnimatedVisibility(
+                visible = fabVisible && !state.selectionMode,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut(),
+            ) {
                 FloatingActionButton(
                     onClick = onAddClick,
                     shape = MaterialTheme.shapes.medium,
@@ -448,7 +474,6 @@ fun HomeScreen(
                     accountFiltered = state.selectedAccountKey != null,
                 )
             } else {
-                val listState = rememberLazyListState()
                 val scope = rememberCoroutineScope()
                 // Only one row may have its delete action revealed: dragging a row
                 // claims this id and every other row closes its reveal.
