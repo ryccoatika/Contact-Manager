@@ -15,8 +15,6 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - About screen with app info, description, and a Privacy Policy link.
 - Fixed a crash when the contacts permission is revoked while the app runs.
 - Fixed the permission screen title being unreadable in dark mode.
-- The startup permission screen now also offers the optional phone permission
-  (better dual-SIM labels); the app still works without it.
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
 
