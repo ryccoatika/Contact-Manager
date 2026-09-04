@@ -4,6 +4,12 @@ package com.ryccoatika.contactmanager.data.analytics
 class FakeAnalytics : Analytics {
     val events = mutableListOf<AnalyticsEvent>()
     val screenViews = mutableListOf<String>()
-    override fun logEvent(event: AnalyticsEvent) { events += event }
-    override fun logScreenView(screenName: String) { screenViews += screenName }
+
+    override fun logEvent(event: AnalyticsEvent) {
+        events += event
+    }
+
+    override fun logScreenView(screenName: String) {
+        screenViews += screenName
+    }
 }

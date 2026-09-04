@@ -24,4 +24,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Contact Manager"
 include(":app")
- 

@@ -2,14 +2,14 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.BatchOperationManager
-import com.ryccoatika.contactmanager.data.FakeAppPrefs
-import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
@@ -25,8 +25,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -40,7 +40,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private val googleAccount = ContactAccount("a@gmail.com", "com.google", AccountCapability.FULL_CRUD, 2)
@@ -48,22 +47,31 @@ class AccountsViewModelTest {
     private val deviceAccount = ContactAccount(null, null, AccountCapability.FULL_CRUD, 0)
 
     private fun raw(id: Long, accType: String?, accName: String?) = RawContact(
-        rawContactId = id, accountType = accType, accountName = accName,
+        rawContactId = id,
+        accountType = accType,
+        accountName = accName,
     )
 
-    private val contactsFlow = MutableStateFlow(listOf(
-        Contact(1, "Andi", rawContacts = listOf(raw(10, "com.google", "a@gmail.com"))),
-        Contact(2, "Budi", rawContacts = listOf(
-            raw(20, "com.whatsapp", "WhatsApp"),
-            raw(21, "com.google", "a@gmail.com"),
-        )),
-    ))
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            Contact(1, "Andi", rawContacts = listOf(raw(10, "com.google", "a@gmail.com"))),
+            Contact(
+                2,
+                "Budi",
+                rawContacts = listOf(
+                    raw(20, "com.whatsapp", "WhatsApp"),
+                    raw(21, "com.google", "a@gmail.com"),
+                ),
+            ),
+        ),
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
     }
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = listOf(googleAccount, whatsappAccount, deviceAccount)
+
         override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
@@ -132,8 +140,13 @@ class AccountsViewModelTest {
         analytics = analytics,
     )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `loads accounts with capabilities`() = runTest(dispatcher) {
         val vm = vm()

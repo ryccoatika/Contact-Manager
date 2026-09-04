@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui.duplicates
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,16 +23,19 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,22 +49,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
 import com.ryccoatika.contactmanager.domain.DuplicateGroup
 import com.ryccoatika.contactmanager.domain.MatchConfidence
 import com.ryccoatika.contactmanager.domain.MatchReason
-import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
-import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
+import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
@@ -69,13 +76,6 @@ import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.extendedColors
-import android.content.res.Configuration
-import androidx.compose.material3.Button
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
-import com.ryccoatika.contactmanager.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -170,12 +170,12 @@ fun DuplicatesScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            group.memberRaws()
+            group
+                .memberRaws()
                 // Read-only raw contacts can't receive data, so they can't be targets.
                 .filter { (_, raw) ->
                     AccountClassifier.classify(raw.accountType) != AccountCapability.READ_ONLY
-                }
-                .forEach { (contact, raw) ->
+                }.forEach { (contact, raw) ->
                     ListItem(
                         modifier = Modifier.clickable {
                             mergePickerGroup = null
@@ -187,7 +187,9 @@ fun DuplicatesScreen(
                         },
                         leadingContent = {
                             Box(
-                                Modifier.size(12.dp).clip(CircleShape)
+                                Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
                                     .background(AccountVisuals.color(raw.accountType, raw.accountName)),
                             )
                         },
@@ -299,10 +301,13 @@ private fun matchReasonText(reason: MatchReason): String = stringResource(
 @Composable
 private fun ConfidenceChip(confidence: MatchConfidence) {
     val (label, container) = when (confidence) {
-        MatchConfidence.HIGH ->
+        MatchConfidence.HIGH -> {
             stringResource(R.string.duplicates_confidence_high) to MaterialTheme.colorScheme.errorContainer
-        MatchConfidence.MEDIUM ->
+        }
+
+        MatchConfidence.MEDIUM -> {
             stringResource(R.string.duplicates_confidence_medium) to MaterialTheme.colorScheme.tertiaryContainer
+        }
     }
     AssistChip(
         onClick = {},
@@ -318,8 +323,16 @@ private fun ConfidenceChip(confidence: MatchConfidence) {
 
 @Composable
 private fun MemberRow(contact: Contact) {
-    val preview = contact.rawContacts.flatMap { it.phones }.map { it.value }.distinct().firstOrNull()
-        ?: contact.rawContacts.flatMap { it.emails }.map { it.value }.distinct().firstOrNull()
+    val preview = contact.rawContacts
+        .flatMap { it.phones }
+        .map { it.value }
+        .distinct()
+        .firstOrNull()
+        ?: contact.rawContacts
+            .flatMap { it.emails }
+            .map { it.value }
+            .distinct()
+            .firstOrNull()
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = { Text(contact.displayName, style = MaterialTheme.typography.titleMedium) },
@@ -344,7 +357,8 @@ private fun DuplicateGroupPreview() {
         matchReason = MatchReason.PHONE,
         contacts = listOf(
             Contact(
-                1L, "Amelia Hartwell",
+                1L,
+                "Amelia Hartwell",
                 rawContacts = listOf(
                     RawContact(1L, "com.google", "rycco@gmail.com", phones = listOf(LabeledValue(1L, "+44 7700 900312", "Mobile"))),
                 ),

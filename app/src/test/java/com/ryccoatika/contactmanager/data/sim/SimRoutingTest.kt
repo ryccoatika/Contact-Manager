@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SimRoutingTest {
-
     @Test fun `isSimAccount only matches icc prefix`() {
         assertTrue(SimRouting.isSimAccount("icc/-1"))
         assertTrue(SimRouting.isSimAccount("icc/2"))

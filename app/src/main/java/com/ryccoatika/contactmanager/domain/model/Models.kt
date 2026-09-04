@@ -14,7 +14,7 @@ data class RawContact(
     val familyName: String? = null,
     val phones: List<LabeledValue> = emptyList(),
     val emails: List<LabeledValue> = emptyList(),
-    val organization: String? = null,   // company
+    val organization: String? = null, // company
     val jobTitle: String? = null,
     val nickname: String? = null,
     val websites: List<LabeledValue> = emptyList(),
@@ -55,10 +55,10 @@ data class ContactAccount(
 
 /** One entry on the SIM card (EF_ADN record). */
 data class SimContact(
-    val indexOnIcc: Int?,        // null when the icc provider does not expose an index
+    val indexOnIcc: Int?, // null when the icc provider does not expose an index
     val name: String,
     val number: String,
-    val subscriptionId: Int?,    // null on single-SIM/legacy path
+    val subscriptionId: Int?, // null on single-SIM/legacy path
 )
 
 /** Probe result for one SIM: what the icc provider actually allows. */

@@ -36,6 +36,7 @@ annotation class ContactsContractWriter
 @InstallIn(SingletonComponent::class)
 abstract class DataModule {
     @Binds abstract fun bindContactsSource(impl: ContactsRepository): ContactsSource
+
     @Binds abstract fun bindAccountsSource(impl: AccountRepository): AccountsSource
 
     /** SIM-aware decorator; ContactsWriteRepository stays the ContactsContract inner impl. */
@@ -46,11 +47,16 @@ abstract class DataModule {
     abstract fun bindContactsContractWriter(impl: ContactsWriteRepository): ContactsWriter
 
     @Binds abstract fun bindDuplicatePrefs(impl: DataStoreDuplicatePrefs): DuplicatePrefs
+
     @Binds abstract fun bindAppPrefs(impl: DataStoreAppPrefs): AppPrefs
+
     @Binds abstract fun bindStringProvider(impl: AndroidStringProvider): StringProvider
 
     @Binds abstract fun bindSimContactSource(impl: IccSimSource): SimContactSource
+
     @Binds abstract fun bindSimCapabilityCache(impl: DataStoreSimCapabilityCache): SimCapabilityCache
+
     @Binds abstract fun bindSimSubscriptionsSource(impl: DefaultSimSubscriptionsSource): SimSubscriptionsSource
+
     @Binds abstract fun bindSimAccountsIntegration(impl: IccSimAccountsIntegration): SimAccountsIntegration
 }

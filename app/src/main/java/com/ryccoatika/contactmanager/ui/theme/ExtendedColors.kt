@@ -22,7 +22,8 @@ val DarkExtendedColors = ExtendedColors(BrassDark, OnBrassDark, BrassContainerDa
 val LocalExtendedColors = staticCompositionLocalOf { LightExtendedColors }
 
 val MaterialTheme.extendedColors: ExtendedColors
-    @Composable @ReadOnlyComposable get() = LocalExtendedColors.current
+    @Composable @ReadOnlyComposable
+    get() = LocalExtendedColors.current
 
 /**
  * Desaturated jewel gradients for identity avatars. The gradient is chosen

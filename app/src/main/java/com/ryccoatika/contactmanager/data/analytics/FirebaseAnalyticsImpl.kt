@@ -4,8 +4,9 @@ import android.os.Bundle
 import com.google.firebase.analytics.FirebaseAnalytics
 
 /** Logs to Firebase. Constructed only when Firebase is initialised (see AnalyticsModule). */
-class FirebaseAnalyticsImpl(private val firebase: FirebaseAnalytics) : Analytics {
-
+class FirebaseAnalyticsImpl(
+    private val firebase: FirebaseAnalytics,
+) : Analytics {
     override fun logEvent(event: AnalyticsEvent) {
         firebase.logEvent(event.name, event.params.toBundle())
     }

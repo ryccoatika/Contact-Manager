@@ -25,11 +25,11 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private fun contact(id: Long, vararg rawIds: Long) = Contact(
-        contactId = id, displayName = "Contact $id",
+        contactId = id,
+        displayName = "Contact $id",
         rawContacts = rawIds.map { rawId ->
             RawContact(rawContactId = rawId, accountType = "com.google", accountName = "acc")
         },
@@ -41,8 +41,11 @@ class DetailViewModelTest {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
     }
 
-    private class FakeWriter(var deleteResult: ContactOpResult = ContactOpResult.Success) : ContactsWriter {
+    private class FakeWriter(
+        var deleteResult: ContactOpResult = ContactOpResult.Success,
+    ) : ContactsWriter {
         val deletedIds = mutableListOf<List<Long>>()
+
         override suspend fun createContact(
             accountType: String?,
             accountName: String?,
@@ -90,15 +93,29 @@ class DetailViewModelTest {
         writer = writer,
     )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `uiState resolves contact matching route id`() = runTest(dispatcher) {
         val vm = vm(contactId = 2)
         val job = launch { vm.uiState.collect {} }
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(2L, vm.uiState.value.contact?.contactId)
-        assertEquals(2, vm.uiState.value.contact?.rawContacts?.size)
+        assertEquals(
+            2L,
+            vm.uiState.value.contact
+                ?.contactId,
+        )
+        assertEquals(
+            2,
+            vm.uiState.value.contact
+                ?.rawContacts
+                ?.size,
+        )
         job.cancel()
     }
 

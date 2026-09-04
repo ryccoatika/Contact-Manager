@@ -1,10 +1,29 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,9 +35,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,9 +53,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Difference
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -50,6 +69,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -65,47 +85,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -116,29 +122,23 @@ import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
-import com.ryccoatika.contactmanager.domain.model.RawContact
-import android.content.res.Configuration
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.ui.tooling.preview.Preview
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
+import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
-import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -353,8 +353,11 @@ fun HomeScreen(
                             Spacer(Modifier.height(4.dp))
                             LinearProgressIndicator(
                                 progress = {
-                                    if (progress.total == 0) 0f
-                                    else progress.done.toFloat() / progress.total
+                                    if (progress.total == 0) {
+                                        0f
+                                    } else {
+                                        progress.done.toFloat() / progress.total
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -406,7 +409,8 @@ fun HomeScreen(
             val selectedChipIndex = if (state.selectedAccountKey == null) {
                 0
             } else {
-                state.accounts.indexOfFirst { it.key == state.selectedAccountKey }
+                state.accounts
+                    .indexOfFirst { it.key == state.selectedAccountKey }
                     .let { if (it >= 0) it + 1 else 0 }
             }
             // Keep the active account centered (or at least on screen).
@@ -445,73 +449,73 @@ fun HomeScreen(
                 }
                 items(state.accounts, key = { it.key }) { account ->
                     Box {
-                    FilterChip(
-                        selected = state.selectedAccountKey == account.key,
-                        onClick = { viewModel.selectAccount(account.key) },
-                        modifier = (if (singleAccount) Modifier else Modifier.width(chipWidth))
-                            .chipLongPress(account.key) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                accountMenuFor = account.key
-                            },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Name scrolls if long; count pinned right. When it's the
-                                // only chip, cap the width instead of filling so the pill
-                                // hugs its content; otherwise it takes an equal share.
-                                Text(
-                                    AccountVisuals.label(context, account.type, account.name),
-                                    maxLines = 1,
-                                    // Loop forever with no pause, even while the row scrolls.
-                                    modifier = (if (singleAccount) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f))
-                                        .basicMarquee(
-                                            iterations = Int.MAX_VALUE,
-                                            repeatDelayMillis = 0,
-                                            initialDelayMillis = 0,
-                                        ),
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    stringResource(R.string.home_account_chip_count, account.contactCount),
-                                    maxLines = 1,
-                                    style = TabularNums.merge(MaterialTheme.typography.labelLarge),
-                                )
-                            }
-                        },
-                        leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
-                    )
-                    // Long-press menu: same actions as Settings › Accounts.
-                    DropdownMenu(
-                        expanded = accountMenuFor == account.key,
-                        onDismissRequest = { accountMenuFor = null },
-                    ) {
-                        val readOnly = account.capability == AccountCapability.READ_ONLY
-                        DropdownMenuItem(
-                            enabled = !readOnly,
-                            text = {
-                                Column {
-                                    Text(stringResource(R.string.accounts_move_all_contacts_to))
-                                    if (readOnly) {
-                                        Text(
-                                            stringResource(R.string.accounts_managed_by_app),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
+                        FilterChip(
+                            selected = state.selectedAccountKey == account.key,
+                            onClick = { viewModel.selectAccount(account.key) },
+                            modifier = (if (singleAccount) Modifier else Modifier.width(chipWidth))
+                                .chipLongPress(account.key) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    accountMenuFor = account.key
+                                },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Name scrolls if long; count pinned right. When it's the
+                                    // only chip, cap the width instead of filling so the pill
+                                    // hugs its content; otherwise it takes an equal share.
+                                    Text(
+                                        AccountVisuals.label(context, account.type, account.name),
+                                        maxLines = 1,
+                                        // Loop forever with no pause, even while the row scrolls.
+                                        modifier = (if (singleAccount) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f))
+                                            .basicMarquee(
+                                                iterations = Int.MAX_VALUE,
+                                                repeatDelayMillis = 0,
+                                                initialDelayMillis = 0,
+                                            ),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        stringResource(R.string.home_account_chip_count, account.contactCount),
+                                        maxLines = 1,
+                                        style = TabularNums.merge(MaterialTheme.typography.labelLarge),
+                                    )
                                 }
                             },
-                            onClick = {
-                                accountMenuFor = null
-                                moveAllSource = account
-                            },
+                            leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },
                         )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.accounts_hide_from_selector)) },
-                            onClick = {
-                                accountMenuFor = null
-                                viewModel.hideAccount(account)
-                            },
-                        )
-                    }
+                        // Long-press menu: same actions as Settings › Accounts.
+                        DropdownMenu(
+                            expanded = accountMenuFor == account.key,
+                            onDismissRequest = { accountMenuFor = null },
+                        ) {
+                            val readOnly = account.capability == AccountCapability.READ_ONLY
+                            DropdownMenuItem(
+                                enabled = !readOnly,
+                                text = {
+                                    Column {
+                                        Text(stringResource(R.string.accounts_move_all_contacts_to))
+                                        if (readOnly) {
+                                            Text(
+                                                stringResource(R.string.accounts_managed_by_app),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    accountMenuFor = null
+                                    moveAllSource = account
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.accounts_hide_from_selector)) },
+                                onClick = {
+                                    accountMenuFor = null
+                                    viewModel.hideAccount(account)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -635,8 +639,7 @@ fun HomeScreen(
                     // Full-CRUD accounts plus SIMs that passed the write probe.
                     it.capability == AccountCapability.FULL_CRUD ||
                         (it.capability == AccountCapability.SIM && it.writable)
-                }
-                .forEach { account ->
+                }.forEach { account ->
                     ListItem(
                         modifier = Modifier.clickable {
                             showMovePicker = false
@@ -668,7 +671,10 @@ fun HomeScreen(
                     stringResource(
                         R.string.home_fields_lost_text,
                         AccountVisuals.label(context, account.type, account.name),
-                        plan.losses.flatMap { it.lostFields }.distinct().joinToString(),
+                        plan.losses
+                            .flatMap { it.lostFields }
+                            .distinct()
+                            .joinToString(),
                     ),
                 )
             },
@@ -707,9 +713,8 @@ fun HomeScreen(
                         (
                             it.capability == AccountCapability.FULL_CRUD ||
                                 (it.capability == AccountCapability.SIM && it.writable)
-                            )
-                }
-                .forEach { target ->
+                        )
+                }.forEach { target ->
                     ListItem(
                         modifier = Modifier.clickable {
                             moveAllSource = null
@@ -809,8 +814,7 @@ fun HomeScreen(
                 // Read-only raw contacts can't receive data, so they can't be targets.
                 .filter { (_, raw) ->
                     AccountClassifier.classify(raw.accountType) != AccountCapability.READ_ONLY
-                }
-                .forEach { (contact, raw) ->
+                }.forEach { (contact, raw) ->
                     ListItem(
                         modifier = Modifier.clickable {
                             showMergePicker = false
@@ -944,12 +948,18 @@ private const val FAST_SCROLL_MIN_CONTACTS = 30
 
 private val RAIL_LETTERS = ('A'..'Z').toList() + '#'
 
-private data class ContactSection(val letter: Char, val contacts: List<Contact>)
+private data class ContactSection(
+    val letter: Char,
+    val contacts: List<Contact>,
+)
 
 /** First-letter sections in list order: A–Z first, non-letter names under "#" at the end. */
 private fun sectionsOf(contacts: List<Contact>): List<ContactSection> {
     val grouped = contacts.groupBy { contact ->
-        val first = contact.displayName.trim().firstOrNull()?.uppercaseChar()
+        val first = contact.displayName
+            .trim()
+            .firstOrNull()
+            ?.uppercaseChar()
         if (first?.isLetter() == true) first else '#'
     }
     val letters = grouped.keys.filter { it != '#' }.sorted()
@@ -989,6 +999,7 @@ private fun AlphabetRail(
 ) {
     var railHeightPx by remember { mutableIntStateOf(0) }
     var active by remember { mutableStateOf<Char?>(null) }
+
     fun letterAt(y: Float): Char? {
         if (railHeightPx <= 0) return null
         val index = (y / railHeightPx * RAIL_LETTERS.size).toInt()
@@ -1009,7 +1020,10 @@ private fun AlphabetRail(
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
-                        letterAt(down.position.y)?.let { active = it; onLetterSelected(it) }
+                        letterAt(down.position.y)?.let {
+                            active = it
+                            onLetterSelected(it)
+                        }
                         var change = down
                         while (change.pressed) {
                             val event = awaitPointerEvent()
@@ -1066,8 +1080,10 @@ private fun EmptyState(query: String, accountFiltered: Boolean) {
     val (title, hint) = when {
         query.isNotBlank() -> stringResource(R.string.home_empty_search_title, query.trim()) to
             stringResource(R.string.home_empty_search_hint)
+
         accountFiltered -> stringResource(R.string.home_empty_account_title) to
             stringResource(R.string.home_empty_account_hint)
+
         else -> stringResource(R.string.home_empty_none_title) to
             stringResource(R.string.home_empty_none_hint)
     }
@@ -1254,10 +1270,16 @@ private fun ContactRow(
                                 onSwipeDelete()
                                 0f
                             }
+
                             // Button fully uncovered but under the threshold → hold it revealed.
-                            offsetPx <= -actionWidthPx -> -actionWidthPx
+                            offsetPx <= -actionWidthPx -> {
+                                -actionWidthPx
+                            }
+
                             // Still (partly) covering the button → snap closed.
-                            else -> 0f
+                            else -> {
+                                0f
+                            }
                         }
                         pastThreshold = false
                         animate(offsetPx, settleTo) { value, _ -> offsetPx = value }
@@ -1361,7 +1383,6 @@ private val DELETE_ACTION_WIDTH = 88.dp
 
 /** Fraction of the row width past which releasing confirms deletion directly. */
 private const val DELETE_SWIPE_THRESHOLD = 0.4f
-
 
 private fun previewContact() = Contact(
     contactId = 1L,

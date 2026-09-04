@@ -118,7 +118,8 @@ private fun PermissionRationale(
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
-            Icons.Default.Contacts, contentDescription = null,
+            Icons.Default.Contacts,
+            contentDescription = null,
             modifier = Modifier.size(72.dp),
             tint = MaterialTheme.colorScheme.primary,
         )

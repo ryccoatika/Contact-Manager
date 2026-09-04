@@ -45,8 +45,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -129,7 +129,11 @@ fun EditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (state.isEdit) stringResource(R.string.editor_title_edit) else stringResource(R.string.editor_title_new)) },
+                title = {
+                    Text(
+                        if (state.isEdit) stringResource(R.string.editor_title_edit) else stringResource(R.string.editor_title_new),
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
@@ -204,12 +208,34 @@ fun EditorScreen(
                     FieldDivider()
                     EditorField(state.jobTitle, viewModel::setJobTitle, stringResource(R.string.editor_job_title))
                 }
-                ValueGroupCard(stringResource(R.string.editor_phone), state.phones, viewModel::setPhone, viewModel::addPhone, viewModel::removePhone)
-                ValueGroupCard(stringResource(R.string.editor_email), state.emails, viewModel::setEmail, viewModel::addEmail, viewModel::removeEmail)
-                ValueGroupCard(stringResource(R.string.editor_website), state.websites, viewModel::setWebsite, viewModel::addWebsite, viewModel::removeWebsite)
                 ValueGroupCard(
-                    stringResource(R.string.editor_address), state.addresses, viewModel::setAddress, viewModel::addAddress,
-                    viewModel::removeAddress, singleLine = false,
+                    stringResource(R.string.editor_phone),
+                    state.phones,
+                    viewModel::setPhone,
+                    viewModel::addPhone,
+                    viewModel::removePhone,
+                )
+                ValueGroupCard(
+                    stringResource(R.string.editor_email),
+                    state.emails,
+                    viewModel::setEmail,
+                    viewModel::addEmail,
+                    viewModel::removeEmail,
+                )
+                ValueGroupCard(
+                    stringResource(R.string.editor_website),
+                    state.websites,
+                    viewModel::setWebsite,
+                    viewModel::addWebsite,
+                    viewModel::removeWebsite,
+                )
+                ValueGroupCard(
+                    stringResource(R.string.editor_address),
+                    state.addresses,
+                    viewModel::setAddress,
+                    viewModel::addAddress,
+                    viewModel::removeAddress,
+                    singleLine = false,
                 )
                 GroupLabel(stringResource(R.string.editor_dates))
                 SectionCard(Modifier.fillMaxWidth()) {
@@ -476,7 +502,7 @@ private fun AccountPicker(state: EditorUiState, viewModel: EditorViewModel) {
                                 R.string.editor_account_option,
                                 AccountVisuals.label(context, account.type, account.name),
                                 account.name ?: stringResource(R.string.editor_account_local),
-                            )
+                            ),
                         )
                     },
                     leadingIcon = { AccountDot(account.type, account.name, size = 10.dp) },

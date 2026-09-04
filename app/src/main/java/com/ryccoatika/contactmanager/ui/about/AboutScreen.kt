@@ -67,7 +67,9 @@ fun AboutScreen(
     val noBrowser = stringResource(R.string.about_no_browser)
     val openPrivacyPolicy: () -> Unit = {
         try {
-            CustomTabsIntent.Builder().build()
+            CustomTabsIntent
+                .Builder()
+                .build()
                 .launchUrl(context, Uri.parse(PRIVACY_POLICY_URL))
         } catch (_: ActivityNotFoundException) {
             scope.launch { snackbarHostState.showSnackbar(noBrowser) }

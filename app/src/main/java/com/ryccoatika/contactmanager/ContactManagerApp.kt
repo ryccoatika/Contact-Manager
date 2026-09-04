@@ -4,9 +4,9 @@ import android.app.Application
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Process
-import com.ryccoatika.contactmanager.ui.crash.CrashActivity
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.ryccoatika.contactmanager.ui.crash.CrashActivity
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp

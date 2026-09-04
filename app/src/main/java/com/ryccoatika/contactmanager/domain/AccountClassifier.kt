@@ -8,11 +8,10 @@ import com.ryccoatika.contactmanager.domain.model.AccountCapability
  * account is at best ignored and at worst clobbered by that app's sync.
  */
 object AccountClassifier {
-
     private val FULL_CRUD_TYPES = setOf(
         "com.google",
-        "com.osp.app.signin",          // Samsung account
-        "vnd.sec.contact.phone",       // Samsung device-local
+        "com.osp.app.signin", // Samsung account
+        "vnd.sec.contact.phone", // Samsung device-local
         "com.android.huawei.phone",
         "com.oppo.contacts.device",
         "vnd.oneplus.contact.phone",
@@ -22,7 +21,7 @@ object AccountClassifier {
     )
 
     private val SIM_TYPES = setOf(
-        "vnd.sec.contact.sim",         // Samsung SIM
+        "vnd.sec.contact.sim", // Samsung SIM
         "vnd.sec.contact.sim2",
         "com.android.contacts.sim",
         "com.android.sim",

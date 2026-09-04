@@ -16,7 +16,6 @@ import com.ryccoatika.contactmanager.domain.FieldLoss
 import com.ryccoatika.contactmanager.domain.MovePlanner
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -25,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class AccountsUiState(
     val accounts: List<ContactAccount> = emptyList(),
@@ -44,113 +44,121 @@ data class PendingMoveAll(
 )
 
 @HiltViewModel
-class AccountsViewModel @Inject constructor(
-    private val accountsSource: AccountsSource,
-    private val contactsSource: ContactsSource,
-    private val batchManager: BatchOperationManager,
-    private val simRepository: SimRepository,
-    private val simSubscriptionsSource: SimSubscriptionsSource,
-    private val appPrefs: AppPrefs,
-    private val strings: StringProvider,
-    private val analytics: Analytics,
-) : ViewModel() {
+class AccountsViewModel
+    @Inject
+    constructor(
+        private val accountsSource: AccountsSource,
+        private val contactsSource: ContactsSource,
+        private val batchManager: BatchOperationManager,
+        private val simRepository: SimRepository,
+        private val simSubscriptionsSource: SimSubscriptionsSource,
+        private val appPrefs: AppPrefs,
+        private val strings: StringProvider,
+        private val analytics: Analytics,
+    ) : ViewModel() {
+        private val _uiState = MutableStateFlow(AccountsUiState())
+        val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
 
-    private val _uiState = MutableStateFlow(AccountsUiState())
-    val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
+        private val _events = MutableSharedFlow<String>()
+        val events: SharedFlow<String> = _events
 
-    private val _events = MutableSharedFlow<String>()
-    val events: SharedFlow<String> = _events
+        private val _pendingMove = MutableStateFlow<PendingMoveAll?>(null)
+        val pendingMove: StateFlow<PendingMoveAll?> = _pendingMove.asStateFlow()
 
-    private val _pendingMove = MutableStateFlow<PendingMoveAll?>(null)
-    val pendingMove: StateFlow<PendingMoveAll?> = _pendingMove.asStateFlow()
-
-    init {
-        viewModelScope.launch {
-            val accounts = accountsSource.getAccounts()
-            val asked = appPrefs.phonePermissionAsked()
-            _uiState.update {
-                it.copy(accounts = accounts, loading = false, phonePermissionAsked = asked)
+        init {
+            viewModelScope.launch {
+                val accounts = accountsSource.getAccounts()
+                val asked = appPrefs.phonePermissionAsked()
+                _uiState.update {
+                    it.copy(accounts = accounts, loading = false, phonePermissionAsked = asked)
+                }
+            }
+            viewModelScope.launch {
+                appPrefs.observeHiddenAccountKeys().collect { keys ->
+                    _uiState.update { it.copy(hiddenAccountKeys = keys) }
+                }
             }
         }
-        viewModelScope.launch {
-            appPrefs.observeHiddenAccountKeys().collect { keys ->
-                _uiState.update { it.copy(hiddenAccountKeys = keys) }
+
+        /** Hide/show an account in the Home selector. */
+        fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
+            analytics.logEvent(AnalyticsEvent.AccountVisibility(hidden))
+            viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
+        }
+
+        fun markPhonePermissionAsked() {
+            _uiState.update { it.copy(phonePermissionAsked = true) }
+            viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
+        }
+
+        /**
+         * Pull-to-refresh: re-probes every active SIM subscription (fixing stale
+         * capability caches after a SIM swap) and re-fetches the account list.
+         */
+        fun refresh() {
+            if (_uiState.value.refreshing) return
+            _uiState.update { it.copy(refreshing = true) }
+            viewModelScope.launch {
+                simSubscriptionsSource.activeSubscriptions().forEach { subscription ->
+                    simRepository.refreshCapabilities(subscription.subscriptionId)
+                }
+                _uiState.update {
+                    it.copy(accounts = accountsSource.getAccounts(), loading = false, refreshing = false)
+                }
+            }
+        }
+
+        /** Plans the move and parks it for confirmation (with SIM loss report when relevant). */
+        fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch {
+                val sources = contactsSource
+                    .observeContacts()
+                    .first()
+                    .flatMap { it.rawContacts }
+                    .filter { it.accountType == source.type && it.accountName == source.name }
+                val plan = MovePlanner.plan(sources, target.type, target.name)
+                _pendingMove.value = PendingMoveAll(source, target, plan.losses)
+            }
+        }
+
+        fun dismissPendingMove() {
+            _pendingMove.value = null
+        }
+
+        fun confirmPendingMove() {
+            val pending = _pendingMove.value ?: return
+            _pendingMove.value = null
+            moveAllContacts(pending.source, pending.target)
+        }
+
+        /** Moves every raw contact of [source] into [target] as a background batch. */
+        fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch {
+                val rawIds = contactsSource
+                    .observeContacts()
+                    .first()
+                    .flatMap { it.rawContacts }
+                    .filter { it.accountType == source.type && it.accountName == source.name }
+                    .map { it.rawContactId }
+                if (rawIds.isEmpty()) {
+                    _events.emit(strings.get(R.string.accounts_msg_no_contacts))
+                    return@launch
+                }
+                val targetName = target.name ?: strings.get(R.string.accounts_msg_this_device)
+                val started = batchManager.moveContacts(
+                    rawContactIds = rawIds,
+                    targetType = target.type,
+                    targetName = target.name,
+                    label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
+                )
+                if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
+                _events.emit(
+                    if (started) {
+                        strings.get(R.string.accounts_msg_move_started)
+                    } else {
+                        strings.get(R.string.accounts_msg_busy)
+                    },
+                )
             }
         }
     }
-
-    /** Hide/show an account in the Home selector. */
-    fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
-        analytics.logEvent(AnalyticsEvent.AccountVisibility(hidden))
-        viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
-    }
-
-    fun markPhonePermissionAsked() {
-        _uiState.update { it.copy(phonePermissionAsked = true) }
-        viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
-    }
-
-    /**
-     * Pull-to-refresh: re-probes every active SIM subscription (fixing stale
-     * capability caches after a SIM swap) and re-fetches the account list.
-     */
-    fun refresh() {
-        if (_uiState.value.refreshing) return
-        _uiState.update { it.copy(refreshing = true) }
-        viewModelScope.launch {
-            simSubscriptionsSource.activeSubscriptions().forEach { subscription ->
-                simRepository.refreshCapabilities(subscription.subscriptionId)
-            }
-            _uiState.update {
-                it.copy(accounts = accountsSource.getAccounts(), loading = false, refreshing = false)
-            }
-        }
-    }
-
-    /** Plans the move and parks it for confirmation (with SIM loss report when relevant). */
-    fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
-        viewModelScope.launch {
-            val sources = contactsSource.observeContacts().first()
-                .flatMap { it.rawContacts }
-                .filter { it.accountType == source.type && it.accountName == source.name }
-            val plan = MovePlanner.plan(sources, target.type, target.name)
-            _pendingMove.value = PendingMoveAll(source, target, plan.losses)
-        }
-    }
-
-    fun dismissPendingMove() {
-        _pendingMove.value = null
-    }
-
-    fun confirmPendingMove() {
-        val pending = _pendingMove.value ?: return
-        _pendingMove.value = null
-        moveAllContacts(pending.source, pending.target)
-    }
-
-    /** Moves every raw contact of [source] into [target] as a background batch. */
-    fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
-        viewModelScope.launch {
-            val rawIds = contactsSource.observeContacts().first()
-                .flatMap { it.rawContacts }
-                .filter { it.accountType == source.type && it.accountName == source.name }
-                .map { it.rawContactId }
-            if (rawIds.isEmpty()) {
-                _events.emit(strings.get(R.string.accounts_msg_no_contacts))
-                return@launch
-            }
-            val targetName = target.name ?: strings.get(R.string.accounts_msg_this_device)
-            val started = batchManager.moveContacts(
-                rawContactIds = rawIds,
-                targetType = target.type,
-                targetName = target.name,
-                label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
-            )
-            if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
-            _events.emit(
-                if (started) strings.get(R.string.accounts_msg_move_started)
-                else strings.get(R.string.accounts_msg_busy),
-            )
-        }
-    }
-}

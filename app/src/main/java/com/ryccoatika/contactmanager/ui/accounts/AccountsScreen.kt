@@ -1,9 +1,12 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +35,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,23 +50,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
-import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
-import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
@@ -335,8 +335,11 @@ private fun AccountRow(
                         text = {
                             Text(
                                 stringResource(
-                                    if (hidden) R.string.accounts_show_in_selector
-                                    else R.string.accounts_hide_from_selector,
+                                    if (hidden) {
+                                        R.string.accounts_show_in_selector
+                                    } else {
+                                        R.string.accounts_hide_from_selector
+                                    },
                                 ),
                             )
                         },
@@ -366,11 +369,13 @@ private fun AccountRowPreview() {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 AccountRow(
                     ContactAccount("rycco@gmail.com", "com.google", AccountCapability.FULL_CRUD, 201),
-                    onClick = {}, onMoveAll = {},
+                    onClick = {},
+                    onMoveAll = {},
                 )
                 AccountRow(
                     ContactAccount("WhatsApp", "com.whatsapp", AccountCapability.READ_ONLY, 41, writable = false),
-                    onClick = {}, onMoveAll = {},
+                    onClick = {},
+                    onMoveAll = {},
                 )
             }
         }

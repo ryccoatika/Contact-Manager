@@ -14,7 +14,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BatchOperationManagerTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private class FakeWriter(

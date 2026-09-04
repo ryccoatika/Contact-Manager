@@ -16,11 +16,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AnalyticsModule {
-
     /** Real Firebase sink only when google-services.json is present (FirebaseApp initialised); else no-op. */
     @Provides
     @Singleton
-    fun provideAnalytics(@ApplicationContext context: Context): Analytics =
+    fun provideAnalytics(
+        @ApplicationContext context: Context,
+    ): Analytics =
         if (FirebaseApp.getApps(context).isNotEmpty()) {
             FirebaseAnalyticsImpl(FirebaseAnalytics.getInstance(context))
         } else {
