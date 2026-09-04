@@ -29,6 +29,25 @@ platform :android do
     File.write(github_output, "ias_url=#{url}\n", mode: "a") if github_output
   end
 
+  # Run manually after building the AAB (`./gradlew :app:bundleRelease`). Uploading
+  # a Billing-enabled build to a real track (internal counts) is what unlocks the
+  # Play Console in-app-products pages. release_status "completed" makes it live to
+  # internal testers immediately.
+  desc "Upload the release AAB to the Internal testing track (manual)"
+  lane :internal_testing do
+    upload_to_play_store(
+      track: "internal",
+      aab: AAB_PATH,
+      mapping: MAPPING_PATH,
+      in_app_update_priority: gradle_prop("inAppUpdatePriority", "0").to_i,
+      release_status: "completed",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
   desc "Upload the release AAB to the closed 'alpha' testing track (merges to main)"
   lane :closed_testing do
     upload_to_play_store(

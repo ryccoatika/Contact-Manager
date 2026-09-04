@@ -30,6 +30,7 @@ import com.ryccoatika.contactmanager.ui.about.ContactDeveloperScreen
 import com.ryccoatika.contactmanager.ui.accounts.AccountsScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
+import com.ryccoatika.contactmanager.ui.support.SupportScreen
 
 private enum class TabletDestination { CONTACTS, DUPLICATES, SETTINGS }
 
@@ -80,6 +81,7 @@ private fun SettingsPane() {
             SettingsScreen(
                 onBack = {},
                 onAccountsClick = { nav.navigate(Routes.ACCOUNTS) },
+                onSupportClick = { nav.navigate(Routes.SUPPORT) },
                 onContactClick = { nav.navigate(Routes.CONTACT_DEVELOPER) },
                 onAboutClick = { nav.navigate(Routes.ABOUT) },
                 embedded = true,
@@ -90,6 +92,9 @@ private fun SettingsPane() {
         }
         composable(Routes.ABOUT) {
             AboutScreen(onBack = { nav.popBackStack() })
+        }
+        composable(Routes.SUPPORT) {
+            SupportScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.CONTACT_DEVELOPER) {
             ContactDeveloperScreen(onBack = { nav.popBackStack() })
