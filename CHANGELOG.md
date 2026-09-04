@@ -17,6 +17,7 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - Fixed the permission screen title being unreadable in dark mode.
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
+- Smoother fast scrolling of the contact list.
 
 ## [1.0] - 2026-08-07
 - Initial feature

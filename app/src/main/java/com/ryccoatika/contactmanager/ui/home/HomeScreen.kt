@@ -1,7 +1,6 @@
 package com.ryccoatika.contactmanager.ui.home
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -69,6 +68,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -141,6 +141,11 @@ fun HomeScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val launchReview = rememberReviewLauncher()
+    // The one row whose avatar carries the shared-element modifier: the last
+    // tapped contact. Keeps every other row free of shared-element bookkeeping
+    // during scroll. Saveable so the pop-back morph still finds the row after
+    // Home left composition while the detail screen was open.
+    var transitionContactId by rememberSaveable { mutableStateOf<Long?>(null) }
     // In selection mode, Back clears the selection instead of leaving the app.
     BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
     var showMovePicker by remember { mutableStateOf(false) }
@@ -464,9 +469,17 @@ fun HomeScreen(
                                     contact = contact,
                                     selected = contact.contactId in state.selectedContactIds,
                                     swipeEnabled = !state.selectionMode,
+                                    sharedElementEnabled = contact.contactId == transitionContactId,
                                     onClick = {
-                                        if (state.selectionMode) viewModel.toggleSelect(contact.contactId)
-                                        else onContactClick(contact)
+                                        if (state.selectionMode) {
+                                            viewModel.toggleSelect(contact.contactId)
+                                        } else {
+                                            // Mark before navigating so this row's avatar carries
+                                            // the shared-element modifier when the transition
+                                            // snapshots the outgoing screen.
+                                            transitionContactId = contact.contactId
+                                            onContactClick(contact)
+                                        }
                                     },
                                     onLongClick = { viewModel.toggleSelect(contact.contactId) },
                                     onSwipeDelete = { pendingDeleteContact = contact },
@@ -878,6 +891,7 @@ private fun ContactRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSwipeDelete: () -> Unit,
+    sharedElementEnabled: Boolean = false,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -910,23 +924,26 @@ private fun ContactRow(
                 }
             },
             leadingContent = {
-                Crossfade(targetState = selected, label = "avatar") { isSelected ->
-                    if (isSelected) {
-                        SelectedAvatar()
-                    } else {
-                        val avatarModifier =
-                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                                with(sharedTransitionScope) {
-                                    Modifier.sharedElement(
-                                        rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
-                                        animatedVisibilityScope = animatedVisibilityScope,
-                                    )
-                                }
-                            } else {
-                                Modifier
+                if (selected) {
+                    SelectedAvatar()
+                } else {
+                    // Only the last-tapped row carries the shared element (set before
+                    // navigating), so scrolling pays zero match bookkeeping per row
+                    // while the open/back morphs still find their source.
+                    val avatarModifier =
+                        if (sharedElementEnabled &&
+                            sharedTransitionScope != null && animatedVisibilityScope != null
+                        ) {
+                            with(sharedTransitionScope) {
+                                Modifier.sharedElement(
+                                    rememberSharedContentState(key = "contact-avatar-${contact.contactId}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                )
                             }
-                        ContactAvatar(contact.displayName, contact.photoThumbnailUri, modifier = avatarModifier)
-                    }
+                        } else {
+                            Modifier
+                        }
+                    ContactAvatar(contact.displayName, contact.photoThumbnailUri, modifier = avatarModifier)
                 }
             },
             trailingContent = {
