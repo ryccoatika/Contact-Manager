@@ -63,6 +63,8 @@ main → closed alpha + GitHub release from `CHANGELOG.md`).
   `release/google-services.json` because Firebase is optional at build time —
   and the Crashlytics plugin is mandatory whenever the SDK ships (its absence
   is a startup crash, not a no-op).
+- **Kotlin warnings are errors** (`allWarningsAsErrors` in app/build.gradle.kts):
+  fix deprecations properly — never `@Suppress` them to get green without asking.
 - ktlint rules are tuned in `.editorconfig`; formatting-only changes are
   committed separately (`style:`), and mechanical commits go in
   `.git-blame-ignore-revs`.
