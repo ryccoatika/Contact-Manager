@@ -17,6 +17,18 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - Fixed the permission screen title being unreadable in dark mode.
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
+- Smoother fast scrolling of the contact list.
+- Reworked swipe-to-delete: a short swipe reveals a tappable delete button, a
+  long swipe (with a strong buzz) asks to confirm right away.
+- Long-press and drag to select (or deselect) many contacts in one sweep, with
+  edge auto-scroll.
+- The add button tucks away while scrolling down and returns when scrolling up.
+- Long-press an account chip to hide it or move all its contacts, right from
+  the contact list.
+- New splash screen that follows the device's dark mode; app launch no longer
+  flashes white in the dark theme.
+- A friendly screen appears if the app ever crashes, with a one-tap restart;
+  the error is reported automatically.
 
 ## [1.0] - 2026-08-07
 - Initial feature

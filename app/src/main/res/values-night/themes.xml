@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Dark parent so the pre-Compose window (status bar contrast, background)
+         matches the system dark mode; @color/app_background resolves dark here. -->
+    <style name="Theme.ContactManager" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+</resources>

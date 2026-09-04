@@ -28,7 +28,7 @@ val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntO
 // Version name lives in gradle.properties (single source shared with CI) — used
 // by the manifest and the gradle-changelog-plugin (so `getChangelog` returns
 // this version's section).
-val appVersionName = (project.findProperty("appVersionName") as String?) ?: "1.0"
+val appVersionName = project.findProperty("appVersionName") as String
 
 android {
     namespace = "com.ryccoatika.contactmanager"
@@ -123,6 +123,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
