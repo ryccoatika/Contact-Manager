@@ -1,0 +1,5 @@
+# Mechanical commits excluded from blame. Configure once with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply Spotless/ktlint formatting repo-wide (2026-09-05)
+e68f6106cb869e85aa21a11d4cf67c980da8d78c
