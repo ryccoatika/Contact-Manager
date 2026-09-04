@@ -5,7 +5,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -81,6 +81,8 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -146,6 +148,7 @@ fun HomeScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val batchProgress by viewModel.batchProgress.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val snackbarHostState = remember { SnackbarHostState() }
     val launchReview = rememberReviewLauncher()
     // The one row whose avatar carries the shared-element modifier: the last
@@ -463,10 +466,30 @@ fun HomeScreen(
                     }
                 }
                 val railShown = state.contacts.size > FAST_SCROLL_MIN_CONTACTS
+                // Flat contact order for long-press + drag range selection.
+                val orderedIds = remember(sections) {
+                    sections.flatMap { section -> section.contacts.map { it.contactId } }
+                }
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .dragToSelect(
+                                listState = listState,
+                                orderedIds = orderedIds,
+                                onSelectAnchor = { contactId ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    val before = viewModel.uiState.value.selectedContactIds
+                                    viewModel.setSelection(
+                                        if (contactId in before) before - contactId else before + contactId,
+                                    )
+                                    // The drag toggles against the pre-press selection.
+                                    before
+                                },
+                                setSelection = viewModel::setSelection,
+                                scrollBy = { delta -> scope.launch { listState.scrollBy(delta) } },
+                            ),
                         // Keep row content (incl. trailing provenance dots) clear of the rail.
                         contentPadding = PaddingValues(end = if (railShown) 30.dp else 0.dp),
                     ) {
@@ -495,7 +518,6 @@ fun HomeScreen(
                                             onContactClick(contact)
                                         }
                                     },
-                                    onLongClick = { viewModel.toggleSelect(contact.contactId) },
                                     onSwipeDelete = { pendingDeleteContact = contact },
                                     sharedTransitionScope = sharedTransitionScope,
                                     animatedVisibilityScope = animatedVisibilityScope,
@@ -906,7 +928,6 @@ private fun ContactRow(
     closeReveal: Boolean = false,
     onSwipeStart: () -> Unit = {},
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
     onSwipeDelete: () -> Unit,
     sharedElementEnabled: Boolean = false,
     sharedTransitionScope: SharedTransitionScope? = null,
@@ -937,15 +958,11 @@ private fun ContactRow(
     }
     val row = @Composable {
         ListItem(
+            // Long-press is handled by the list-level dragToSelect detector (a
+            // long-press here would consume the events and kill drag-select).
             modifier = Modifier
                 .heightIn(min = 64.dp)
-                .combinedClickable(
-                    onClick = rowClick,
-                    onLongClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLongClick()
-                    },
-                ),
+                .clickable(onClick = rowClick),
             // Opaque so it covers the red delete background until swiped.
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
             headlineContent = {
@@ -1076,6 +1093,67 @@ private fun ContactRow(
     }
 }
 
+/**
+ * Long-press + drag range selection (Google-Photos style). The row's own
+ * long-press enters selection mode and selects the anchor; dragging without
+ * lifting then extends the selection from the anchor to whatever row the finger
+ * is over — moving back shrinks it — while pre-existing selections are kept.
+ * Near the viewport's top/bottom edge the list auto-scrolls so the drag can
+ * keep selecting beyond the screen.
+ */
+private fun Modifier.dragToSelect(
+    listState: LazyListState,
+    orderedIds: List<Long>,
+    // Called at long-press with the anchor contact: toggles it (haptic included)
+    // and returns the selection as it was BEFORE the press — the drag range then
+    // toggles every row it covers against that baseline.
+    onSelectAnchor: (Long) -> Set<Long>,
+    setSelection: (Set<Long>) -> Unit,
+    scrollBy: (Float) -> Unit,
+): Modifier = pointerInput(orderedIds) {
+    var anchorId: Long? = null
+    var base: Set<Long> = emptySet()
+    detectDragGesturesAfterLongPress(
+        onDragStart = { position ->
+            anchorId = listState.contactIdAt(position.y)
+            base = anchorId?.let(onSelectAnchor) ?: emptySet()
+        },
+        onDragEnd = { anchorId = null },
+        onDragCancel = { anchorId = null },
+        onDrag = { change, _ ->
+            val anchor = anchorId ?: return@detectDragGesturesAfterLongPress
+            val y = change.position.y
+            // Auto-scroll when dragging near the edges.
+            val edge = DRAG_SELECT_EDGE_PX
+            when {
+                y < edge -> scrollBy(y - edge)
+                y > size.height - edge -> scrollBy(y - (size.height - edge))
+            }
+            val overId = listState.contactIdAt(y) ?: return@detectDragGesturesAfterLongPress
+            val anchorIndex = orderedIds.indexOf(anchor)
+            val overIndex = orderedIds.indexOf(overId)
+            if (anchorIndex == -1 || overIndex == -1) return@detectDragGesturesAfterLongPress
+            val range = if (anchorIndex <= overIndex) {
+                orderedIds.subList(anchorIndex, overIndex + 1)
+            } else {
+                orderedIds.subList(overIndex, anchorIndex + 1)
+            }.toSet()
+            // Toggle the covered rows against the pre-press baseline: rows that were
+            // selected turn off, unselected ones turn on; dragging back reverts.
+            setSelection((base - range) + (range - base))
+        },
+    )
+}
+
+/** The contact row (Long key) under viewport-relative [y]; headers yield null. */
+private fun LazyListState.contactIdAt(y: Float): Long? =
+    layoutInfo.visibleItemsInfo
+        .firstOrNull { y.toInt() in it.offset..(it.offset + it.size) }
+        ?.key as? Long
+
+/** Distance from the viewport edge within which drag-select auto-scrolls. */
+private const val DRAG_SELECT_EDGE_PX = 140f
+
 /** Width of the revealed swipe-to-delete action button. */
 private val DELETE_ACTION_WIDTH = 88.dp
 
@@ -1113,7 +1191,6 @@ private fun ContactRowPreview() {
                 selected = false,
                 swipeEnabled = true,
                 onClick = {},
-                onLongClick = {},
                 onSwipeDelete = {},
             )
         }

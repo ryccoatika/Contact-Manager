@@ -141,6 +141,9 @@ class HomeViewModel @Inject constructor(
 
     fun clearSelection() { selectedContactIds.value = emptySet() }
 
+    /** Replace the whole selection — used by long-press + drag range select. */
+    fun setSelection(ids: Set<Long>) { selectedContactIds.value = ids }
+
     /** Plan for moving the movable part of the selection into [target]. */
     fun planMove(target: ContactAccount): MovePlan =
         MovePlanner.plan(movableSelectedRawContacts(), target.type, target.name)
