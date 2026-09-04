@@ -13,6 +13,7 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 - Contact developer form — choose a category, write a message; the developer
   email is tappable to compose or long-press to copy.
 - About screen with app info, description, and a Privacy Policy link.
+- Fixed a crash when the contacts permission is revoked while the app runs.
 - Automatic in-app updates via Google Play.
 - Smoother open animations for a contact's details and the add/edit screen.
 
