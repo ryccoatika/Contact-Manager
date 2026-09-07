@@ -128,7 +128,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    `EditorScreen.kt` (extract the form field kit) and
    `data/ContactsWriteRepository.kt` (split the batch-op builders into
    focused files under `data/`). Clears R6 and the soft-budget warnings.
-6. **Unify events** — sealed `UiEvent` + a shared snackbar collector in
+6. ✅ **Unify events** — sealed `UiEvent` + a shared snackbar collector in
    `ui/common/`; migrate Home/Accounts/Duplicates VMs off
    `SharedFlow<String>`. Clears R10.
 7. **Hot read flows, shipped last and alone** — `shareIn(appScope,

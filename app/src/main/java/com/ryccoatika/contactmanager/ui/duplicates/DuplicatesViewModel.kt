@@ -14,6 +14,7 @@ import com.ryccoatika.contactmanager.domain.DuplicateGroup
 import com.ryccoatika.contactmanager.domain.analytics.Analytics
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -42,8 +43,8 @@ class DuplicatesViewModel
         private val analytics: Analytics,
         @DefaultDispatcher defaultDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
-        private val _events = MutableSharedFlow<String>()
-        val events: SharedFlow<String> = _events
+        private val _events = MutableSharedFlow<UiEvent>()
+        val events: SharedFlow<UiEvent> = _events
 
         /** Fires after a merge completes — the screen asks Play for an in-app review. */
         private val _requestReview = MutableSharedFlow<Unit>()
@@ -64,11 +65,15 @@ class DuplicatesViewModel
                 when (val result = writer.linkContacts(group.rawContactIds())) {
                     is ContactOpResult.Success -> {
                         analytics.logEvent(AnalyticsEvent.ContactsLink(group.contacts.size))
-                        _events.emit(strings.getQuantity(R.plurals.duplicates_msg_linked, group.contacts.size, group.contacts.size))
+                        _events.emit(
+                            UiEvent.ShowSnackbar(
+                                strings.getQuantity(R.plurals.duplicates_msg_linked, group.contacts.size, group.contacts.size),
+                            ),
+                        )
                     }
 
                     is ContactOpResult.Failure -> {
-                        _events.emit(result.message)
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
                     }
                 }
             }
@@ -83,12 +88,12 @@ class DuplicatesViewModel
                 when (val result = writer.mergeContacts(target, sources)) {
                     is ContactOpResult.Success -> {
                         analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
-                        _events.emit(strings.getQuantity(R.plurals.duplicates_msg_merged, sources.size, sources.size))
+                        _events.emit(UiEvent.ShowSnackbar(strings.getQuantity(R.plurals.duplicates_msg_merged, sources.size, sources.size)))
                         _requestReview.emit(Unit)
                     }
 
                     is ContactOpResult.Failure -> {
-                        _events.emit(result.message)
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
                     }
                 }
             }

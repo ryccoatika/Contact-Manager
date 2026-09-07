@@ -71,6 +71,7 @@ import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
+import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
@@ -92,9 +93,7 @@ fun DuplicatesScreen(
     var mergePickerGroup by remember { mutableStateOf<DuplicateGroup?>(null) }
     var pendingMerge by remember { mutableStateOf<Pair<DuplicateGroup, RawContact>?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
+    CollectUiEvents(viewModel.events, snackbarHostState)
     // A completed merge is a review-worthy moment; ask Play (it decides + throttles).
     LaunchedEffect(Unit) {
         viewModel.requestReview.collect { launchReview() }

@@ -18,6 +18,7 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -297,7 +298,7 @@ class HomeViewModelTest {
         val writer = FakeWriter()
         val vm = vm(writer)
         val job = launch { vm.uiState.collect {} }
-        val messages = mutableListOf<String>()
+        val messages = mutableListOf<UiEvent>()
         val eventsJob = launch { vm.events.collect { messages += it } }
         dispatcher.scheduler.advanceUntilIdle()
         vm.toggleSelect(2)

@@ -11,6 +11,7 @@ import com.ryccoatika.contactmanager.domain.analytics.Analytics
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +46,8 @@ class AccountsViewModel
         private val _uiState = MutableStateFlow(AccountsUiState())
         val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
 
-        private val _events = MutableSharedFlow<String>()
-        val events: SharedFlow<String> = _events
+        private val _events = MutableSharedFlow<UiEvent>()
+        val events: SharedFlow<UiEvent> = _events
 
         private val _pendingMove = MutableStateFlow<PendingMoveAll?>(null)
         val pendingMove: StateFlow<PendingMoveAll?> = _pendingMove.asStateFlow()
@@ -111,6 +112,6 @@ class AccountsViewModel
 
         /** Moves every raw contact of [source] into [target] as a background batch. */
         fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
-            viewModelScope.launch { _events.emit(moveAll.execute(source, target)) }
+            viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(moveAll.execute(source, target))) }
         }
     }
