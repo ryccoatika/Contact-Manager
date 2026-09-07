@@ -60,8 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue

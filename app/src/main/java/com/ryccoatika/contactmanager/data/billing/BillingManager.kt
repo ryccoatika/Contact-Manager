@@ -14,6 +14,7 @@ import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
+import com.ryccoatika.contactmanager.domain.model.BillingEvent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,15 +33,6 @@ val SUPPORT_PRODUCT_IDS = listOf(
     "support_pizza",
     "support_fancy_meal",
 )
-
-sealed interface BillingEvent {
-    /** A donation completed (already consumed, so it can be bought again). */
-    data object PurchaseSuccess : BillingEvent
-
-    data object PurchaseCancelled : BillingEvent
-
-    data object Error : BillingEvent
-}
 
 /**
  * One-time, **consumable** donation purchases — the seam ViewModels depend on

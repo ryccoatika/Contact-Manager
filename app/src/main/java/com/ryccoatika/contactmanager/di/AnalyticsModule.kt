@@ -3,9 +3,9 @@ package com.ryccoatika.contactmanager.di
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.ryccoatika.contactmanager.data.analytics.Analytics
 import com.ryccoatika.contactmanager.data.analytics.FirebaseAnalyticsImpl
-import com.ryccoatika.contactmanager.data.analytics.NoOpAnalytics
+import com.ryccoatika.contactmanager.domain.analytics.Analytics
+import com.ryccoatika.contactmanager.domain.analytics.NoOpAnalytics
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

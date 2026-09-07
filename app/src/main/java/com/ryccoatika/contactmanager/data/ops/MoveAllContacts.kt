@@ -4,9 +4,9 @@ import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.BatchRunner
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.StringProvider
-import com.ryccoatika.contactmanager.data.analytics.Analytics
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.MovePlanner
+import com.ryccoatika.contactmanager.domain.analytics.Analytics
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
 import com.ryccoatika.contactmanager.domain.model.RawContact

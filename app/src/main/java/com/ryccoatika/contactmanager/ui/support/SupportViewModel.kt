@@ -3,7 +3,7 @@ package com.ryccoatika.contactmanager.ui.support
 import android.app.Activity
 import androidx.lifecycle.ViewModel
 import com.ryccoatika.contactmanager.data.billing.Billing
-import com.ryccoatika.contactmanager.data.billing.BillingEvent
+import com.ryccoatika.contactmanager.domain.model.BillingEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow

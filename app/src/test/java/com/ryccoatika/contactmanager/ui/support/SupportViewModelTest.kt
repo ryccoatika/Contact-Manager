@@ -1,7 +1,7 @@
 package com.ryccoatika.contactmanager.ui.support
 
-import com.ryccoatika.contactmanager.data.billing.BillingEvent
 import com.ryccoatika.contactmanager.data.billing.FakeBilling
+import com.ryccoatika.contactmanager.domain.model.BillingEvent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent

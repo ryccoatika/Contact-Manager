@@ -109,7 +109,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    BatchOperationManager, `SimStore` ← SimRepository, `Billing` ←
    BillingManager (+ `FakeBilling` and the missing SupportViewModel test).
    Keep the interfaces minimal — no speculative methods. Clears R5.
-3. **Pure-type moves** — `Analytics`, `AnalyticsEvent`, **and the pure
+3. ✅ **Pure-type moves** — `Analytics`, `AnalyticsEvent`, **and the pure
    `NoOpAnalytics`** → `domain/analytics/` (the Firebase impl stays in data);
    `SimRouting` → `domain/sim/`; `BillingEvent` → `domain/` (or the ViewModel
    maps it to a UI event); re-key `AccountVisuals` on plain account-type

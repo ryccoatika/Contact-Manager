@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.analytics
+package com.ryccoatika.contactmanager.domain.analytics
 
 /** Every analytics event. Params are non-PII only: counts, enums, booleans, lengths. */
 sealed class AnalyticsEvent(

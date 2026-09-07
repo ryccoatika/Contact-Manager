@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.sim
+package com.ryccoatika.contactmanager.domain.sim
 
 /**
  * Pure routing rules for icc/adn SIM pseudo-accounts. SIM entries never live

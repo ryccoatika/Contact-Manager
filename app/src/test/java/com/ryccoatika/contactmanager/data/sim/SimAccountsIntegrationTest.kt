@@ -7,6 +7,7 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
