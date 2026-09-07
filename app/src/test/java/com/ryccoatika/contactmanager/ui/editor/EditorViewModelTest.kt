@@ -83,6 +83,8 @@ class EditorViewModelTest {
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
+
+        override suspend fun snapshot(): List<Contact> = contactsFlow.value
     }
     private var accountsList = listOf(googleAccount, whatsappAccount)
     private val fakeAccounts = object : AccountsSource {

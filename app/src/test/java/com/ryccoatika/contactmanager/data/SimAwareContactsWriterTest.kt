@@ -144,6 +144,8 @@ class SimAwareContactsWriterTest {
             simRepository = simRepository,
             contactsSource = object : ContactsSource {
                 override fun observeContacts(): Flow<List<Contact>> = flowOf(contacts)
+
+                override suspend fun snapshot(): List<Contact> = contacts
             },
             strings = FakeStringProvider(),
         )
