@@ -90,7 +90,6 @@ completed 2026-09-07 (commits `refactor(arch): migration step 1–7` on
 `ref/architecture`; step 7 — hot shared read flows + `snapshot()` — shipped
 as its own device-tested PR, #13). **Known debt: none.** Every audit finding
 is a new violation: fix it, never start a new debt list to make work pass.
-Mechanical-move commits are listed in `.git-blame-ignore-revs`.
 
 ## Split tripwires — when to revisit modularization
 
