@@ -118,7 +118,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    `StringProvider` stays in `data/` — the data layer resolves SIM error
    messages through it, and ViewModels importing data interfaces is the
    sanctioned seam (R3 exempts `*ViewModel.kt`). Clears R3 + R13.
-4. **Dedupe small helpers** — one `findActivity()` in `ui/common/ActivityExt.kt`;
+4. ✅ **Dedupe small helpers** — one `findActivity()` in `ui/common/ActivityExt.kt`;
    one `contentChangesFlow(uri)` in `data/ContentChanges.kt`. Clears R12.
 5. **Split the over-budget files** — `HomeScreen.kt` along its existing
    seams (ContactRow + swipe, chips row, sheets, dialogs, gestures, top bars);

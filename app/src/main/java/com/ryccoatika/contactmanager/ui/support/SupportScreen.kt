@@ -47,6 +47,7 @@ import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.BillingEvent
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.common.findActivity
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 
 private data class SupportTier(
@@ -202,11 +203,4 @@ private fun SupportScreenPreview() {
             embedded = false,
         )
     }
-}
-
-/** Unwrap the Compose ContextWrapper chain to the hosting Activity. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }
