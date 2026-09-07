@@ -1,7 +1,8 @@
 name: Check
 
 # PR gate: formatting, compile, unit tests, Android lint. Deploys stay in
-# deploy.yml; this workflow never touches secrets so it's safe for any PR.
+# deploy.yml. Needs ENCRYPT_KEY to decrypt google-services.json — Firebase is
+# mandatory at build time, so fork PRs (no secrets) cannot pass this gate.
 on:
   pull_request:
   push:
@@ -24,6 +25,11 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
+
+      - name: Decrypt google-services.json (Firebase is build-mandatory)
+        env:
+          ENCRYPT_KEY: ${{ secrets.ENCRYPT_KEY }}
+        run: ./release/decrypt-secrets.sh
 
       - name: Spotless (ktlint)
         run: ./gradlew spotlessCheck

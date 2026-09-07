@@ -57,11 +57,7 @@ main → closed alpha + GitHub release from `CHANGELOG.md`).
   Dependencies live in `gradle/libs.versions.toml` — add there, never inline.
 - **AGP 9 warning**: two Gradle plugins have already died on AGP 9's removed
   variant APIs (oss-licenses, AboutLibraries — unusable). Verify any new plugin
-  actually applies before building features on it. Separately, google-services
-  + crashlytics plugins are applied conditionally on
-  `release/google-services.json` because Firebase is optional at build time —
-  and the Crashlytics plugin is mandatory whenever the SDK ships (its absence
-  is a startup crash, not a no-op).
+  actually applies before building features on it.
 - **Kotlin warnings are errors** (`allWarningsAsErrors` in app/build.gradle.kts):
   fix deprecations properly — never `@Suppress` them to get green without asking.
 - ktlint rules are tuned in `.editorconfig`; formatting-only changes are
@@ -220,10 +216,13 @@ reference examples. Don't skip this for multi-screen features.
 - **Crash handling**: `ContactManagerApp` installs an uncaught-exception
   handler that shows `ui/crash/CrashActivity` (own `:crash` process, Hilt-free
   by design) and chains to Crashlytics. Don't make CrashActivity depend on DI.
-- **Firebase is optional at build time**: everything guards on
-  `release/google-services.json` existing (google-services + crashlytics
-  plugins applied conditionally; `AnalyticsModule` falls back to NoOp). Builds
-  must stay green without the file.
+- **Firebase is mandatory at build time**: the build fails fast when
+  `release/google-services.json` is missing (decrypt it once with
+  `ENCRYPT_KEY=<passphrase> ./release/decrypt-secrets.sh`). google-services +
+  crashlytics plugins are always applied — the Crashlytics plugin generates a
+  build_id resource whose absence is a startup crash. CI (check.yml and
+  deploy.yml) decrypts the json from its committed `.gpg` blob;
+  `AnalyticsModule`'s NoOp fallback remains only as a runtime guard.
 - **Play Billing** (Support donations): consumables, consumed immediately, no
   entitlements. Product ids `support_*` must exist in Play Console; billing is
   a no-op on debug/sideload builds.
