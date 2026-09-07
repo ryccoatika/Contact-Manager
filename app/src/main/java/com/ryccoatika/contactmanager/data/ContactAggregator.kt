@@ -32,9 +32,9 @@ data class DataRow(
 )
 
 object ContactAggregator {
-
     fun aggregate(rows: List<DataRow>): List<Contact> =
-        rows.groupBy { it.contactId }
+        rows
+            .groupBy { it.contactId }
             .map { (contactId, contactRows) -> buildContact(contactId, contactRows) }
             .sortedBy { it.displayName.lowercase() }
 
@@ -43,31 +43,39 @@ object ContactAggregator {
             val first = rawRows.first()
             val nameRow = rawRows.firstOrNull { it.mimeType == StructuredName.CONTENT_ITEM_TYPE }
             val orgRow = rawRows.firstOrNull { it.mimeType == Organization.CONTENT_ITEM_TYPE }
-            fun event(type: Int) = rawRows.firstOrNull {
-                it.mimeType == Event.CONTENT_ITEM_TYPE &&
-                    it.data2 == type.toString() &&
-                    !it.data1.isNullOrBlank()
-            }?.data1
+
+            fun event(type: Int) = rawRows
+                .firstOrNull {
+                    it.mimeType == Event.CONTENT_ITEM_TYPE &&
+                        it.data2 == type.toString() &&
+                        !it.data1.isNullOrBlank()
+                }?.data1
             RawContact(
                 rawContactId = rawId,
                 accountType = first.accountType,
                 accountName = first.accountName,
                 givenName = nameRow?.data2?.takeIf { it.isNotBlank() },
                 familyName = nameRow?.data3?.takeIf { it.isNotBlank() },
-                phones = rawRows.filter { it.mimeType == Phone.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
+                phones = rawRows
+                    .filter { it.mimeType == Phone.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
                     .distinctBy { it.data1 }
                     .map { LabeledValue(it.dataId, it.data1!!, it.typeLabel) },
-                emails = rawRows.filter { it.mimeType == Email.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
+                emails = rawRows
+                    .filter { it.mimeType == Email.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
                     .distinctBy { it.data1 }
                     .map { LabeledValue(it.dataId, it.data1!!, it.typeLabel) },
                 organization = orgRow?.data1?.takeIf { it.isNotBlank() },
                 jobTitle = orgRow?.data4?.takeIf { it.isNotBlank() },
-                nickname = rawRows.firstOrNull { it.mimeType == Nickname.CONTENT_ITEM_TYPE }
-                    ?.data1?.takeIf { it.isNotBlank() },
-                websites = rawRows.filter { it.mimeType == Website.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
+                nickname = rawRows
+                    .firstOrNull { it.mimeType == Nickname.CONTENT_ITEM_TYPE }
+                    ?.data1
+                    ?.takeIf { it.isNotBlank() },
+                websites = rawRows
+                    .filter { it.mimeType == Website.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
                     .distinctBy { it.data1 }
                     .map { LabeledValue(it.dataId, it.data1!!, it.typeLabel) },
-                addresses = rawRows.filter { it.mimeType == StructuredPostal.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
+                addresses = rawRows
+                    .filter { it.mimeType == StructuredPostal.CONTENT_ITEM_TYPE && !it.data1.isNullOrBlank() }
                     .distinctBy { it.data1 }
                     .map { LabeledValue(it.dataId, it.data1!!, it.typeLabel) },
                 birthday = event(Event.TYPE_BIRTHDAY),

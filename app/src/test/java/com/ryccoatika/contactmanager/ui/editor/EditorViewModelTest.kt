@@ -8,11 +8,11 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -22,8 +22,8 @@ import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -40,7 +40,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditorViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private val googleAccount = ContactAccount("a@gmail.com", "com.google", AccountCapability.FULL_CRUD, 5)
@@ -48,33 +47,49 @@ class EditorViewModelTest {
     private val simAccount = ContactAccount("SIM 1 · Telkomsel", "icc/1", AccountCapability.SIM, 2)
     private val readOnlySimAccount = ContactAccount("SIM 2 · XL", "icc/2", AccountCapability.SIM, 1, writable = false)
 
-    private val contactsFlow = MutableStateFlow(listOf(
-        Contact(
-            contactId = 1, displayName = "Budi Santoso",
-            rawContacts = listOf(RawContact(
-                rawContactId = 10, accountType = "com.google", accountName = "a@gmail.com",
-                givenName = "Budi", familyName = "Santoso",
-                phones = listOf(LabeledValue(1, "+62812111", "Mobile")),
-                emails = listOf(LabeledValue(2, "budi@x.com", "Home")),
-                organization = "PT Maju",
-                note = "VIP",
-            )),
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            Contact(
+                contactId = 1,
+                displayName = "Budi Santoso",
+                rawContacts = listOf(
+                    RawContact(
+                        rawContactId = 10,
+                        accountType = "com.google",
+                        accountName = "a@gmail.com",
+                        givenName = "Budi",
+                        familyName = "Santoso",
+                        phones = listOf(LabeledValue(1, "+62812111", "Mobile")),
+                        emails = listOf(LabeledValue(2, "budi@x.com", "Home")),
+                        organization = "PT Maju",
+                        note = "VIP",
+                    ),
+                ),
+            ),
+            Contact(
+                contactId = -1_000_000,
+                displayName = "Sim Budi",
+                rawContacts = listOf(
+                    RawContact(
+                        rawContactId = -1_000_000,
+                        accountType = "icc/1",
+                        accountName = "SIM 1 · Telkomsel",
+                        phones = listOf(LabeledValue(-1, "0812", "SIM")),
+                    ),
+                ),
+            ),
         ),
-        Contact(
-            contactId = -1_000_000, displayName = "Sim Budi",
-            rawContacts = listOf(RawContact(
-                rawContactId = -1_000_000, accountType = "icc/1", accountName = "SIM 1 · Telkomsel",
-                phones = listOf(LabeledValue(-1, "0812", "SIM")),
-            )),
-        ),
-    ))
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
+
+        override suspend fun snapshot(): List<Contact> = contactsFlow.value
     }
     private var accountsList = listOf(googleAccount, whatsappAccount)
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = accountsList
+
         override fun observeAccounts() = flow { emit(accountsList) }
     }
 
@@ -166,8 +181,13 @@ class EditorViewModelTest {
         analytics = analytics,
     )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `create mode offers only writable accounts and defaults to first`() = runTest(dispatcher) {
         val vm = newVm()

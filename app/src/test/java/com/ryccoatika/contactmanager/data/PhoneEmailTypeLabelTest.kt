@@ -5,10 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PhoneEmailTypeLabelTest {
-
-    private val PHONE = "vnd.android.cursor.item/phone_v2"
-    private val EMAIL = "vnd.android.cursor.item/email_v2"
-
     @Test
     fun `phone types map to labels`() {
         assertEquals("Home", PhoneEmailTypeLabel.from(PHONE, 1, null))
@@ -56,5 +52,10 @@ class PhoneEmailTypeLabelTest {
     fun `other mimetypes are null even with known type int`() {
         assertNull(PhoneEmailTypeLabel.from("vnd.android.cursor.item/name", 1, "x"))
         assertNull(PhoneEmailTypeLabel.from(null, 1, "x"))
+    }
+
+    private companion object {
+        private const val PHONE = "vnd.android.cursor.item/phone_v2"
+        private const val EMAIL = "vnd.android.cursor.item/email_v2"
     }
 }

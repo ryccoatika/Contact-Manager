@@ -5,13 +5,13 @@ import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.ResolvedSimContact
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
-import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -22,7 +22,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SimAwareContactsWriterTest {
-
     private class FakeDelegate : ContactsWriter {
         var created: Triple<String?, String?, EditableContact>? = null
         var updated: Pair<Long, EditableContact>? = null
@@ -145,6 +144,8 @@ class SimAwareContactsWriterTest {
             simRepository = simRepository,
             contactsSource = object : ContactsSource {
                 override fun observeContacts(): Flow<List<Contact>> = flowOf(contacts)
+
+                override suspend fun snapshot(): List<Contact> = contacts
             },
             strings = FakeStringProvider(),
         )
@@ -202,8 +203,18 @@ class SimAwareContactsWriterTest {
         val result = env.writer.updateRawContact(simId, editable("Budiman", "0899"))
         assertEquals(ContactOpResult.Success, result)
         assertNull(env.delegate.updated)
-        assertEquals("Budiman", env.simSource.contactsBySub[null]!!.single().name)
-        assertEquals("0899", env.simSource.contactsBySub[null]!!.single().number)
+        assertEquals(
+            "Budiman",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .name,
+        )
+        assertEquals(
+            "0899",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .number,
+        )
     }
 
     @Test fun `update with stale sim id fails gracefully`() = runTest {
@@ -280,7 +291,11 @@ class SimAwareContactsWriterTest {
             progress += d to t
         }
         assertEquals(ContactOpResult.Success, result)
-        assertEquals("Budi", env.delegate.created!!.third.displayName)
+        assertEquals(
+            "Budi",
+            env.delegate.created!!
+                .third.displayName,
+        )
         assertTrue(env.simSource.contactsBySub[null]!!.isEmpty())
         assertEquals(listOf(1 to 1), progress)
     }
@@ -298,7 +313,12 @@ class SimAwareContactsWriterTest {
         val env = Env(contacts = listOf(providerContact))
         val result = env.writer.moveRawContacts(listOf(10L), "icc/-1", "SIM") { _, _ -> }
         assertEquals(ContactOpResult.Success, result)
-        assertEquals("Citra Lestari", env.simSource.contactsBySub[null]!!.single().name)
+        assertEquals(
+            "Citra Lestari",
+            env.simSource.contactsBySub[null]!!
+                .single()
+                .name,
+        )
         assertEquals(listOf(listOf(10L)), env.delegate.deleted)
     }
 
@@ -314,7 +334,11 @@ class SimAwareContactsWriterTest {
         }
         assertEquals(ContactOpResult.Success, result)
         assertEquals(listOf(10L), env.delegate.moved)
-        assertEquals("Budi", env.delegate.created!!.third.displayName)
+        assertEquals(
+            "Budi",
+            env.delegate.created!!
+                .third.displayName,
+        )
         assertEquals(listOf(1 to 2, 2 to 2), progress)
     }
 

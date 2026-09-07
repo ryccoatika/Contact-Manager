@@ -41,12 +41,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
-import com.ryccoatika.contactmanager.data.billing.BillingEvent
+import com.ryccoatika.contactmanager.domain.model.BillingEvent
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.common.findActivity
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 
 private data class SupportTier(
@@ -202,11 +203,4 @@ private fun SupportScreenPreview() {
             embedded = false,
         )
     }
-}
-
-/** Unwrap the Compose ContextWrapper chain to the hosting Activity. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }

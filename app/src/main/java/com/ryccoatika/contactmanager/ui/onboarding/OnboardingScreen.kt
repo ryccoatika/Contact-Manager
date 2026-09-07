@@ -18,7 +18,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.automirrored.filled.CallMerge
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
@@ -40,7 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.R
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -64,7 +64,7 @@ private val onboardingPages = listOf(
         R.string.onboarding_page2_body,
     ),
     OnboardingPage(
-        Icons.Default.CallMerge,
+        Icons.AutoMirrored.Filled.CallMerge,
         R.string.onboarding_page3_title,
         R.string.onboarding_page3_body,
     ),

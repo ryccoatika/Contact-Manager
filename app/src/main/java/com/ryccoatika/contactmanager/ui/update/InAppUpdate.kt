@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
@@ -22,11 +23,13 @@ import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.ui.common.findActivity
 import kotlinx.coroutines.launch
 
 // A release's Play priority (0..5, set at upload from gradle.properties) at or
 // above this forces the blocking immediate flow; below it stays flexible.
 private const val IMMEDIATE_PRIORITY = 4
+
 // Escalate to immediate once a flexible-eligible update has been available this
 // many days, so laggards eventually update even for a low-priority release.
 private const val IMMEDIATE_STALENESS_DAYS = 14
@@ -59,11 +62,13 @@ fun InAppUpdate(snackbarHostState: SnackbarHostState) {
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { }
 
+    val downloadedMessage = stringResource(R.string.update_downloaded)
+    val restartLabel = stringResource(R.string.update_restart)
     val promptRestart: () -> Unit = {
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = context.getString(R.string.update_downloaded),
-                actionLabel = context.getString(R.string.update_restart),
+                message = downloadedMessage,
+                actionLabel = restartLabel,
                 duration = SnackbarDuration.Indefinite,
             )
             if (result == SnackbarResult.ActionPerformed) manager.completeUpdate()
@@ -115,11 +120,4 @@ fun InAppUpdate(snackbarHostState: SnackbarHostState) {
         }
         onPauseOrDispose { }
     }
-}
-
-/** Unwrap the Compose ContextWrapper chain to the hosting Activity. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }

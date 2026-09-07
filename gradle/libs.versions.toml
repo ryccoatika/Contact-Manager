@@ -26,6 +26,8 @@ androidxBrowser = "1.8.0"
 coreSplashscreen = "1.0.1"
 billing = "8.0.0"
 changelog = "2.2.1"
+spotless = "8.10.2"
+ktlint = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -70,5 +72,6 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
 

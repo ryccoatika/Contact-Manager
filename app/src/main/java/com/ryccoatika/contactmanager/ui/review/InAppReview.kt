@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.google.android.play.core.ktx.launchReview
 import com.google.android.play.core.ktx.requestReview
 import com.google.android.play.core.review.ReviewManagerFactory
+import com.ryccoatika.contactmanager.ui.common.findActivity
 import kotlinx.coroutines.launch
 
 /**
@@ -38,11 +39,4 @@ fun rememberReviewLauncher(): () -> Unit {
             }
         }
     }
-}
-
-/** Unwrap the Compose ContextWrapper chain to the hosting Activity. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }

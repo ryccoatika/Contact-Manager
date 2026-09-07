@@ -2,19 +2,20 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.BatchOperationManager
-import com.ryccoatika.contactmanager.data.FakeAppPrefs
-import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
+import com.ryccoatika.contactmanager.data.FakeAppPrefs
+import com.ryccoatika.contactmanager.data.FakeStringProvider
+import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimSubscription
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -25,8 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -40,7 +41,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private val googleAccount = ContactAccount("a@gmail.com", "com.google", AccountCapability.FULL_CRUD, 2)
@@ -48,22 +48,33 @@ class AccountsViewModelTest {
     private val deviceAccount = ContactAccount(null, null, AccountCapability.FULL_CRUD, 0)
 
     private fun raw(id: Long, accType: String?, accName: String?) = RawContact(
-        rawContactId = id, accountType = accType, accountName = accName,
+        rawContactId = id,
+        accountType = accType,
+        accountName = accName,
     )
 
-    private val contactsFlow = MutableStateFlow(listOf(
-        Contact(1, "Andi", rawContacts = listOf(raw(10, "com.google", "a@gmail.com"))),
-        Contact(2, "Budi", rawContacts = listOf(
-            raw(20, "com.whatsapp", "WhatsApp"),
-            raw(21, "com.google", "a@gmail.com"),
-        )),
-    ))
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            Contact(1, "Andi", rawContacts = listOf(raw(10, "com.google", "a@gmail.com"))),
+            Contact(
+                2,
+                "Budi",
+                rawContacts = listOf(
+                    raw(20, "com.whatsapp", "WhatsApp"),
+                    raw(21, "com.google", "a@gmail.com"),
+                ),
+            ),
+        ),
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
+
+        override suspend fun snapshot(): List<Contact> = contactsFlow.value
     }
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = listOf(googleAccount, whatsappAccount, deviceAccount)
+
         override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
@@ -123,17 +134,25 @@ class AccountsViewModelTest {
         analytics: FakeAnalytics = FakeAnalytics(),
     ) = AccountsViewModel(
         accountsSource = fakeAccounts,
-        contactsSource = fakeContacts,
-        batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+        moveAll = DefaultMoveAllContacts(
+            fakeContacts,
+            BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+            analytics,
+            FakeStringProvider(),
+        ),
         simRepository = SimRepository(simSource, InMemorySimCapabilityCache()),
         simSubscriptionsSource = FakeSimSubscriptionsSource(listOf(SimSubscription(1, "SIM 1"))),
         appPrefs = FakeAppPrefs(),
-        strings = FakeStringProvider(),
         analytics = analytics,
     )
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `loads accounts with capabilities`() = runTest(dispatcher) {
         val vm = vm()
