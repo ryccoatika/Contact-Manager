@@ -6,11 +6,11 @@ import android.os.Build
 import android.provider.ContactsContract.RawContacts
 import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
-import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher

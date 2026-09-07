@@ -5,13 +5,13 @@ import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.ResolvedSimContact
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
-import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch

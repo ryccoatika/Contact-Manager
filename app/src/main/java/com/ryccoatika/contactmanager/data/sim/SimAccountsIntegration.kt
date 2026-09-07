@@ -8,6 +8,7 @@ import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import javax.inject.Inject
 import javax.inject.Singleton
 

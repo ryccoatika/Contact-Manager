@@ -8,14 +8,14 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimSubscription
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount

@@ -2,6 +2,8 @@ package com.ryccoatika.contactmanager.data.analytics
 
 import android.os.Bundle
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.ryccoatika.contactmanager.domain.analytics.Analytics
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 
 /** Logs to Firebase. Constructed only when Firebase is initialised (see AnalyticsModule). */
 class FirebaseAnalyticsImpl(

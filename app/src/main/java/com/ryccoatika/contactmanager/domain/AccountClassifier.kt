@@ -39,4 +39,18 @@ object AccountClassifier {
         accountType in FULL_CRUD_TYPES -> AccountCapability.FULL_CRUD
         else -> AccountCapability.READ_ONLY
     }
+
+    /** Brand/provenance bucket for display (labels, icons) — the single OEM table. */
+    enum class AccountKind { DEVICE, PHONE, GOOGLE, SAMSUNG, WHATSAPP, TELEGRAM, SIM, OTHER }
+
+    fun kindOf(accountType: String?): AccountKind = when {
+        accountType == null -> AccountKind.DEVICE
+        accountType == "vnd.sec.contact.phone" -> AccountKind.PHONE
+        accountType == "com.google" -> AccountKind.GOOGLE
+        accountType == "com.osp.app.signin" -> AccountKind.SAMSUNG
+        accountType == "com.whatsapp" -> AccountKind.WHATSAPP
+        accountType.startsWith("org.telegram") -> AccountKind.TELEGRAM
+        classify(accountType) == AccountCapability.SIM -> AccountKind.SIM
+        else -> AccountKind.OTHER
+    }
 }

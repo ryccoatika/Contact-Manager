@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.sim
+package com.ryccoatika.contactmanager.domain.sim
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

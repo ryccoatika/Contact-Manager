@@ -5,12 +5,12 @@ import com.ryccoatika.contactmanager.data.sim.ResolvedSimContact
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimContactSource
 import com.ryccoatika.contactmanager.data.sim.SimRepository
-import com.ryccoatika.contactmanager.data.sim.SimRouting
 import com.ryccoatika.contactmanager.di.ContactsContractWriter
 import com.ryccoatika.contactmanager.domain.SimContactValidator
 import com.ryccoatika.contactmanager.domain.SimValidation
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject

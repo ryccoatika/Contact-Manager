@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.analytics
+package com.ryccoatika.contactmanager.domain.analytics
 
 /** Records analytics calls for assertions. */
 class FakeAnalytics : Analytics {
