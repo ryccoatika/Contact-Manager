@@ -19,24 +19,40 @@ data class BatchProgress(
 )
 
 /**
- * Runs long batch operations in the application scope so they survive
- * ViewModel/config death. One operation at a time; observable via [progress]
- * and cancellable via [cancel].
+ * Long batch operations that survive ViewModel/config death. One operation at
+ * a time; observable via [progress] and cancellable via [cancel]. ViewModels
+ * depend on this seam (fakeable in JVM tests), never on the impl below.
  */
+interface BatchRunner {
+    val progress: StateFlow<BatchProgress?>
+
+    /** Starts the move; false when another batch is still running (nothing started). */
+    fun moveContacts(
+        rawContactIds: List<Long>,
+        targetType: String?,
+        targetName: String?,
+        label: String,
+    ): Boolean
+
+    fun cancel()
+
+    fun clearFinished()
+}
+
+/** Runs batches in the application scope so they outlive the screen. */
 @Singleton
 class BatchOperationManager
     @Inject
     constructor(
         private val writer: ContactsWriter,
         @ApplicationScope private val scope: CoroutineScope,
-    ) {
+    ) : BatchRunner {
         private val _progress = MutableStateFlow<BatchProgress?>(null)
-        val progress: StateFlow<BatchProgress?> = _progress.asStateFlow()
+        override val progress: StateFlow<BatchProgress?> = _progress.asStateFlow()
 
         private var job: Job? = null
 
-        /** Starts the move; false when another batch is still running (nothing started). */
-        fun moveContacts(
+        override fun moveContacts(
             rawContactIds: List<Long>,
             targetType: String?,
             targetName: String?,
@@ -59,12 +75,12 @@ class BatchOperationManager
             return true
         }
 
-        fun cancel() {
+        override fun cancel() {
             job?.cancel()
             _progress.value = null
         }
 
-        fun clearFinished() {
+        override fun clearFinished() {
             if (_progress.value?.finished == true) _progress.value = null
         }
     }

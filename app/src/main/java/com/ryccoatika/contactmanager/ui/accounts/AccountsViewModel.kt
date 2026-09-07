@@ -5,12 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
-import com.ryccoatika.contactmanager.data.BatchOperationManager
+import com.ryccoatika.contactmanager.data.BatchRunner
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.analytics.Analytics
 import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import com.ryccoatika.contactmanager.domain.FieldLoss
 import com.ryccoatika.contactmanager.domain.MovePlanner
@@ -49,8 +49,8 @@ class AccountsViewModel
     constructor(
         private val accountsSource: AccountsSource,
         private val contactsSource: ContactsSource,
-        private val batchManager: BatchOperationManager,
-        private val simRepository: SimRepository,
+        private val batchManager: BatchRunner,
+        private val simRepository: SimStore,
         private val simSubscriptionsSource: SimSubscriptionsSource,
         private val appPrefs: AppPrefs,
         private val strings: StringProvider,
