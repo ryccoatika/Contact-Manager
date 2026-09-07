@@ -43,24 +43,37 @@ sealed interface BillingEvent {
 }
 
 /**
- * Thin wrapper over Play Billing for one-time, **consumable** donations. Connects
- * on [start], queries the products' localized prices, launches the purchase flow,
- * and consumes a completed purchase so the user can donate again. Donations grant
- * nothing, so there's no entitlement to persist.
+ * One-time, **consumable** donation purchases — the seam ViewModels depend on
+ * (fakeable in JVM tests). Donations grant nothing; no entitlement persists.
+ */
+interface Billing {
+    /** productId → localized formatted price (e.g. "$1.00"); empty until loaded. */
+    val prices: StateFlow<Map<String, String>>
+    val events: SharedFlow<BillingEvent>
+
+    /** Connect (idempotent) and refresh prices. Safe to call on every screen open. */
+    fun start()
+
+    fun purchase(activity: Activity, productId: String)
+}
+
+/**
+ * Play Billing implementation: connects on [start], queries the products'
+ * localized prices, launches the purchase flow, and consumes a completed
+ * purchase so the user can donate again.
  */
 @Singleton
 class BillingManager
     @Inject
     constructor(
         @ApplicationContext context: Context,
-    ) {
+    ) : Billing {
         private val _prices = MutableStateFlow<Map<String, String>>(emptyMap())
 
-        /** productId → localized formatted price (e.g. "$1.00"); empty until loaded. */
-        val prices: StateFlow<Map<String, String>> = _prices.asStateFlow()
+        override val prices: StateFlow<Map<String, String>> = _prices.asStateFlow()
 
         private val _events = MutableSharedFlow<BillingEvent>(extraBufferCapacity = 4)
-        val events: SharedFlow<BillingEvent> = _events.asSharedFlow()
+        override val events: SharedFlow<BillingEvent> = _events.asSharedFlow()
 
         private val productDetails = mutableMapOf<String, ProductDetails>()
 
@@ -87,8 +100,7 @@ class BillingManager
                 PendingPurchasesParams.newBuilder().enableOneTimeProducts().build(),
             ).build()
 
-        /** Connect (idempotent) and refresh prices. Safe to call on every screen open. */
-        fun start() {
+        override fun start() {
             if (client.isReady) {
                 queryProducts()
                 return
@@ -104,7 +116,7 @@ class BillingManager
             })
         }
 
-        fun purchase(activity: Activity, productId: String) {
+        override fun purchase(activity: Activity, productId: String) {
             val details = productDetails[productId]
             if (details == null) {
                 _events.tryEmit(BillingEvent.Error)

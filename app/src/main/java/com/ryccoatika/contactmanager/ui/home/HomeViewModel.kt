@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
-import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.BatchProgress
+import com.ryccoatika.contactmanager.data.BatchRunner
 import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
@@ -79,7 +79,7 @@ class HomeViewModel
         private val contactsSource: ContactsSource,
         private val accountsSource: AccountsSource,
         private val writer: ContactsWriter,
-        private val batchManager: BatchOperationManager,
+        private val batchManager: BatchRunner,
         duplicatePrefs: DuplicatePrefs,
         private val appPrefs: AppPrefs,
         private val strings: StringProvider,

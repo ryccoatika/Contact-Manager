@@ -13,8 +13,8 @@ import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.analytics.Analytics
 import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.toMessage
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.SimContactValidator
@@ -119,7 +119,7 @@ class EditorViewModel
         private val contactsSource: ContactsSource,
         private val accountsSource: AccountsSource,
         private val writer: ContactsWriter,
-        private val simRepository: SimRepository,
+        private val simRepository: SimStore,
         private val appPrefs: AppPrefs,
         private val strings: StringProvider,
         private val analytics: Analytics,
