@@ -17,6 +17,8 @@ import com.ryccoatika.contactmanager.data.SimAwareContactsWriter
 import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.billing.Billing
 import com.ryccoatika.contactmanager.data.billing.BillingManager
+import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
+import com.ryccoatika.contactmanager.data.ops.MoveAllContacts
 import com.ryccoatika.contactmanager.data.sim.DataStoreSimCapabilityCache
 import com.ryccoatika.contactmanager.data.sim.DefaultSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.IccSimAccountsIntegration
@@ -71,4 +73,6 @@ abstract class DataModule {
     @Binds abstract fun bindSimStore(impl: SimRepository): SimStore
 
     @Binds abstract fun bindBilling(impl: BillingManager): Billing
+
+    @Binds abstract fun bindMoveAllContacts(impl: DefaultMoveAllContacts): MoveAllContacts
 }

@@ -12,6 +12,7 @@ import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
+import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
@@ -145,17 +146,22 @@ class HomeViewModelTest {
         writer: FakeWriter = FakeWriter(),
         appPrefs: AppPrefs = FakeAppPrefs(),
         analytics: FakeAnalytics = FakeAnalytics(),
-    ) = HomeViewModel(
-        contactsSource = fakeContacts,
-        accountsSource = fakeAccounts,
-        writer = writer,
-        batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
-        duplicatePrefs = fakePrefs,
-        appPrefs = appPrefs,
-        strings = FakeStringProvider(),
-        analytics = analytics,
-        defaultDispatcher = dispatcher,
-    )
+    ): HomeViewModel {
+        val batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val strings = FakeStringProvider()
+        return HomeViewModel(
+            contactsSource = fakeContacts,
+            accountsSource = fakeAccounts,
+            writer = writer,
+            batchManager = batchManager,
+            moveAll = DefaultMoveAllContacts(fakeContacts, batchManager, analytics, strings),
+            duplicatePrefs = fakePrefs,
+            appPrefs = appPrefs,
+            strings = strings,
+            analytics = analytics,
+            defaultDispatcher = dispatcher,
+        )
+    }
 
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)

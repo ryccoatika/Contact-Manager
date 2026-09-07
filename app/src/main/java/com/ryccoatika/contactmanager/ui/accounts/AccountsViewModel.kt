@@ -2,26 +2,21 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
-import com.ryccoatika.contactmanager.data.BatchRunner
-import com.ryccoatika.contactmanager.data.ContactsSource
-import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.analytics.Analytics
 import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.data.ops.MoveAllContacts
 import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
-import com.ryccoatika.contactmanager.domain.FieldLoss
-import com.ryccoatika.contactmanager.domain.MovePlanner
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,24 +31,15 @@ data class AccountsUiState(
     val hiddenAccountKeys: Set<String> = emptySet(),
 )
 
-/** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
-data class PendingMoveAll(
-    val source: ContactAccount,
-    val target: ContactAccount,
-    val losses: List<FieldLoss>,
-)
-
 @HiltViewModel
 class AccountsViewModel
     @Inject
     constructor(
         private val accountsSource: AccountsSource,
-        private val contactsSource: ContactsSource,
-        private val batchManager: BatchRunner,
+        private val moveAll: MoveAllContacts,
         private val simRepository: SimStore,
         private val simSubscriptionsSource: SimSubscriptionsSource,
         private val appPrefs: AppPrefs,
-        private val strings: StringProvider,
         private val analytics: Analytics,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(AccountsUiState())
@@ -110,15 +96,7 @@ class AccountsViewModel
 
         /** Plans the move and parks it for confirmation (with SIM loss report when relevant). */
         fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
-            viewModelScope.launch {
-                val sources = contactsSource
-                    .observeContacts()
-                    .first()
-                    .flatMap { it.rawContacts }
-                    .filter { it.accountType == source.type && it.accountName == source.name }
-                val plan = MovePlanner.plan(sources, target.type, target.name)
-                _pendingMove.value = PendingMoveAll(source, target, plan.losses)
-            }
+            viewModelScope.launch { _pendingMove.value = moveAll.plan(source, target) }
         }
 
         fun dismissPendingMove() {
@@ -133,32 +111,6 @@ class AccountsViewModel
 
         /** Moves every raw contact of [source] into [target] as a background batch. */
         fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
-            viewModelScope.launch {
-                val rawIds = contactsSource
-                    .observeContacts()
-                    .first()
-                    .flatMap { it.rawContacts }
-                    .filter { it.accountType == source.type && it.accountName == source.name }
-                    .map { it.rawContactId }
-                if (rawIds.isEmpty()) {
-                    _events.emit(strings.get(R.string.accounts_msg_no_contacts))
-                    return@launch
-                }
-                val targetName = target.name ?: strings.get(R.string.accounts_msg_this_device)
-                val started = batchManager.moveContacts(
-                    rawContactIds = rawIds,
-                    targetType = target.type,
-                    targetName = target.name,
-                    label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
-                )
-                if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
-                _events.emit(
-                    if (started) {
-                        strings.get(R.string.accounts_msg_move_started)
-                    } else {
-                        strings.get(R.string.accounts_msg_busy)
-                    },
-                )
-            }
+            viewModelScope.launch { _events.emit(moveAll.execute(source, target)) }
         }
     }
