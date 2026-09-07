@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MovePlannerTest {
-
     private fun raw(
         id: Long,
         phones: List<String> = emptyList(),

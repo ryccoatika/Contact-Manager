@@ -1,9 +1,12 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +35,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,29 +50,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ryccoatika.contactmanager.data.sim.SimRouting
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
-import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
-import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
+import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
+import com.ryccoatika.contactmanager.ui.common.MoveAllConfirmDialog
+import com.ryccoatika.contactmanager.ui.common.MoveAllTargetSheet
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 
@@ -87,9 +91,7 @@ fun AccountsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var moveSource by remember { mutableStateOf<ContactAccount?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
+    CollectUiEvents(viewModel.events, snackbarHostState)
 
     Scaffold(
         topBar = {
@@ -152,104 +154,25 @@ fun AccountsScreen(
     }
 
     moveSource?.let { source ->
-        TrackScreenView("account_move_target_picker")
-        ModalBottomSheet(
-            onDismissRequest = { moveSource = null },
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-            Text(
-                stringResource(
-                    R.string.accounts_move_all_source_contacts_to,
-                    AccountVisuals.label(context, source.type, source.name),
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            state.accounts
-                .filter { it.key != source.key && isMoveTarget(it) }
-                .forEach { target ->
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            moveSource = null
-                            viewModel.requestMoveAll(source, target)
-                        },
-                        headlineContent = { Text(AccountVisuals.label(context, target.type, target.name)) },
-                        supportingContent = {
-                            Text(target.name ?: stringResource(R.string.accounts_on_this_device))
-                        },
-                        leadingContent = { AccountDot(target.type, target.name, size = 12.dp) },
-                    )
-                }
-            Spacer(Modifier.height(24.dp))
-        }
+        MoveAllTargetSheet(
+            source = source,
+            accounts = state.accounts,
+            onPick = { target ->
+                moveSource = null
+                viewModel.requestMoveAll(source, target)
+            },
+            onDismiss = { moveSource = null },
+        )
     }
 
     pendingMove?.let { pending ->
-        val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
-        TrackScreenView("account_move_confirm")
-        AlertDialog(
-            onDismissRequest = viewModel::dismissPendingMove,
-            title = {
-                Text(
-                    if (lostFields.isEmpty()) {
-                        pluralStringResource(
-                            R.plurals.accounts_move_contacts_title,
-                            pending.source.contactCount,
-                            pending.source.contactCount,
-                        )
-                    } else {
-                        stringResource(R.string.accounts_some_fields_lost)
-                    },
-                )
-            },
-            text = {
-                val moveBody = stringResource(
-                    R.string.accounts_move_dialog_body,
-                    AccountVisuals.label(context, pending.source.type, pending.source.name),
-                    AccountVisuals.label(context, pending.target.type, pending.target.name),
-                )
-                val lossesText = if (lostFields.isNotEmpty()) {
-                    pluralStringResource(
-                        R.plurals.accounts_move_dialog_losses,
-                        pending.losses.size,
-                        pending.losses.size,
-                        lostFields.joinToString(),
-                    )
-                } else {
-                    null
-                }
-                Text(
-                    buildString {
-                        append(moveBody)
-                        if (lossesText != null) {
-                            append("\n\n")
-                            append(lossesText)
-                        }
-                    },
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmPendingMove) {
-                    Text(
-                        stringResource(
-                            if (lostFields.isEmpty()) R.string.accounts_move else R.string.accounts_move_anyway,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissPendingMove) {
-                    Text(stringResource(R.string.accounts_cancel))
-                }
-            },
+        MoveAllConfirmDialog(
+            pending = pending,
+            onConfirm = viewModel::confirmPendingMove,
+            onDismiss = viewModel::dismissPendingMove,
         )
     }
 }
-
-/** Full-CRUD accounts plus SIMs that passed the write probe. */
-private fun isMoveTarget(account: ContactAccount): Boolean =
-    account.capability == AccountCapability.FULL_CRUD ||
-        (account.capability == AccountCapability.SIM && account.writable)
 
 @Composable
 private fun AccountRow(
@@ -335,8 +258,11 @@ private fun AccountRow(
                         text = {
                             Text(
                                 stringResource(
-                                    if (hidden) R.string.accounts_show_in_selector
-                                    else R.string.accounts_hide_from_selector,
+                                    if (hidden) {
+                                        R.string.accounts_show_in_selector
+                                    } else {
+                                        R.string.accounts_hide_from_selector
+                                    },
                                 ),
                             )
                         },
@@ -366,11 +292,13 @@ private fun AccountRowPreview() {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 AccountRow(
                     ContactAccount("rycco@gmail.com", "com.google", AccountCapability.FULL_CRUD, 201),
-                    onClick = {}, onMoveAll = {},
+                    onClick = {},
+                    onMoveAll = {},
                 )
                 AccountRow(
                     ContactAccount("WhatsApp", "com.whatsapp", AccountCapability.READ_ONLY, 41, writable = false),
-                    onClick = {}, onMoveAll = {},
+                    onClick = {},
+                    onMoveAll = {},
                 )
             }
         }

@@ -1,0 +1,52 @@
+name: Check
+
+# PR gate: formatting, compile, unit tests, Android lint. Deploys stay in
+# deploy.yml. Needs ENCRYPT_KEY to decrypt google-services.json — Firebase is
+# mandatory at build time, so fork PRs (no secrets) cannot pass this gate.
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Decrypt google-services.json (Firebase is build-mandatory)
+        env:
+          ENCRYPT_KEY: ${{ secrets.ENCRYPT_KEY }}
+        run: ./release/decrypt-secrets.sh
+
+      - name: Spotless (ktlint)
+        run: ./gradlew spotlessCheck
+
+      - name: Compile
+        run: ./gradlew compileDebugKotlin
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Android Lint
+        run: ./gradlew :app:lintDebug
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 14

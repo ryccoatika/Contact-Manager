@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.sim
+package com.ryccoatika.contactmanager.domain.sim
 
 /**
  * Pure routing rules for icc/adn SIM pseudo-accounts. SIM entries never live
@@ -6,7 +6,6 @@ package com.ryccoatika.contactmanager.data.sim
  * "icc/<subscriptionId or -1>" account type; everything here decodes that.
  */
 object SimRouting {
-
     const val SIM_TYPE_PREFIX = "icc/"
 
     /** Offset keeping synthetic ids far away from real (positive) provider ids. */

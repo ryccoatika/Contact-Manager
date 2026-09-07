@@ -18,7 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.ryccoatika.contactmanager.R
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
 
 /**
@@ -34,6 +34,7 @@ fun PhonePermissionPrompt(
 ) {
     val context = LocalContext.current
     val analytics = LocalAnalytics.current
+
     fun granted(permission: String) =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     val alreadyGranted = remember {

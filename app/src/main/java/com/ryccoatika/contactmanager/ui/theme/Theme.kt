@@ -73,8 +73,13 @@ fun ContactManagerTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> {
+            DarkColorScheme
+        }
+
+        else -> {
+            LightColorScheme
+        }
     }
 
     CompositionLocalProvider(

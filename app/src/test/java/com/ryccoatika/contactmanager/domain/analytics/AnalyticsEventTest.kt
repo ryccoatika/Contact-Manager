@@ -1,4 +1,4 @@
-package com.ryccoatika.contactmanager.data.analytics
+package com.ryccoatika.contactmanager.domain.analytics
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

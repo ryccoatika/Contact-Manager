@@ -6,21 +6,20 @@ plugins {
     alias(libs.plugins.changelog)
 }
 
-// Firebase is optional: wire google-services only when the json (kept in the
-// gitignored release/ folder, next to the keystores) is present. The plugin
-// only scans app/, so bridge the file into place first. Absent → no FirebaseApp
-// → NoOpAnalytics, and the build/tests still pass.
-//
-// The Crashlytics plugin is mandatory whenever the crashlytics SDK ships: it
-// generates the com.google.firebase.crashlytics.build_id resource that
-// CrashlyticsCore.onPreExecute() requires, and its absence is a hard crash at
-// FirebaseApp init — not a degraded no-op.
+// Firebase is mandatory: the json lives in the gitignored release/ folder
+// (next to the keystores) and the build fails fast without it — a missing
+// google-services wiring would otherwise ship a build whose Crashlytics
+// startup crashes (the plugin generates the build_id resource that
+// CrashlyticsCore.onPreExecute() requires). The google-services plugin only
+// scans app/, so bridge the file into place first.
 val googleServicesJson = rootProject.file("release/google-services.json")
-if (googleServicesJson.exists()) {
-    googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
-    apply(plugin = "com.google.gms.google-services")
-    apply(plugin = "com.google.firebase.crashlytics")
+check(googleServicesJson.exists()) {
+    "release/google-services.json is missing — run ENCRYPT_KEY=<passphrase> ./release/decrypt-secrets.sh first. " +
+        "Firebase (google-services + crashlytics plugins) is mandatory."
 }
+googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
+apply(plugin = "com.google.gms.google-services")
+apply(plugin = "com.google.firebase.crashlytics")
 
 // versionCode is CI-driven so Play testing tracks always get a monotonically
 // increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
@@ -99,6 +98,15 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlin {
+        compilerOptions {
+            // Warnings are errors: deprecations and compiler nags get fixed, not shipped.
+            allWarningsAsErrors.set(true)
+            // Opt into the future (2.4+) default: constructor-param annotations also
+            // target the property — silences KT-73255 migration warnings coherently.
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+        }
     }
     buildFeatures {
         compose = true

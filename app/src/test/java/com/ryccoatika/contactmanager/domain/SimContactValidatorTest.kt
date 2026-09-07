@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SimContactValidatorTest {
-
     private val caps = SimCapabilities(canRead = true, canWrite = true, maxNameLength = 14)
 
     private fun errorOf(name: String, number: String): SimError {

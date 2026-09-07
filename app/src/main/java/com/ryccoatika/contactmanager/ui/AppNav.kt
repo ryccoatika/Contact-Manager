@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui
 
+import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -10,16 +11,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -30,19 +30,20 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.ui.about.AboutScreen
 import com.ryccoatika.contactmanager.ui.about.ContactDeveloperScreen
 import com.ryccoatika.contactmanager.ui.accounts.AccountsScreen
-import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
-import com.ryccoatika.contactmanager.ui.support.SupportScreen
+import com.ryccoatika.contactmanager.ui.adaptive.AdaptiveApp
 import com.ryccoatika.contactmanager.ui.detail.DetailScreen
 import com.ryccoatika.contactmanager.ui.duplicates.DuplicatesScreen
 import com.ryccoatika.contactmanager.ui.editor.EditorScreen
 import com.ryccoatika.contactmanager.ui.home.HomeScreen
-import com.ryccoatika.contactmanager.ui.adaptive.AdaptiveApp
 import com.ryccoatika.contactmanager.ui.onboarding.OnboardingScreen
 import com.ryccoatika.contactmanager.ui.onboarding.OnboardingViewModel
 import com.ryccoatika.contactmanager.ui.permission.PermissionGate
+import com.ryccoatika.contactmanager.ui.settings.SettingsScreen
+import com.ryccoatika.contactmanager.ui.support.SupportScreen
 
 object Routes {
     const val HOME = "home"
+
     // name/photo ride along as optional args so the detail hero avatar can render
     // immediately — before the full contact loads — which the open shared-element
     // transition needs as its morph target from the very first frame.
@@ -71,7 +72,9 @@ fun AppNav(onboardingViewModel: OnboardingViewModel = hiltViewModel()) {
     when (showOnboarding) {
         // Brief blank while the flag loads — avoids flashing the app then onboarding.
         null -> Surface(color = MaterialTheme.colorScheme.background) {}
+
         true -> OnboardingScreen(onDone = onboardingViewModel::complete)
+
         false -> AdaptiveApp()
     }
 }
@@ -83,11 +86,13 @@ fun AppNav(onboardingViewModel: OnboardingViewModel = hiltViewModel()) {
 // from the list row into the detail header (see HomeScreen / DetailScreen). The
 // editor spreads from the bottom-right, growing out of the FAB that launched it.
 private const val NAV_ANIM_MS = 320
+
 // The editor spread is deliberately quicker so opening "add contact" snaps open
 // rather than dragging while the heavy form composes.
 private const val FAB_ENTER_MS = 220
 private const val FAB_EXIT_MS = 190
 private val navEasing = FastOutSlowInEasing
+
 // Roughly the FAB's centre (bottom-end, inset 16dp) as a fraction of the screen.
 private val fabOrigin = TransformOrigin(0.9f, 0.93f)
 
@@ -132,117 +137,130 @@ internal fun MainNavGraph() {
                 // Hold the underlying screen still (don't fade it out) while the
                 // editor spreads open on top — one cheap layer animating, not two.
                 exitTransition = {
-                    if (targetState.destination.route == Routes.EDITOR_NEW) ExitTransition.None
-                    else spreadExit()
+                    if (targetState.destination.route == Routes.EDITOR_NEW) {
+                        ExitTransition.None
+                    } else {
+                        spreadExit()
+                    }
                 },
                 popEnterTransition = {
-                    if (initialState.destination.route == Routes.EDITOR_NEW) EnterTransition.None
-                    else spreadPopEnter()
+                    if (initialState.destination.route == Routes.EDITOR_NEW) {
+                        EnterTransition.None
+                    } else {
+                        spreadPopEnter()
+                    }
                 },
                 popExitTransition = { spreadPopExit() },
             ) {
-            composable(Routes.HOME) { entry ->
-                val pendingFilter by entry.savedStateHandle
-                    .getStateFlow<String?>(Routes.FILTER_ACCOUNT_KEY, null)
-                    .collectAsStateWithLifecycle()
-                HomeScreen(
-                    onContactClick = { contact ->
-                        navController.navigate(
-                            Routes.detail(contact.contactId, contact.displayName, contact.photoThumbnailUri),
-                        )
-                    },
-                    onAddClick = { navController.navigate(Routes.EDITOR_NEW) },
-                    onSettingsClick = { navController.navigate(Routes.SETTINGS) },
-                    onDuplicatesClick = { navController.navigate(Routes.DUPLICATES) },
-                    pendingFilterAccountKey = pendingFilter,
-                    onPendingFilterConsumed = {
-                        entry.savedStateHandle[Routes.FILTER_ACCOUNT_KEY] = null
-                    },
-                    sharedTransitionScope = sharedScope,
-                    animatedVisibilityScope = this,
-                )
-            }
-            composable(
-                Routes.DETAIL,
-                arguments = listOf(
-                    navArgument("contactId") { type = NavType.LongType },
-                    navArgument("name") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("photo") { type = NavType.StringType; defaultValue = "" },
-                ),
-            ) { entry ->
-                val args = entry.arguments
-                DetailScreen(
-                    onBack = { navController.popBackStack() },
-                    onEditRawContact = { rawContactId ->
-                        navController.navigate(Routes.editorEdit(rawContactId))
-                    },
-                    contactId = args?.getLong("contactId") ?: 0L,
-                    initialName = args?.getString("name").orEmpty(),
-                    initialPhotoUri = args?.getString("photo").orEmpty(),
-                    sharedTransitionScope = sharedScope,
-                    animatedVisibilityScope = this,
-                )
-            }
-            composable(
-                Routes.EDITOR_NEW,
-                // Launched from the FAB — spread open from the bottom-right.
-                enterTransition = { fabSpreadEnter() },
-                exitTransition = { fabSpreadExit() },
-                popEnterTransition = { fabSpreadEnter() },
-                popExitTransition = { fabSpreadExit() },
-            ) {
-                EditorScreen(
-                    onBack = { navController.popBackStack() },
-                    animatedVisibilityScope = this,
-                )
-            }
-            composable(
-                Routes.EDITOR_EDIT,
-                arguments = listOf(navArgument("rawContactId") { type = NavType.LongType }),
-                // Launched from a contact's detail — plain centre spread.
-                enterTransition = { spreadEnter() },
-                exitTransition = { spreadExit() },
-                popEnterTransition = { spreadPopEnter() },
-                popExitTransition = { spreadPopExit() },
-            ) {
-                EditorScreen(
-                    onBack = { navController.popBackStack() },
-                    animatedVisibilityScope = this,
-                )
-            }
-            composable(Routes.DUPLICATES) {
-                DuplicatesScreen(onBack = { navController.popBackStack() })
-            }
-            composable(Routes.SETTINGS) {
-                SettingsScreen(
-                    onBack = { navController.popBackStack() },
-                    onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
-                    onSupportClick = { navController.navigate(Routes.SUPPORT) },
-                    onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
-                    onAboutClick = { navController.navigate(Routes.ABOUT) },
-                )
-            }
-            composable(Routes.ABOUT) {
-                AboutScreen(onBack = { navController.popBackStack() })
-            }
-            composable(Routes.SUPPORT) {
-                SupportScreen(onBack = { navController.popBackStack() })
-            }
-            composable(Routes.CONTACT_DEVELOPER) {
-                ContactDeveloperScreen(onBack = { navController.popBackStack() })
-            }
-            composable(Routes.ACCOUNTS) {
-                AccountsScreen(
-                    onBack = { navController.popBackStack() },
-                    onAccountClick = { accountKey ->
-                        // Accounts sits under Settings now — hand the filter to Home
-                        // directly and pop the whole way back, whatever the depth.
-                        navController.getBackStackEntry(Routes.HOME)
-                            .savedStateHandle[Routes.FILTER_ACCOUNT_KEY] = accountKey
-                        navController.popBackStack(Routes.HOME, inclusive = false)
-                    },
-                )
-            }
+                composable(Routes.HOME) { entry ->
+                    val pendingFilter by entry.savedStateHandle
+                        .getStateFlow<String?>(Routes.FILTER_ACCOUNT_KEY, null)
+                        .collectAsStateWithLifecycle()
+                    HomeScreen(
+                        onContactClick = { contact ->
+                            navController.navigate(
+                                Routes.detail(contact.contactId, contact.displayName, contact.photoThumbnailUri),
+                            )
+                        },
+                        onAddClick = { navController.navigate(Routes.EDITOR_NEW) },
+                        onSettingsClick = { navController.navigate(Routes.SETTINGS) },
+                        onDuplicatesClick = { navController.navigate(Routes.DUPLICATES) },
+                        pendingFilterAccountKey = pendingFilter,
+                        onPendingFilterConsumed = {
+                            entry.savedStateHandle[Routes.FILTER_ACCOUNT_KEY] = null
+                        },
+                        sharedTransitionScope = sharedScope,
+                        animatedVisibilityScope = this,
+                    )
+                }
+                composable(
+                    Routes.DETAIL,
+                    arguments = listOf(
+                        navArgument("contactId") { type = NavType.LongType },
+                        navArgument("name") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("photo") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                ) { entry ->
+                    val args = entry.arguments
+                    DetailScreen(
+                        onBack = { navController.popBackStack() },
+                        onEditRawContact = { rawContactId ->
+                            navController.navigate(Routes.editorEdit(rawContactId))
+                        },
+                        contactId = args?.getLong("contactId") ?: 0L,
+                        initialName = args?.getString("name").orEmpty(),
+                        initialPhotoUri = args?.getString("photo").orEmpty(),
+                        sharedTransitionScope = sharedScope,
+                        animatedVisibilityScope = this,
+                    )
+                }
+                composable(
+                    Routes.EDITOR_NEW,
+                    // Launched from the FAB — spread open from the bottom-right.
+                    enterTransition = { fabSpreadEnter() },
+                    exitTransition = { fabSpreadExit() },
+                    popEnterTransition = { fabSpreadEnter() },
+                    popExitTransition = { fabSpreadExit() },
+                ) {
+                    EditorScreen(
+                        onBack = { navController.popBackStack() },
+                        animatedVisibilityScope = this,
+                    )
+                }
+                composable(
+                    Routes.EDITOR_EDIT,
+                    arguments = listOf(navArgument("rawContactId") { type = NavType.LongType }),
+                    // Launched from a contact's detail — plain centre spread.
+                    enterTransition = { spreadEnter() },
+                    exitTransition = { spreadExit() },
+                    popEnterTransition = { spreadPopEnter() },
+                    popExitTransition = { spreadPopExit() },
+                ) {
+                    EditorScreen(
+                        onBack = { navController.popBackStack() },
+                        animatedVisibilityScope = this,
+                    )
+                }
+                composable(Routes.DUPLICATES) {
+                    DuplicatesScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Routes.SETTINGS) {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onAccountsClick = { navController.navigate(Routes.ACCOUNTS) },
+                        onSupportClick = { navController.navigate(Routes.SUPPORT) },
+                        onContactClick = { navController.navigate(Routes.CONTACT_DEVELOPER) },
+                        onAboutClick = { navController.navigate(Routes.ABOUT) },
+                    )
+                }
+                composable(Routes.ABOUT) {
+                    AboutScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Routes.SUPPORT) {
+                    SupportScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Routes.CONTACT_DEVELOPER) {
+                    ContactDeveloperScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Routes.ACCOUNTS) {
+                    AccountsScreen(
+                        onBack = { navController.popBackStack() },
+                        onAccountClick = { accountKey ->
+                            // Accounts sits under Settings now — hand the filter to Home
+                            // directly and pop the whole way back, whatever the depth.
+                            navController
+                                .getBackStackEntry(Routes.HOME)
+                                .savedStateHandle[Routes.FILTER_ACCOUNT_KEY] = accountKey
+                            navController.popBackStack(Routes.HOME, inclusive = false)
+                        },
+                    )
+                }
             }
         }
     }

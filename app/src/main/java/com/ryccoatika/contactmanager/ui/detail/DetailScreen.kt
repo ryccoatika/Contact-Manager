@@ -1,5 +1,8 @@
 package com.ryccoatika.contactmanager.ui.detail
 
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -32,8 +35,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -44,9 +47,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import android.content.Intent
-import android.content.res.Configuration
-import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,22 +57,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
+import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.DetailSkeleton
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.ui.analytics.LocalAnalytics
-import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.QuickActionPill
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
@@ -163,7 +163,10 @@ fun DetailScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
             ) {
-                val heroPhone = current.rawContacts.flatMap { it.phones }.firstOrNull()?.value
+                val heroPhone = current.rawContacts
+                    .flatMap { it.phones }
+                    .firstOrNull()
+                    ?.value
                 val editableRawId = current.rawContacts
                     .firstOrNull { AccountClassifier.classify(it.accountType) != AccountCapability.READ_ONLY }
                     ?.rawContactId
@@ -291,7 +294,12 @@ private fun DetailHero(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (phone != null) {
                         QuickActionPill(stringResource(R.string.detail_action_call), Icons.Default.Call, onCall, Modifier.weight(1f))
-                        QuickActionPill(stringResource(R.string.detail_action_message), Icons.AutoMirrored.Filled.Message, onMessage, Modifier.weight(1f))
+                        QuickActionPill(
+                            stringResource(R.string.detail_action_message),
+                            Icons.AutoMirrored.Filled.Message,
+                            onMessage,
+                            Modifier.weight(1f),
+                        )
                     }
                     if (canEdit) {
                         QuickActionPill(stringResource(R.string.detail_action_edit), Icons.Default.Edit, onEdit, Modifier.weight(1f))
@@ -338,7 +346,8 @@ private fun RawContactCard(
         if (readOnly) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.Lock, contentDescription = null,
+                    Icons.Default.Lock,
+                    contentDescription = null,
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
