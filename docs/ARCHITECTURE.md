@@ -26,18 +26,25 @@ the **split tripwires** at the bottom define exactly when to revisit.
 com.ryccoatika.contactmanager/
 ├── ContactManagerApp.kt, MainActivity.kt      entry points
 ├── domain/            pure Kotlin: models + logic (classify, match, plan,
-│   └── model/         validate). Zero android/androidx/data/ui/di imports.
-├── data/              Android adapters: ContactsContract, icc/adn SIM stack,
-│   ├── sim/           DataStore prefs, Play Billing, Firebase analytics,
-│   ├── billing/       batch operations. Imports domain; NEVER ui.
-│   └── analytics/     Typed results (ContactOpResult); guarded provider calls.
+│   ├── model/         validate). Zero android/androidx/data/ui/di imports.
+│   ├── analytics/     Analytics interface, AnalyticsEvent, NoOpAnalytics
+│   └── sim/           SimRouting (icc pseudo-account rules)
+├── data/              Android adapters: ContactsContract repositories,
+│   ├── sim/           icc/adn SIM stack, DataStore prefs, batch operations.
+│   ├── billing/       Play Billing donations.
+│   ├── analytics/     FirebaseAnalyticsImpl (interface lives in domain).
+│   └── ops/           multi-repository orchestration (MoveAllContacts).
+│                      Typed results (ContactOpResult); guarded provider
+│                      calls. Imports domain; NEVER ui.
 ├── di/                Hilt modules — the only place impls are named and bound.
 └── ui/                Compose presentation.
     ├── <feature>/     home | detail | editor | accounts | duplicates |
     │                  settings | support | about | onboarding | crash
     │                  — each: Screen(s) + ViewModel, self-contained
     │                  (about is stateless; crash is a bare Activity by design).
-    ├── common/        shared composables + AccountVisuals
+    ├── common/        shared composables (ConfirmDialog, AccountPickerSheet,
+    │                  MoveAllUi, AlphabetRail, EmptyState, …) + AccountVisuals
+    │                  + the UiEvent convention (UiEvent, CollectUiEvents)
     ├── theme/         Porcelain & Pine design system (imports nothing local)
     ├── analytics/     LocalAnalytics + TrackScreenView
     ├── permission/    permission gates
@@ -57,8 +64,8 @@ extracted into `data/ops/` (orchestration over repositories) or `domain/`
 ## Rules (checked via `/architecture-audit`)
 
 Run the `/architecture-audit` command — it performs these checks with
-grep/find and compares findings against the known-debt list below. New
-violations are fixed, never added to the debt list; the list only shrinks.
+grep/find. Known debt is zero: every finding is a violation to fix, never to
+baseline.
 
 | Rule | Contract |
 |------|----------|
