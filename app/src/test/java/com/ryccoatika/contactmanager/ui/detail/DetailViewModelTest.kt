@@ -39,6 +39,8 @@ class DetailViewModelTest {
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
+
+        override suspend fun snapshot(): List<Contact> = contactsFlow.value
     }
 
     private class FakeWriter(
