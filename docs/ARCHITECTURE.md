@@ -97,6 +97,10 @@ Home/Accounts/Editor VMs + SimAwareContactsWriter (R14); HomeScreen.kt over
 the 750 hard cap, EditorScreen.kt and ContactsWriteRepository.kt over the
 500 target (R6).
 
+Update 2026-09-07: steps 1–6 landed on `ref/architecture` — only the R14
+debt (`observe*().first()` snapshots, now also inside
+`data/ops/MoveAllContacts`) remains, reserved for step 7.
+
 Each step ships alone, app releasable after every one, compile + all unit
 tests + `spotlessCheck` green in between. Mechanical-move commits get added to
 `.git-blame-ignore-revs`. Mark steps done here as they land.

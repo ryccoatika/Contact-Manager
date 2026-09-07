@@ -3,3 +3,8 @@
 
 # style: apply Spotless/ktlint formatting repo-wide (2026-09-05)
 e68f6106cb869e85aa21a11d4cf67c980da8d78c
+
+# refactor(arch): migration step 3 — pure types move into domain (2026-09-07)
+55df677d1b336f16eabd957b552dc2391f15f8f8
+# refactor(arch): migration step 5 — split the over-budget files (2026-09-07)
+74e74a9719ae3b0c52ede8246a2867e3a560c9f5
