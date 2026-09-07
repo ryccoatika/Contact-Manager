@@ -14,8 +14,8 @@ Given a diff, branch, or proposed design:
 
 1. **Run the mechanical rules** — perform the R1–R14 grep/find checks exactly
    as `/architecture-audit` describes them, at least over the touched packages.
-   Anything flagged that is not on `docs/ARCHITECTURE.md`'s known-debt list is
-   an automatic finding; the debt list is never grown to make a change pass.
+   Known debt is zero (`docs/ARCHITECTURE.md` §Debt status), so anything
+   flagged is an automatic finding; never start a debt list to make a change pass.
 2. **Dependency direction** — ui → domain ← data; nothing imports upward; no
    feature package imports another feature package; composition (nav graphs,
    DI wiring) happens only in the sanctioned composition root.

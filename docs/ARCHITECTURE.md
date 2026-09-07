@@ -83,68 +83,14 @@ can be evaded with fully-qualified names (don't; reviewers and the
 `contentResolver` property and `ContactsContract`/`content://icc` tokens; R13
 uses `vnd.sec.contact.phone` as the sentinel for the whole OEM table.
 
-## Migration plan (known debt → zero)
+## Debt status
 
-The known debt as of 2026-09-05 (verified by full audit): the
-`PendingMoveAll` cross-feature import + duplicated move-all flow (R4); three
-concrete ViewModel injectables — BatchOperationManager, SimRepository,
-BillingManager (R5); composables importing `data.` types — SimRouting,
-AnalyticsEvent, NoOpAnalytics, BillingEvent (R3); the OEM account-type table
-duplicated across AccountClassifier / AccountRepository / AccountVisuals
-(R13); three `findActivity()` copies (R12); `SharedFlow<String>` events in
-Home/Accounts/Duplicates VMs (R10); `observe*().first(...)` snapshots in
-Home/Accounts/Editor VMs + SimAwareContactsWriter (R14); HomeScreen.kt over
-the 750 hard cap, EditorScreen.kt and ContactsWriteRepository.kt over the
-500 target (R6).
-
-Update 2026-09-07: steps 1–6 landed on `ref/architecture`; step 7 shipped
-separately on `ref/hot-read-flows` (device-test before merging — it is the
-one step that changes runtime semantics). The known-debt list is empty.
-
-Each step ships alone, app releasable after every one, compile + all unit
-tests + `spotlessCheck` green in between. Mechanical-move commits get added to
-`.git-blame-ignore-revs`. Mark steps done here as they land.
-
-1. ✅ **Kill the cross-feature edge + its duplication together** — move
-   `PendingMoveAll` to `domain/model/`; extract the duplicated move-all flow
-   (Home + Accounts ViewModels) into `data/ops/MoveAllContacts.kt`; both VMs
-   consume it. Clears R4 + the biggest duplication.
-2. ✅ **Interface the three concrete injectables** — `BatchRunner` ←
-   BatchOperationManager, `SimStore` ← SimRepository, `Billing` ←
-   BillingManager (+ `FakeBilling` and the missing SupportViewModel test).
-   Keep the interfaces minimal — no speculative methods. Clears R5.
-3. ✅ **Pure-type moves** — `Analytics`, `AnalyticsEvent`, **and the pure
-   `NoOpAnalytics`** → `domain/analytics/` (the Firebase impl stays in data);
-   `SimRouting` → `domain/sim/`; `BillingEvent` → `domain/` (or the ViewModel
-   maps it to a UI event); re-key `AccountVisuals` on plain account-type
-   strings. Single-source the OEM account-type table in
-   `domain/AccountClassifier` (including the `AccountVisuals` usage).
-   `StringProvider` stays in `data/` — the data layer resolves SIM error
-   messages through it, and ViewModels importing data interfaces is the
-   sanctioned seam (R3 exempts `*ViewModel.kt`). Clears R3 + R13.
-4. ✅ **Dedupe small helpers** — one `findActivity()` in `ui/common/ActivityExt.kt`;
-   one `contentChangesFlow(uri)` in `data/ContentChanges.kt`. Clears R12.
-5. ✅ **Split the over-budget files** — `HomeScreen.kt` along its existing
-   seams (ContactRow + swipe, chips row, sheets, dialogs, gestures, top bars);
-   promote the existing `AlphabetRail` and `EmptyState`, and *extract new*
-   shared `ConfirmDialog` + `AccountPickerSheet` composables (today five inline
-   AlertDialogs and three hand-built sheets) into `ui/common/`. Then
-   `EditorScreen.kt` (extract the form field kit) and
-   `data/ContactsWriteRepository.kt` (split the batch-op builders into
-   focused files under `data/`). Clears R6 and the soft-budget warnings.
-6. ✅ **Unify events** — sealed `UiEvent` + a shared snackbar collector in
-   `ui/common/`; migrate Home/Accounts/Duplicates VMs off
-   `SharedFlow<String>`. Clears R10.
-7. ✅ **Hot read flows, shipped last and alone** — `shareIn(appScope,
-   WhileSubscribed(5s), replay = 1)` inside the read repositories + suspend
-   `snapshot()` one-shots; migrate all `.first()` callers. This is the only
-   step that changes runtime semantics (staleness across permission grants /
-   SIM swaps) — its own PR, device-tested, independently revertible.
-   Clears R14.
-
-After step 7 the known-debt list above is empty.
-(Every debt maps to a step: R4/dup → 1, R5 → 2, R3/R13 → 3, R12 → 4,
-R6 → 5, R10 → 6, R14 → 7.)
+The 2026-09-05 audit's known-debt list was eliminated by a 7-step migration,
+completed 2026-09-07 (commits `refactor(arch): migration step 1–7` on
+`ref/architecture`; step 7 — hot shared read flows + `snapshot()` — shipped
+as its own device-tested PR, #13). **Known debt: none.** Every audit finding
+is a new violation: fix it, never start a new debt list to make work pass.
+Mechanical-move commits are listed in `.git-blame-ignore-revs`.
 
 ## Split tripwires — when to revisit modularization
 

@@ -34,8 +34,8 @@ device (the privacy policy promises this — treat violations as critical).
    around every `registerContentObserver` (revoked-permission crash class).
 6. **Follow the architecture rules.** `docs/ARCHITECTURE.md` defines the layer
    fences (ui → domain ← data) and rules R1–R14, checked via the
-   `/architecture-audit` command and enforced in review. Never add new
-   violations; shrink the known-debt list in `docs/ARCHITECTURE.md` over time.
+   `/architecture-audit` command and enforced in review. Known debt is zero —
+   any violation is new and must be fixed, not baselined.
 
 ## Build · test · verify
 
@@ -153,8 +153,8 @@ UI conventions:
 - ViewModel constructor deps are **interfaces** with `Fake*` test doubles
   (hand-written, no mocking libraries). Growing an interface means updating
   its fake in the same change.
-- One-shot UI events: typed sealed events on a `SharedFlow`, collected in
-  `LaunchedEffect(Unit)` (legacy `SharedFlow<String>` is known debt).
+- One-shot UI events: the sealed `UiEvent` convention (`ui/common/UiEvent.kt`)
+  on a `SharedFlow`; snackbar events go through `CollectUiEvents`.
 - Analytics: log via `AnalyticsEvent` (counts + enum labels only — **never**
   contact data); `TrackScreenView("name")` on every screen/sheet/dialog.
 - User-facing change ⇒ update `CHANGELOG.md` in the same commit (the
