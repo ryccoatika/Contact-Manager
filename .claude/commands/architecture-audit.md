@@ -1,10 +1,10 @@
 ---
-description: Check the architecture rules (layering, seams, budgets) from docs/ARCHITECTURE.md and report debt status
+description: Check the architecture rules (layering, seams, budgets) from docs/ARCHITECTURE.md and report violations
 argument-hint: "[optional: 'fix' to also fix the easiest violations]"
 ---
 
 Audit the codebase against the architecture contract in `docs/ARCHITECTURE.md`
-(rules R1–R14 + the known-debt list). There is no checked-in script — perform
+(rules R1–R14; known debt is zero). There is no checked-in script — perform
 the checks yourself with grep/find over
 `app/src/main/java/com/ryccoatika/contactmanager/`:
 
@@ -32,19 +32,15 @@ the checks yourself with grep/find over
     `.first(...)` snapshots.
 
 Then:
-- Compare findings against the **known-debt list** in `docs/ARCHITECTURE.md`
-  §Migration. Anything NOT on that list is **new debt — it blocks**; report
-  rule, file, and the concrete fix. Never grow the known-debt list to make
-  work pass.
-- Debt that no longer reproduces = progress: update the migration plan's
-  status in `docs/ARCHITECTURE.md`.
+- The known-debt list is empty (migration completed 2026-09-07), so **every
+  finding is a new violation — it blocks**; report rule, file, and the
+  concrete fix. Never start a debt list to make work pass.
 - Spot-check what greps can't see: fully-qualified-name evasions, freshly
   duplicated ViewModel flows, screens wired into `AppNav.kt` but not the
   tablet shells (or vice versa), and the split tripwires (§Split tripwires).
-- If the argument is `fix`, fix new violations (plus any quick known-debt win),
+- If the argument is `fix`, fix the violations,
   then run `./gradlew compileDebugKotlin :app:testDebugUnitTest spotlessCheck`.
 
-Report: findings table (new vs known debt), and the single most valuable next
-migration step.
+Report: findings table (rule, file, fix) — or a clean bill of health.
 
 Mode: **$ARGUMENTS**
