@@ -65,8 +65,7 @@ main → closed alpha + GitHub release from `CHANGELOG.md`).
 - **Kotlin warnings are errors** (`allWarningsAsErrors` in app/build.gradle.kts):
   fix deprecations properly — never `@Suppress` them to get green without asking.
 - ktlint rules are tuned in `.editorconfig`; formatting-only changes are
-  committed separately (`style:`), and mechanical commits go in
-  `.git-blame-ignore-revs`.
+  committed separately (`style:`).
 
 ### Running it on a device (on demand only)
 
