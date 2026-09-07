@@ -55,9 +55,6 @@ main → closed alpha + GitHub release from `CHANGELOG.md`).
 - JDK 17+ (repo builds on 21). Android SDK 36. minSdk 24, targetSdk 36.
 - Compose BOM `2026.02.01`, Kotlin `2.2.10`, Hilt `2.60.1`, AGP `9.x`, KSP.
   Dependencies live in `gradle/libs.versions.toml` — add there, never inline.
-- **AGP 9 warning**: two Gradle plugins have already died on AGP 9's removed
-  variant APIs (oss-licenses, AboutLibraries — unusable). Verify any new plugin
-  actually applies before building features on it.
 - **Kotlin warnings are errors** (`allWarningsAsErrors` in app/build.gradle.kts):
   fix deprecations properly — never `@Suppress` them to get green without asking.
 - ktlint rules are tuned in `.editorconfig`; formatting-only changes are
