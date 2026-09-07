@@ -128,6 +128,7 @@ import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.AlphabetRail
+import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.EmptyState
@@ -207,9 +208,7 @@ fun HomeScreen(
             onPendingFilterConsumed()
         }
     }
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
+    CollectUiEvents(viewModel.events, snackbarHostState)
     // A completed merge is a review-worthy moment; ask Play (it decides + throttles).
     LaunchedEffect(Unit) {
         viewModel.requestReview.collect { launchReview() }

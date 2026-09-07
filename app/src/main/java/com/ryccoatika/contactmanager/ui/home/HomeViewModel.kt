@@ -25,6 +25,7 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -99,8 +100,8 @@ class HomeViewModel
             appPrefs.observeHiddenAccountKeys(),
         ) { accounts, hidden -> accounts to hidden }
 
-        private val _events = MutableSharedFlow<String>()
-        val events: SharedFlow<String> = _events
+        private val _events = MutableSharedFlow<UiEvent>()
+        val events: SharedFlow<UiEvent> = _events
 
         /** Fires after a merge completes — the screen asks Play for an in-app review. */
         private val _requestReview = MutableSharedFlow<Unit>()
@@ -191,7 +192,7 @@ class HomeViewModel
         fun confirmPendingMoveAll() {
             val pending = _pendingMoveAll.value ?: return
             _pendingMoveAll.value = null
-            viewModelScope.launch { _events.emit(moveAll.execute(pending.source, pending.target)) }
+            viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(moveAll.execute(pending.source, pending.target))) }
         }
 
         /** Plan for moving the movable part of the selection into [target]. */
@@ -203,7 +204,7 @@ class HomeViewModel
             clearSelection()
             if (movable.isEmpty()) {
                 viewModelScope.launch {
-                    _events.emit(strings.get(R.string.home_msg_readonly_move))
+                    _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_readonly_move)))
                 }
                 return
             }
@@ -220,7 +221,7 @@ class HomeViewModel
                 )
             } else {
                 viewModelScope.launch {
-                    _events.emit(strings.get(R.string.home_msg_busy))
+                    _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_busy)))
                 }
             }
         }
@@ -230,17 +231,17 @@ class HomeViewModel
             clearSelection()
             viewModelScope.launch {
                 if (ids.isEmpty()) {
-                    _events.emit(strings.get(R.string.home_msg_readonly_delete))
+                    _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_readonly_delete)))
                     return@launch
                 }
                 when (val result = writer.deleteRawContacts(ids)) {
                     is ContactOpResult.Success -> {
                         analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
-                        _events.emit(strings.getQuantity(R.plurals.home_msg_deleted_entries, ids.size, ids.size))
+                        _events.emit(UiEvent.ShowSnackbar(strings.getQuantity(R.plurals.home_msg_deleted_entries, ids.size, ids.size)))
                     }
 
                     is ContactOpResult.Failure -> {
-                        _events.emit(result.message)
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
                     }
                 }
             }
@@ -257,12 +258,12 @@ class HomeViewModel
                 when (val result = writer.mergeContacts(target, sources)) {
                     is ContactOpResult.Success -> {
                         analytics.logEvent(AnalyticsEvent.ContactsMerge(sources.size))
-                        _events.emit(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size))
+                        _events.emit(UiEvent.ShowSnackbar(strings.getQuantity(R.plurals.home_msg_merged, sources.size, sources.size)))
                         _requestReview.emit(Unit)
                     }
 
                     is ContactOpResult.Failure -> {
-                        _events.emit(result.message)
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
                     }
                 }
             }
@@ -276,17 +277,17 @@ class HomeViewModel
                 .map { it.rawContactId }
             viewModelScope.launch {
                 if (ids.isEmpty()) {
-                    _events.emit(strings.get(R.string.home_msg_delete_readonly_named, contact.displayName))
+                    _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_delete_readonly_named, contact.displayName)))
                     return@launch
                 }
                 when (val result = writer.deleteRawContacts(ids)) {
                     is ContactOpResult.Success -> {
                         analytics.logEvent(AnalyticsEvent.ContactDelete(ids.size))
-                        _events.emit(strings.get(R.string.home_msg_deleted_named, contact.displayName))
+                        _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_deleted_named, contact.displayName)))
                     }
 
                     is ContactOpResult.Failure -> {
-                        _events.emit(result.message)
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
                     }
                 }
             }

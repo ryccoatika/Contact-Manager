@@ -67,6 +67,7 @@ import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
+import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
 import com.ryccoatika.contactmanager.ui.common.MoveAllConfirmDialog
 import com.ryccoatika.contactmanager.ui.common.MoveAllTargetSheet
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
@@ -90,9 +91,7 @@ fun AccountsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var moveSource by remember { mutableStateOf<ContactAccount?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
+    CollectUiEvents(viewModel.events, snackbarHostState)
 
     Scaffold(
         topBar = {
