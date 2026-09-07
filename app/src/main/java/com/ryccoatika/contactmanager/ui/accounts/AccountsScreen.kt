@@ -67,8 +67,11 @@ import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
+import com.ryccoatika.contactmanager.ui.common.MoveAllConfirmDialog
+import com.ryccoatika.contactmanager.ui.common.MoveAllTargetSheet
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 import com.ryccoatika.contactmanager.ui.common.SectionCard
+import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
 
@@ -152,104 +155,25 @@ fun AccountsScreen(
     }
 
     moveSource?.let { source ->
-        TrackScreenView("account_move_target_picker")
-        ModalBottomSheet(
-            onDismissRequest = { moveSource = null },
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-            Text(
-                stringResource(
-                    R.string.accounts_move_all_source_contacts_to,
-                    AccountVisuals.label(context, source.type, source.name),
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            state.accounts
-                .filter { it.key != source.key && isMoveTarget(it) }
-                .forEach { target ->
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            moveSource = null
-                            viewModel.requestMoveAll(source, target)
-                        },
-                        headlineContent = { Text(AccountVisuals.label(context, target.type, target.name)) },
-                        supportingContent = {
-                            Text(target.name ?: stringResource(R.string.accounts_on_this_device))
-                        },
-                        leadingContent = { AccountDot(target.type, target.name, size = 12.dp) },
-                    )
-                }
-            Spacer(Modifier.height(24.dp))
-        }
+        MoveAllTargetSheet(
+            source = source,
+            accounts = state.accounts,
+            onPick = { target ->
+                moveSource = null
+                viewModel.requestMoveAll(source, target)
+            },
+            onDismiss = { moveSource = null },
+        )
     }
 
     pendingMove?.let { pending ->
-        val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
-        TrackScreenView("account_move_confirm")
-        AlertDialog(
-            onDismissRequest = viewModel::dismissPendingMove,
-            title = {
-                Text(
-                    if (lostFields.isEmpty()) {
-                        pluralStringResource(
-                            R.plurals.accounts_move_contacts_title,
-                            pending.source.contactCount,
-                            pending.source.contactCount,
-                        )
-                    } else {
-                        stringResource(R.string.accounts_some_fields_lost)
-                    },
-                )
-            },
-            text = {
-                val moveBody = stringResource(
-                    R.string.accounts_move_dialog_body,
-                    AccountVisuals.label(context, pending.source.type, pending.source.name),
-                    AccountVisuals.label(context, pending.target.type, pending.target.name),
-                )
-                val lossesText = if (lostFields.isNotEmpty()) {
-                    pluralStringResource(
-                        R.plurals.accounts_move_dialog_losses,
-                        pending.losses.size,
-                        pending.losses.size,
-                        lostFields.joinToString(),
-                    )
-                } else {
-                    null
-                }
-                Text(
-                    buildString {
-                        append(moveBody)
-                        if (lossesText != null) {
-                            append("\n\n")
-                            append(lossesText)
-                        }
-                    },
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmPendingMove) {
-                    Text(
-                        stringResource(
-                            if (lostFields.isEmpty()) R.string.accounts_move else R.string.accounts_move_anyway,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissPendingMove) {
-                    Text(stringResource(R.string.accounts_cancel))
-                }
-            },
+        MoveAllConfirmDialog(
+            pending = pending,
+            onConfirm = viewModel::confirmPendingMove,
+            onDismiss = viewModel::dismissPendingMove,
         )
     }
 }
-
-/** Full-CRUD accounts plus SIMs that passed the write probe. */
-private fun isMoveTarget(account: ContactAccount): Boolean =
-    account.capability == AccountCapability.FULL_CRUD ||
-        (account.capability == AccountCapability.SIM && account.writable)
 
 @Composable
 private fun AccountRow(

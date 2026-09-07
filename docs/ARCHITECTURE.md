@@ -120,7 +120,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    sanctioned seam (R3 exempts `*ViewModel.kt`). Clears R3 + R13.
 4. ✅ **Dedupe small helpers** — one `findActivity()` in `ui/common/ActivityExt.kt`;
    one `contentChangesFlow(uri)` in `data/ContentChanges.kt`. Clears R12.
-5. **Split the over-budget files** — `HomeScreen.kt` along its existing
+5. ✅ **Split the over-budget files** — `HomeScreen.kt` along its existing
    seams (ContactRow + swipe, chips row, sheets, dialogs, gestures, top bars);
    promote the existing `AlphabetRail` and `EmptyState`, and *extract new*
    shared `ConfirmDialog` + `AccountPickerSheet` composables (today five inline
