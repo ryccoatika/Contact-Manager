@@ -54,12 +54,11 @@ There is deliberately **no use-case layer**. Logic shared by two ViewModels is
 extracted into `data/ops/` (orchestration over repositories) or `domain/`
 (pure) — created on the second occurrence, never speculatively.
 
-## Rules (enforced by `scripts/architecture-audit.py`)
+## Rules (checked via `/architecture-audit`)
 
-Run via `/architecture-audit` or `python3 scripts/architecture-audit.py`.
-CI runs it on every PR (`check.yml`). Pre-existing debt lives in
-`scripts/architecture-baseline.txt`, which may **only shrink** — new
-violations are fixed, never baselined.
+Run the `/architecture-audit` command — it performs these checks with
+grep/find and compares findings against the known-debt list below. New
+violations are fixed, never added to the debt list; the list only shrinks.
 
 | Rule | Contract |
 |------|----------|
@@ -82,16 +81,25 @@ Known limitations: the checks match import lines and simple patterns — they
 can be evaded with fully-qualified names (don't; reviewers and the
 `architecture-reviewer` agent treat evasion as a violation). R9 matches the
 `contentResolver` property and `ContactsContract`/`content://icc` tokens; R13
-uses `vnd.sec.contact.phone` as the sentinel for the whole OEM table. The
-ratchet is machine-enforced on PRs: `check.yml` rejects any baseline edit that
-is not a pure deletion (set-subset check), and the audit script rejects
-malformed baseline lines.
+uses `vnd.sec.contact.phone` as the sentinel for the whole OEM table.
 
-## Migration plan (current baseline → zero)
+## Migration plan (known debt → zero)
+
+The known debt as of 2026-09-05 (verified by full audit): the
+`PendingMoveAll` cross-feature import + duplicated move-all flow (R4); three
+concrete ViewModel injectables — BatchOperationManager, SimRepository,
+BillingManager (R5); composables importing `data.` types — SimRouting,
+AnalyticsEvent, NoOpAnalytics, BillingEvent (R3); the OEM account-type table
+duplicated across AccountClassifier / AccountRepository / AccountVisuals
+(R13); three `findActivity()` copies (R12); `SharedFlow<String>` events in
+Home/Accounts/Duplicates VMs (R10); `observe*().first(...)` snapshots in
+Home/Accounts/Editor VMs + SimAwareContactsWriter (R14); HomeScreen.kt over
+the 750 hard cap, EditorScreen.kt and ContactsWriteRepository.kt over the
+500 target (R6).
 
 Each step ships alone, app releasable after every one, compile + all unit
 tests + `spotlessCheck` green in between. Mechanical-move commits get added to
-`.git-blame-ignore-revs`.
+`.git-blame-ignore-revs`. Mark steps done here as they land.
 
 1. **Kill the cross-feature edge + its duplication together** — move
    `PendingMoveAll` to `domain/model/`; extract the duplicated move-all flow
@@ -130,9 +138,9 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
    SIM swaps) — its own PR, device-tested, independently revertible.
    Clears R14.
 
-After step 7 the baseline file is empty. Delete nothing from the audit script.
-(Every baseline entry maps to a step: R4/dup → 1, R5 → 2, R3/R13 → 3,
-R12 → 4, R6 → 5, R10 → 6, R14 → 7.)
+After step 7 the known-debt list above is empty.
+(Every debt maps to a step: R4/dup → 1, R5 → 2, R3/R13 → 3, R12 → 4,
+R6 → 5, R10 → 6, R14 → 7.)
 
 ## Split tripwires — when to revisit modularization
 
