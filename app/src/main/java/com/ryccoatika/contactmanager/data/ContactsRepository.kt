@@ -6,24 +6,33 @@ import android.provider.ContactsContract.Data
 import android.util.Log
 import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.di.ApplicationScope
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.model.Contact
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 interface ContactsSource {
+    /** Hot: replays the latest list and re-emits on every provider/SIM change. */
     fun observeContacts(): Flow<List<Contact>>
+
+    /** One-shot fresh read of the current contact list (never a cached replay). */
+    suspend fun snapshot(): List<Contact>
 }
 
 @Singleton
@@ -32,6 +41,7 @@ class ContactsRepository
     constructor(
         @ApplicationContext private val context: Context,
         @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+        @ApplicationScope appScope: CoroutineScope,
         private val simIntegration: SimAccountsIntegration,
         private val simRepository: SimRepository,
     ) : ContactsSource {
@@ -39,26 +49,38 @@ class ContactsRepository
          * Emits the full contact list on subscription and again on every provider
          * change (debounced) or SIM write. SIM storage has no ContentObserver, so
          * icc entries are re-read on each tick and merged below the aggregator.
+         *
+         * Shared app-wide so N screens = one query pipeline; WhileSubscribed(5s)
+         * survives config changes, replay = 1 hands new collectors the last list
+         * immediately (a change tick then refreshes it).
          */
         @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-        override fun observeContacts(): Flow<List<Contact>> =
+        private val contacts: SharedFlow<List<Contact>> =
             merge(contentChanges().debounce(300), simRepository.changes)
-                .mapLatest {
-                    val contacts = queryAllContacts()
-                    val simContacts = try {
-                        simIntegration.simContacts(contacts)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "SIM contact read failed; skipping SIM entries", e)
-                        emptyList()
-                    }
-                    if (simContacts.isEmpty()) {
-                        contacts
-                    } else {
-                        (contacts + simContacts).sortedBy { it.displayName.lowercase() }
-                    }
-                }.flowOn(ioDispatcher)
+                .mapLatest { loadContacts() }
+                .flowOn(ioDispatcher)
+                .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+        override fun observeContacts(): Flow<List<Contact>> = contacts
+
+        override suspend fun snapshot(): List<Contact> = withContext(ioDispatcher) { loadContacts() }
+
+        private suspend fun loadContacts(): List<Contact> {
+            val contacts = queryAllContacts()
+            val simContacts = try {
+                simIntegration.simContacts(contacts)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "SIM contact read failed; skipping SIM entries", e)
+                emptyList()
+            }
+            return if (simContacts.isEmpty()) {
+                contacts
+            } else {
+                (contacts + simContacts).sortedBy { it.displayName.lowercase() }
+            }
+        }
 
         private fun contentChanges(): Flow<Unit> =
             contentChangesFlow(context, ContactsContract.Contacts.CONTENT_URI)

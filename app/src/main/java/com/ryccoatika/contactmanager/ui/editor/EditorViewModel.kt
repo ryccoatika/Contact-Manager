@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -164,9 +163,11 @@ class EditorViewModel
         private fun loadForEdit(rawContactId: Long) {
             viewModelScope.launch {
                 val contact = contactsSource
-                    .observeContacts()
-                    .first { contacts -> contacts.any { it.hasRawContact(rawContactId) } }
-                    .first { it.hasRawContact(rawContactId) }
+                    .snapshot()
+                    .firstOrNull { it.hasRawContact(rawContactId) }
+                    // Gone between tap and load (e.g. synced away) — leave the
+                    // editor blank rather than crash; Back still works.
+                    ?: return@launch
                 val raw = contact.rawContacts.first { it.rawContactId == rawContactId }
                 val name = listOfNotNull(raw.givenName, raw.familyName)
                     .joinToString(" ")
