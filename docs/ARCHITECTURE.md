@@ -101,11 +101,11 @@ Each step ships alone, app releasable after every one, compile + all unit
 tests + `spotlessCheck` green in between. Mechanical-move commits get added to
 `.git-blame-ignore-revs`. Mark steps done here as they land.
 
-1. **Kill the cross-feature edge + its duplication together** — move
+1. ✅ **Kill the cross-feature edge + its duplication together** — move
    `PendingMoveAll` to `domain/model/`; extract the duplicated move-all flow
    (Home + Accounts ViewModels) into `data/ops/MoveAllContacts.kt`; both VMs
    consume it. Clears R4 + the biggest duplication.
-2. **Interface the three concrete injectables** — `BatchRunner` ←
+2. ✅ **Interface the three concrete injectables** — `BatchRunner` ←
    BatchOperationManager, `SimStore` ← SimRepository, `Billing` ←
    BillingManager (+ `FakeBilling` and the missing SupportViewModel test).
    Keep the interfaces minimal — no speculative methods. Clears R5.

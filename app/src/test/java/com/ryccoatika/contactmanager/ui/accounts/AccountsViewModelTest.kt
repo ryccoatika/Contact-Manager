@@ -10,6 +10,7 @@ import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
+import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
@@ -131,12 +132,15 @@ class AccountsViewModelTest {
         analytics: FakeAnalytics = FakeAnalytics(),
     ) = AccountsViewModel(
         accountsSource = fakeAccounts,
-        contactsSource = fakeContacts,
-        batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+        moveAll = DefaultMoveAllContacts(
+            fakeContacts,
+            BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
+            analytics,
+            FakeStringProvider(),
+        ),
         simRepository = SimRepository(simSource, InMemorySimCapabilityCache()),
         simSubscriptionsSource = FakeSimSubscriptionsSource(listOf(SimSubscription(1, "SIM 1"))),
         appPrefs = FakeAppPrefs(),
-        strings = FakeStringProvider(),
         analytics = analytics,
     )
 

@@ -1,5 +1,7 @@
 package com.ryccoatika.contactmanager.domain.model
 
+import com.ryccoatika.contactmanager.domain.FieldLoss
+
 data class LabeledValue(
     val dataId: Long,
     val value: String,
@@ -66,4 +68,11 @@ data class SimCapabilities(
     val canRead: Boolean,
     val canWrite: Boolean,
     val maxNameLength: Int = 14,
+)
+
+/** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
+data class PendingMoveAll(
+    val source: ContactAccount,
+    val target: ContactAccount,
+    val losses: List<FieldLoss>,
 )
