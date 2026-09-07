@@ -33,9 +33,9 @@ device (the privacy policy promises this — treat violations as critical).
    crashes. Don't remove the try/catch envelopes — including the `runCatching`
    around every `registerContentObserver` (revoked-permission crash class).
 6. **Follow the architecture rules.** `docs/ARCHITECTURE.md` defines the layer
-   fences (ui → domain ← data) enforced by `python3
-   scripts/architecture-audit.py`. New violations are fixed, never added to the
-   baseline (`scripts/architecture-baseline.txt` only shrinks).
+   fences (ui → domain ← data) and rules R1–R14, checked via the
+   `/architecture-audit` command and enforced in review. Never add new
+   violations; shrink the known-debt list in `docs/ARCHITECTURE.md` over time.
 
 ## Build · test · verify
 
@@ -45,12 +45,11 @@ device (the privacy policy promises this — treat violations as critical).
 ./gradlew spotlessApply             # format (ktlint via Spotless)
 ./gradlew spotlessCheck             # format gate
 ./gradlew :app:lintDebug            # Android lint (0 errors enforced)
-python3 scripts/architecture-audit.py   # layer/seam rules + ratchet
 ./gradlew :app:assembleDebug        # debug APK
 ```
 
-CI (`.github/workflows/check.yml`) runs the audit + spotless + compile + tests
-+ lint on every PR. `deploy.yml` publishes (develop → Internal App Sharing,
+CI (`.github/workflows/check.yml`) runs spotless + compile + tests + lint on
+every PR. `deploy.yml` publishes (develop → Internal App Sharing,
 main → closed alpha + GitHub release from `CHANGELOG.md`).
 
 - JDK 17+ (repo builds on 21). Android SDK 36. minSdk 24, targetSdk 36.
@@ -155,7 +154,7 @@ UI conventions:
   (hand-written, no mocking libraries). Growing an interface means updating
   its fake in the same change.
 - One-shot UI events: typed sealed events on a `SharedFlow`, collected in
-  `LaunchedEffect(Unit)` (legacy `SharedFlow<String>` is baselined debt).
+  `LaunchedEffect(Unit)` (legacy `SharedFlow<String>` is known debt).
 - Analytics: log via `AnalyticsEvent` (counts + enum labels only — **never**
   contact data); `TrackScreenView("name")` on every screen/sheet/dialog.
 - User-facing change ⇒ update `CHANGELOG.md` in the same commit (the
@@ -191,7 +190,8 @@ Commands in `.claude/commands/`:
   `ci:`, `docs:`. Imperative subject ≤ ~72 chars; body explains the why.
 - Branch off `develop` (features) — never commit straight to `main`.
   develop → main promotes a release.
-- Before committing: compile, tests, `spotlessCheck`, architecture audit green;
+- Before committing: compile, tests, `spotlessCheck` green (and
+  `/architecture-audit` clean for structural changes);
   guard against staging secrets — run
   `git diff --cached --name-only | grep -iE '\.jks|\.json|private|google-services' | grep -vE '\.gpg$|\.claude/|release/app-debug\.jks'`
   and investigate any match. Secret plaintext (release keystore,

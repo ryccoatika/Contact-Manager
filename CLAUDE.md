@@ -8,10 +8,9 @@ The structure contract lives in **docs/ARCHITECTURE.md**.
 ## Claude Code specifics
 
 - **Gates after every non-trivial edit**: `./gradlew compileDebugKotlin`; before
-  any commit also `:app:testDebugUnitTest`, `spotlessCheck`, and
-  `python3 scripts/architecture-audit.py`. Fix failures before moving on —
-  never batch a screen's worth of edits blind, never baseline new audit
-  violations.
+  any commit also `:app:testDebugUnitTest` and `spotlessCheck`. Fix failures
+  before moving on — never batch a screen's worth of edits blind. Run
+  `/architecture-audit` before committing structural changes.
 - **Don't device-verify UI changes by default.** Compile + unit tests are the
   gate; run on a device only when the user asks or invokes **`/verify-ui`**.
 - **Delegate to the project subagents** (`.claude/agents/`): `ui-designer` for

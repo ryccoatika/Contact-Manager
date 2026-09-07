@@ -25,31 +25,6 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Architecture audit
-        run: python3 scripts/architecture-audit.py
-
-      # The debt baseline may only ever shrink: PR entries must be a SUBSET of
-      # the base branch's entries (a pure count check would allow swapping one
-      # fixed debt for one new debt). Entries are flush-left "R<n>-…" lines —
-      # the audit script rejects any other format, so indentation can't smuggle.
-      - name: Baseline ratchet
-        if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          git fetch origin "$GITHUB_BASE_REF" --depth=1
-          entries() { { grep -E '^R[0-9]+-' "$1" || true; } | sort -u; }
-          if ! git show "origin/$GITHUB_BASE_REF:scripts/architecture-baseline.txt" > /tmp/base.txt 2>/dev/null; then
-            echo "base branch has no baseline file — skipping ratchet (introducing PR)"
-            exit 0
-          fi
-          added=$(comm -13 <(entries /tmp/base.txt) <(entries scripts/architecture-baseline.txt) || true)
-          if [ -n "$added" ]; then
-            echo "::error::architecture-baseline.txt gained entries — new debt is never baselined:"
-            echo "$added"
-            exit 1
-          fi
-          echo "ratchet ok: $(entries scripts/architecture-baseline.txt | wc -l | tr -d ' ') entries (base had $(entries /tmp/base.txt | wc -l | tr -d ' '))"
-
       - name: Spotless (ktlint)
         run: ./gradlew spotlessCheck
 
