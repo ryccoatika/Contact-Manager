@@ -10,7 +10,6 @@ import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
 import com.ryccoatika.contactmanager.domain.model.RawContact
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,8 +57,7 @@ class DefaultMoveAllContacts
 
         private suspend fun rawContactsOf(account: ContactAccount): List<RawContact> =
             contactsSource
-                .observeContacts()
-                .first()
+                .snapshot()
                 .flatMap { it.rawContacts }
                 .filter { it.accountType == account.type && it.accountName == account.name }
     }

@@ -12,7 +12,6 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
@@ -176,7 +175,7 @@ class SimAwareContactsWriter
             if (providerIds.isNotEmpty()) {
                 if (SimRouting.isSimAccount(targetType)) {
                     val subId = SimRouting.subscriptionIdOf(targetType)
-                    val snapshot = contactsSource.observeContacts().first()
+                    val snapshot = contactsSource.snapshot()
                     for (id in providerIds) {
                         coroutineContext.ensureActive()
                         track(moveProviderContactToSim(id, subId, snapshot))
@@ -317,7 +316,7 @@ class SimAwareContactsWriter
             rawContactId: Long,
             snapshot: List<Contact>? = null,
         ): RawWithContact? {
-            val contacts = snapshot ?: contactsSource.observeContacts().first()
+            val contacts = snapshot ?: contactsSource.snapshot()
             contacts.forEach { contact ->
                 contact.rawContacts.forEach { raw ->
                     if (raw.rawContactId == rawContactId) return RawWithContact(contact, raw)

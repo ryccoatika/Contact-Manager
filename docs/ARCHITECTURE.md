@@ -97,9 +97,9 @@ Home/Accounts/Editor VMs + SimAwareContactsWriter (R14); HomeScreen.kt over
 the 750 hard cap, EditorScreen.kt and ContactsWriteRepository.kt over the
 500 target (R6).
 
-Update 2026-09-07: steps 1–6 landed on `ref/architecture` — only the R14
-debt (`observe*().first()` snapshots, now also inside
-`data/ops/MoveAllContacts`) remains, reserved for step 7.
+Update 2026-09-07: steps 1–6 landed on `ref/architecture`; step 7 shipped
+separately on `ref/hot-read-flows` (device-test before merging — it is the
+one step that changes runtime semantics). The known-debt list is empty.
 
 Each step ships alone, app releasable after every one, compile + all unit
 tests + `spotlessCheck` green in between. Mechanical-move commits get added to
@@ -135,7 +135,7 @@ tests + `spotlessCheck` green in between. Mechanical-move commits get added to
 6. ✅ **Unify events** — sealed `UiEvent` + a shared snackbar collector in
    `ui/common/`; migrate Home/Accounts/Duplicates VMs off
    `SharedFlow<String>`. Clears R10.
-7. **Hot read flows, shipped last and alone** — `shareIn(appScope,
+7. ✅ **Hot read flows, shipped last and alone** — `shareIn(appScope,
    WhileSubscribed(5s), replay = 1)` inside the read repositories + suspend
    `snapshot()` one-shots; migrate all `.first()` callers. This is the only
    step that changes runtime semantics (staleness across permission grants /
