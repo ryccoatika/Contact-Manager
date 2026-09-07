@@ -23,6 +23,7 @@ import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.ui.common.findActivity
 import kotlinx.coroutines.launch
 
 // A release's Play priority (0..5, set at upload from gradle.properties) at or
@@ -119,11 +120,4 @@ fun InAppUpdate(snackbarHostState: SnackbarHostState) {
         }
         onPauseOrDispose { }
     }
-}
-
-/** Unwrap the Compose ContextWrapper chain to the hosting Activity. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }

@@ -1,7 +1,6 @@
 package com.ryccoatika.contactmanager.data
 
 import android.content.Context
-import android.database.ContentObserver
 import android.provider.ContactsContract
 import android.provider.ContactsContract.Data
 import android.util.Log
@@ -14,10 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
@@ -64,27 +60,8 @@ class ContactsRepository
                     }
                 }.flowOn(ioDispatcher)
 
-        private fun contentChanges(): Flow<Unit> = callbackFlow {
-            val observer = object : ContentObserver(null) {
-                override fun onChange(selfChange: Boolean) {
-                    trySend(Unit)
-                }
-            }
-            // Registering throws SecurityException if READ_CONTACTS was revoked (user
-            // toggle, Android auto-reset) while the app runs; degrade to a one-shot
-            // emission instead of crashing — downstream queries already return empty.
-            val registered = runCatching {
-                context.contentResolver.registerContentObserver(
-                    ContactsContract.Contacts.CONTENT_URI,
-                    true,
-                    observer,
-                )
-            }.isSuccess
-            trySend(Unit)
-            awaitClose {
-                if (registered) context.contentResolver.unregisterContentObserver(observer)
-            }
-        }.conflate()
+        private fun contentChanges(): Flow<Unit> =
+            contentChangesFlow(context, ContactsContract.Contacts.CONTENT_URI)
 
         /**
          * Never throws: this feeds the long-lived observer flow, so a revoked
