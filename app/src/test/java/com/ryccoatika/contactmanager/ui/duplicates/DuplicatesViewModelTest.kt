@@ -108,6 +108,13 @@ class DuplicatesViewModelTest {
             onProgress: (done: Int, total: Int) -> Unit,
         ): ContactOpResult = ContactOpResult.Success
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult = ContactOpResult.Success
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult {
             linked = rawContactIds
             return ContactOpResult.Success

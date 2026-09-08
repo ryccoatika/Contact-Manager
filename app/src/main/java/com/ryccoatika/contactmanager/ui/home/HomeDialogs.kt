@@ -21,6 +21,7 @@ import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
@@ -31,44 +32,51 @@ import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.ConfirmDialog
 import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 
-/** Target picker for moving the current selection. */
+/** Target picker for moving/copying the current selection. */
 @Composable
-internal fun MoveSelectedSheet(
+internal fun SelectionTargetSheet(
+    mode: AccountOpMode,
     selectedCount: Int,
     accounts: List<ContactAccount>,
     onPick: (ContactAccount) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    TrackScreenView("move_account_picker")
+    TrackScreenView(if (mode == AccountOpMode.MOVE) "move_account_picker" else "copy_account_picker")
     AccountPickerSheet(
-        title = pluralStringResource(R.plurals.home_move_selected_to, selectedCount, selectedCount),
+        title = pluralStringResource(
+            if (mode == AccountOpMode.MOVE) R.plurals.home_move_selected_to else R.plurals.home_copy_selected_to,
+            selectedCount,
+            selectedCount,
+        ),
         accounts = accounts.filter(::isMoveTarget),
         onPick = onPick,
         onDismiss = onDismiss,
     )
 }
 
-/** Warns that moving the selection into [account] drops fields listed in [plan]. */
+/** Warns that moving/copying the selection into [account] drops fields listed in [plan]. */
 @Composable
 internal fun FieldsLostDialog(
+    mode: AccountOpMode,
     account: ContactAccount,
     plan: MovePlan,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    TrackScreenView("move_fields_lost")
+    val move = mode == AccountOpMode.MOVE
+    TrackScreenView(if (move) "move_fields_lost" else "copy_fields_lost")
     ConfirmDialog(
         title = stringResource(R.string.home_fields_lost_title),
         text = stringResource(
-            R.string.home_fields_lost_text,
+            if (move) R.string.home_fields_lost_text else R.string.home_fields_lost_text_copy,
             AccountVisuals.label(context, account.type, account.name),
             plan.losses
                 .flatMap { it.lostFields }
                 .distinct()
                 .joinToString(),
         ),
-        confirmLabel = stringResource(R.string.home_move_anyway),
+        confirmLabel = stringResource(if (move) R.string.home_move_anyway else R.string.home_copy_anyway),
         dismissLabel = stringResource(R.string.home_cancel),
         onConfirm = onConfirm,
         onDismiss = onDismiss,

@@ -8,7 +8,7 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
+import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
 import com.ryccoatika.contactmanager.data.sim.FakeSimContactSource
 import com.ryccoatika.contactmanager.data.sim.FakeSimSubscriptionsSource
 import com.ryccoatika.contactmanager.data.sim.InMemorySimCapabilityCache
@@ -17,6 +17,7 @@ import com.ryccoatika.contactmanager.data.sim.SimSubscription
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
@@ -80,6 +81,8 @@ class AccountsViewModelTest {
 
     private class FakeWriter : ContactsWriter {
         val movedIds = mutableListOf<Long>()
+        val copiedIds = mutableListOf<Long>()
+        var copyTarget: Pair<String?, String?>? = null
         var moveTarget: Pair<String?, String?>? = null
 
         override suspend fun createContact(
@@ -113,6 +116,17 @@ class AccountsViewModelTest {
             return ContactOpResult.Success
         }
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            copiedIds += rawContactIds
+            copyTarget = targetType to targetName
+            return ContactOpResult.Success
+        }
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
             ContactOpResult.Success
 
@@ -134,7 +148,7 @@ class AccountsViewModelTest {
         analytics: FakeAnalytics = FakeAnalytics(),
     ) = AccountsViewModel(
         accountsSource = fakeAccounts,
-        moveAll = DefaultMoveAllContacts(
+        bulkOps = DefaultAccountBulkOps(
             fakeContacts,
             BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
             analytics,
@@ -179,7 +193,7 @@ class AccountsViewModelTest {
         val writer = FakeWriter()
         val vm = vm(writer)
         dispatcher.scheduler.advanceUntilIdle()
-        vm.moveAllContacts(source = googleAccount, target = deviceAccount)
+        vm.executeAccountOp(AccountOpMode.MOVE, source = googleAccount, target = deviceAccount)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(10L, 21L), writer.movedIds)
         assertEquals(null to null, writer.moveTarget)
@@ -190,17 +204,40 @@ class AccountsViewModelTest {
         val vm = vm(analytics = analytics)
         dispatcher.scheduler.advanceUntilIdle()
         vm.setAccountHidden(googleAccount, true)
-        vm.moveAllContacts(source = googleAccount, target = deviceAccount)
+        vm.executeAccountOp(AccountOpMode.MOVE, source = googleAccount, target = deviceAccount)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(AnalyticsEvent.AccountVisibility(hidden = true), analytics.events.first())
         assertTrue(analytics.events.any { it is AnalyticsEvent.AccountMoveAll })
+    }
+
+    @Test fun `copy all copies every raw contact of the source, moving nothing`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val analytics = FakeAnalytics()
+        val vm = vm(writer, analytics)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.executeAccountOp(AccountOpMode.COPY, source = googleAccount, target = deviceAccount)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(10L, 21L), writer.copiedIds)
+        assertEquals(null to null, writer.copyTarget)
+        assertTrue(writer.movedIds.isEmpty())
+        assertTrue(analytics.events.any { it is AnalyticsEvent.AccountCopyAll })
+    }
+
+    @Test fun `copy all works on a read-only source account`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.executeAccountOp(AccountOpMode.COPY, source = whatsappAccount, target = googleAccount)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(20L), writer.copiedIds)
+        assertTrue(writer.movedIds.isEmpty())
     }
 
     @Test fun `moveAllContacts with empty source moves nothing`() = runTest(dispatcher) {
         val writer = FakeWriter()
         val vm = vm(writer)
         dispatcher.scheduler.advanceUntilIdle()
-        vm.moveAllContacts(source = deviceAccount, target = googleAccount)
+        vm.executeAccountOp(AccountOpMode.MOVE, source = deviceAccount, target = googleAccount)
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(writer.movedIds.isEmpty())
     }

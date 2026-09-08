@@ -4,13 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
-import com.ryccoatika.contactmanager.data.ops.MoveAllContacts
+import com.ryccoatika.contactmanager.data.ops.AccountBulkOps
 import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
 import com.ryccoatika.contactmanager.domain.analytics.Analytics
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
-import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
+import com.ryccoatika.contactmanager.domain.model.PendingAccountOp
 import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -37,7 +38,7 @@ class AccountsViewModel
     @Inject
     constructor(
         private val accountsSource: AccountsSource,
-        private val moveAll: MoveAllContacts,
+        private val bulkOps: AccountBulkOps,
         private val simRepository: SimStore,
         private val simSubscriptionsSource: SimSubscriptionsSource,
         private val appPrefs: AppPrefs,
@@ -49,8 +50,8 @@ class AccountsViewModel
         private val _events = MutableSharedFlow<UiEvent>()
         val events: SharedFlow<UiEvent> = _events
 
-        private val _pendingMove = MutableStateFlow<PendingMoveAll?>(null)
-        val pendingMove: StateFlow<PendingMoveAll?> = _pendingMove.asStateFlow()
+        private val _pendingOp = MutableStateFlow<PendingAccountOp?>(null)
+        val pendingOp: StateFlow<PendingAccountOp?> = _pendingOp.asStateFlow()
 
         init {
             viewModelScope.launch {
@@ -95,23 +96,23 @@ class AccountsViewModel
             }
         }
 
-        /** Plans the move and parks it for confirmation (with SIM loss report when relevant). */
-        fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
-            viewModelScope.launch { _pendingMove.value = moveAll.plan(source, target) }
+        /** Plans the op and parks it for confirmation (with SIM loss report when relevant). */
+        fun requestAccountOp(mode: AccountOpMode, source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch { _pendingOp.value = bulkOps.plan(mode, source, target) }
         }
 
-        fun dismissPendingMove() {
-            _pendingMove.value = null
+        fun dismissPendingOp() {
+            _pendingOp.value = null
         }
 
-        fun confirmPendingMove() {
-            val pending = _pendingMove.value ?: return
-            _pendingMove.value = null
-            moveAllContacts(pending.source, pending.target)
+        fun confirmPendingOp() {
+            val pending = _pendingOp.value ?: return
+            _pendingOp.value = null
+            executeAccountOp(pending.mode, pending.source, pending.target)
         }
 
-        /** Moves every raw contact of [source] into [target] as a background batch. */
-        fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
-            viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(moveAll.execute(source, target))) }
+        /** Moves/copies every raw contact of [source] into [target] as a background batch. */
+        fun executeAccountOp(mode: AccountOpMode, source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(bulkOps.execute(mode, source, target))) }
         }
     }

@@ -8,9 +8,11 @@
 
     <!-- Selection actions -->
     <string name="home_move_to">Move to…</string>
+    <string name="home_copy_to">Copy to…</string>
     <string name="home_delete">Delete</string>
     <string name="home_merge">Merge</string>
     <string name="home_move_anyway">Move anyway</string>
+    <string name="home_copy_anyway">Copy anyway</string>
     <string name="home_cancel">Cancel</string>
 
     <!-- FAB / batch progress -->
@@ -31,6 +33,7 @@
     <!-- Field-loss dialog -->
     <string name="home_fields_lost_title">Some fields will be lost</string>
     <string name="home_fields_lost_text">Moving to %1$s will drop: %2$s.</string>
+    <string name="home_fields_lost_text_copy">Copies on %1$s will drop: %2$s. The originals keep everything.</string>
 
     <!-- Merge dialog -->
     <string name="home_merge_member">%1$s (%2$s)</string>
@@ -56,6 +59,14 @@
     <plurals name="home_selected_count">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="home_copied_contacts">
+        <item quantity="one">Copied %1$d contact</item>
+        <item quantity="other">Copied %1$d contacts</item>
+    </plurals>
+    <plurals name="home_copy_selected_to">
+        <item quantity="one">Copy %1$d selected to</item>
+        <item quantity="other">Copy %1$d selected to</item>
     </plurals>
     <plurals name="home_move_selected_to">
         <item quantity="one">Move %1$d selected to</item>

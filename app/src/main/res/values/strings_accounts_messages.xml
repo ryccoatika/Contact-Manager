@@ -4,5 +4,8 @@
     <string name="accounts_msg_move_started">Move started — progress is shown on the contacts screen.</string>
     <string name="accounts_msg_busy">Another operation is still running — try again when it finishes.</string>
     <string name="accounts_msg_moving_label">Moving %1$d to %2$s</string>
+    <string name="accounts_msg_no_contacts_copy">No contacts to copy.</string>
+    <string name="accounts_msg_copy_started">Copy started — progress is shown on the contacts screen.</string>
+    <string name="accounts_msg_copying_label">Copying %1$d to %2$s</string>
     <string name="accounts_msg_this_device">this device</string>
 </resources>

@@ -12,13 +12,22 @@
     <string name="accounts_hidden_from_selector">Hidden from selector</string>
     <string name="accounts_some_fields_lost">Some fields will be lost</string>
     <string name="accounts_move_dialog_body">All contacts in %1$s will be moved to %2$s.</string>
+    <string name="accounts_copy_all_source_contacts_to">Copy all %1$s contacts to</string>
+    <string name="accounts_copy_all_contacts_to">Copy all contacts to…</string>
+    <string name="accounts_copy_dialog_body">All contacts in %1$s will be copied to %2$s. The originals stay where they are.</string>
     <string name="accounts_move">Move</string>
     <string name="accounts_move_anyway">Move anyway</string>
+    <string name="accounts_copy">Copy</string>
+    <string name="accounts_copy_anyway">Copy anyway</string>
     <string name="accounts_cancel">Cancel</string>
 
     <plurals name="accounts_move_contacts_title">
         <item quantity="one">Move %1$d contact?</item>
         <item quantity="other">Move %1$d contacts?</item>
+    </plurals>
+    <plurals name="accounts_copy_contacts_title">
+        <item quantity="one">Copy %1$d contact?</item>
+        <item quantity="other">Copy %1$d contacts?</item>
     </plurals>
     <plurals name="accounts_move_dialog_losses">
         <item quantity="one">%1$d of them will lose: %2$s.</item>
