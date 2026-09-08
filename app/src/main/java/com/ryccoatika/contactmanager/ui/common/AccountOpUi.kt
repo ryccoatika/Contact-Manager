@@ -8,26 +8,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
-import com.ryccoatika.contactmanager.domain.model.PendingMoveAll
+import com.ryccoatika.contactmanager.domain.model.PendingAccountOp
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 
 /**
- * Target picker for "move all contacts of [source] to…" — shared by the
+ * Target picker for "move/copy all contacts of [source] to…" — shared by the
  * Accounts screen and Home's account-chip long-press menu.
  */
 @Composable
-fun MoveAllTargetSheet(
+fun AccountOpTargetSheet(
+    mode: AccountOpMode,
     source: ContactAccount,
     accounts: List<ContactAccount>,
     onPick: (target: ContactAccount) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    TrackScreenView("account_move_target_picker")
+    TrackScreenView(
+        when (mode) {
+            AccountOpMode.MOVE -> "account_move_target_picker"
+            AccountOpMode.COPY -> "account_copy_target_picker"
+        },
+    )
     AccountPickerSheet(
         title = stringResource(
-            R.string.accounts_move_all_source_contacts_to,
+            when (mode) {
+                AccountOpMode.MOVE -> R.string.accounts_move_all_source_contacts_to
+                AccountOpMode.COPY -> R.string.accounts_copy_all_source_contacts_to
+            },
             AccountVisuals.label(context, source.type, source.name),
         ),
         accounts = accounts.filter { it.key != source.key && isMoveTarget(it) },
@@ -36,23 +46,24 @@ fun MoveAllTargetSheet(
     )
 }
 
-/** Confirmation (with the SIM field-loss report) before a move-all batch runs. */
+/** Confirmation (with the SIM field-loss report) before a bulk account batch runs. */
 @Composable
-fun MoveAllConfirmDialog(
-    pending: PendingMoveAll,
+fun AccountOpConfirmDialog(
+    pending: PendingAccountOp,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val move = pending.mode == AccountOpMode.MOVE
     val lostFields = pending.losses.flatMap { it.lostFields }.distinct()
-    TrackScreenView("account_move_confirm")
+    TrackScreenView(if (move) "account_move_confirm" else "account_copy_confirm")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 if (lostFields.isEmpty()) {
                     pluralStringResource(
-                        R.plurals.accounts_move_contacts_title,
+                        if (move) R.plurals.accounts_move_contacts_title else R.plurals.accounts_copy_contacts_title,
                         pending.source.contactCount,
                         pending.source.contactCount,
                     )
@@ -62,8 +73,8 @@ fun MoveAllConfirmDialog(
             )
         },
         text = {
-            val moveBody = stringResource(
-                R.string.accounts_move_dialog_body,
+            val opBody = stringResource(
+                if (move) R.string.accounts_move_dialog_body else R.string.accounts_copy_dialog_body,
                 AccountVisuals.label(context, pending.source.type, pending.source.name),
                 AccountVisuals.label(context, pending.target.type, pending.target.name),
             )
@@ -79,7 +90,7 @@ fun MoveAllConfirmDialog(
             }
             Text(
                 buildString {
-                    append(moveBody)
+                    append(opBody)
                     if (lossesText != null) {
                         append("\n\n")
                         append(lossesText)
@@ -91,7 +102,12 @@ fun MoveAllConfirmDialog(
             TextButton(onClick = onConfirm) {
                 Text(
                     stringResource(
-                        if (lostFields.isEmpty()) R.string.accounts_move else R.string.accounts_move_anyway,
+                        when {
+                            move && lostFields.isEmpty() -> R.string.accounts_move
+                            move -> R.string.accounts_move_anyway
+                            lostFields.isEmpty() -> R.string.accounts_copy
+                            else -> R.string.accounts_copy_anyway
+                        },
                     ),
                 )
             }

@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -21,6 +22,7 @@ class BatchOperationManagerTest {
         var delayPerContactMs: Long = 0,
     ) : ContactsWriter {
         val moved = mutableListOf<Long>()
+        val copied = mutableListOf<Long>()
         var target: Pair<String?, String?>? = null
 
         override suspend fun createContact(
@@ -58,6 +60,17 @@ class BatchOperationManagerTest {
             return moveResult
         }
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            copied += rawContactIds
+            rawContactIds.forEachIndexed { index, _ -> onProgress(index + 1, rawContactIds.size) }
+            return moveResult
+        }
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
             ContactOpResult.Success
 
@@ -76,18 +89,34 @@ class BatchOperationManagerTest {
     @Test fun `moveContacts reports progress then finished`() = runTest(dispatcher) {
         val writer = FakeWriter()
         val manager = manager(writer)
-        manager.moveContacts(listOf(1, 2, 3), "com.google", "a@gmail.com", "Moving 3")
+        manager.moveContacts(listOf(1, 2, 3), "com.google", "a@gmail.com", "Moving 3", "Done")
         assertEquals(BatchProgress(0, 3, "Moving 3", finished = false), manager.progress.value)
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(BatchProgress(3, 3, "Moving 3", finished = true), manager.progress.value)
+        assertEquals(
+            BatchProgress(3, 3, "Moving 3", finished = true, finishedMessage = "Done"),
+            manager.progress.value,
+        )
         assertEquals(listOf(1L, 2L, 3L), writer.moved)
         assertEquals("com.google" to "a@gmail.com", writer.target)
+    }
+
+    @Test fun `copyContacts reports progress then finished without touching sources`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val manager = manager(writer)
+        manager.copyContacts(listOf(1, 2), "com.google", "a@gmail.com", "Copying 2", "Copied 2")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            BatchProgress(2, 2, "Copying 2", finished = true, finishedMessage = "Copied 2"),
+            manager.progress.value,
+        )
+        assertEquals(listOf(1L, 2L), writer.copied)
+        assertTrue(writer.moved.isEmpty())
     }
 
     @Test fun `failed move surfaces error in finished progress`() = runTest(dispatcher) {
         val writer = FakeWriter(moveResult = ContactOpResult.Failure("boom"))
         val manager = manager(writer)
-        manager.moveContacts(listOf(1), null, null, "Moving 1")
+        manager.moveContacts(listOf(1), null, null, "Moving 1", "Done")
         dispatcher.scheduler.advanceUntilIdle()
         val progress = manager.progress.value
         assertEquals(true, progress?.finished)
@@ -97,7 +126,7 @@ class BatchOperationManagerTest {
     @Test fun `cancel stops the move and clears progress`() = runTest(dispatcher) {
         val writer = FakeWriter(delayPerContactMs = 100)
         val manager = manager(writer)
-        manager.moveContacts(listOf(1, 2, 3), null, null, "Moving 3")
+        manager.moveContacts(listOf(1, 2, 3), null, null, "Moving 3", "Done")
         dispatcher.scheduler.advanceTimeBy(150)
         manager.cancel()
         dispatcher.scheduler.advanceUntilIdle()
@@ -108,7 +137,7 @@ class BatchOperationManagerTest {
     @Test fun `clearFinished clears only finished progress`() = runTest(dispatcher) {
         val writer = FakeWriter(delayPerContactMs = 100)
         val manager = manager(writer)
-        manager.moveContacts(listOf(1), null, null, "Moving 1")
+        manager.moveContacts(listOf(1), null, null, "Moving 1", "Done")
         manager.clearFinished()
         assertNotNull(manager.progress.value)
         dispatcher.scheduler.advanceUntilIdle()
@@ -119,8 +148,8 @@ class BatchOperationManagerTest {
     @Test fun `second moveContacts while one is running is ignored`() = runTest(dispatcher) {
         val writer = FakeWriter(delayPerContactMs = 100)
         val manager = manager(writer)
-        manager.moveContacts(listOf(1, 2), null, null, "First")
-        manager.moveContacts(listOf(3), null, null, "Second")
+        manager.moveContacts(listOf(1, 2), null, null, "First", "Done")
+        manager.moveContacts(listOf(3), null, null, "Second", "Done")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(1L, 2L), writer.moved)
         assertEquals("First", manager.progress.value?.label)

@@ -70,8 +70,12 @@ data class SimCapabilities(
     val maxNameLength: Int = 14,
 )
 
-/** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
-data class PendingMoveAll(
+/** What a bulk account operation does with the source contacts. */
+enum class AccountOpMode { MOVE, COPY }
+
+/** Bulk account op awaiting confirmation; [losses] lists SIM down-conversion casualties. */
+data class PendingAccountOp(
+    val mode: AccountOpMode,
     val source: ContactAccount,
     val target: ContactAccount,
     val losses: List<FieldLoss>,

@@ -22,6 +22,7 @@
     <string name="cwr_action_separate">separate contacts</string>
     <string name="cwr_action_merge">merge contacts</string>
     <string name="cwr_error_move_count">Could not move %1$d of %2$d contacts.</string>
+    <string name="cwr_error_copy_count">Could not copy %1$d of %2$d contacts.</string>
     <string name="cwr_error_rejected">Could not %1$s: the contacts provider rejected the change.</string>
     <string name="cwr_error_unavailable">Could not %1$s: the contacts provider is unavailable.</string>
     <string name="cwr_error_permission">Could not %1$s: contacts permission is missing.</string>

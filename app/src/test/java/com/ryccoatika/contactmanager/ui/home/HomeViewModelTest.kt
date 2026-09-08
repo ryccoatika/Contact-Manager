@@ -10,7 +10,7 @@ import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
+import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -80,6 +80,8 @@ class HomeViewModelTest {
     private class FakeWriter : ContactsWriter {
         val deletedIds = mutableListOf<List<Long>>()
         val movedIds = mutableListOf<Long>()
+        val copiedIds = mutableListOf<Long>()
+        var copyTarget: Pair<String?, String?>? = null
         var moveTarget: Pair<String?, String?>? = null
         var merged: Pair<RawContact, List<RawContact>>? = null
 
@@ -113,6 +115,17 @@ class HomeViewModelTest {
         ): ContactOpResult {
             movedIds += rawContactIds
             moveTarget = targetType to targetName
+            return ContactOpResult.Success
+        }
+
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            copiedIds += rawContactIds
+            copyTarget = targetType to targetName
             return ContactOpResult.Success
         }
 
@@ -157,7 +170,7 @@ class HomeViewModelTest {
             accountsSource = fakeAccounts,
             writer = writer,
             batchManager = batchManager,
-            moveAll = DefaultMoveAllContacts(fakeContacts, batchManager, analytics, strings),
+            bulkOps = DefaultAccountBulkOps(fakeContacts, batchManager, analytics, strings),
             duplicatePrefs = fakePrefs,
             appPrefs = appPrefs,
             strings = strings,
@@ -283,6 +296,23 @@ class HomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         val move = analytics.events.filterIsInstance<AnalyticsEvent.ContactMove>().single()
         assertEquals(2, move.count)
+        job.cancel()
+    }
+
+    @Test fun `copySelectedTo copies the whole selection including read-only raws`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val analytics = FakeAnalytics()
+        val vm = vm(writer, analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(2)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.copySelectedTo(googleTarget)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(writer.copiedIds.isNotEmpty())
+        assertTrue(writer.movedIds.isEmpty())
+        val copy = analytics.events.filterIsInstance<AnalyticsEvent.ContactCopy>().single()
+        assertEquals(writer.copiedIds.size, copy.count)
         job.cancel()
     }
 

@@ -120,20 +120,21 @@ import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.MovePlan
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
+import com.ryccoatika.contactmanager.ui.common.AccountOpConfirmDialog
+import com.ryccoatika.contactmanager.ui.common.AccountOpTargetSheet
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.AlphabetRail
 import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
 import com.ryccoatika.contactmanager.ui.common.ContactAvatar
 import com.ryccoatika.contactmanager.ui.common.ContactListSkeleton
 import com.ryccoatika.contactmanager.ui.common.EmptyState
-import com.ryccoatika.contactmanager.ui.common.MoveAllConfirmDialog
-import com.ryccoatika.contactmanager.ui.common.MoveAllTargetSheet
 import com.ryccoatika.contactmanager.ui.common.SearchField
 import com.ryccoatika.contactmanager.ui.common.SelectedAvatar
 import com.ryccoatika.contactmanager.ui.review.rememberReviewLauncher
@@ -191,15 +192,15 @@ fun HomeScreen(
     var transitionContactId by rememberSaveable { mutableStateOf<Long?>(null) }
     // In selection mode, Back clears the selection instead of leaving the app.
     BackHandler(enabled = state.selectionMode) { viewModel.clearSelection() }
-    var showMovePicker by remember { mutableStateOf(false) }
-    // Account-chip long-press menu + its "move all contacts" flow.
-    var accountMenuFor by remember { mutableStateOf<String?>(null) }
-    var moveAllSource by remember { mutableStateOf<ContactAccount?>(null) }
-    val pendingMoveAll by viewModel.pendingMoveAll.collectAsStateWithLifecycle()
+    // Selection move/copy: which picker is open, and a parked op with field losses.
+    var selectionPickerMode by remember { mutableStateOf<AccountOpMode?>(null) }
+    var pendingSelectionOp by remember { mutableStateOf<Triple<AccountOpMode, ContactAccount, MovePlan>?>(null) }
+    // Account-chip long-press: "move/copy all contacts of <account> to…" flow.
+    var accountOpRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
+    val pendingAccountOp by viewModel.pendingAccountOp.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
-    var pendingMove by remember { mutableStateOf<Pair<ContactAccount, MovePlan>?>(null) }
     var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
 
     LaunchedEffect(pendingFilterAccountKey) {
@@ -221,7 +222,7 @@ fun HomeScreen(
                 // fire before the snackbar, which suspends until it's dismissed.
                 if (progress.error == null) launchReview()
                 snackbarHostState.showSnackbar(
-                    progress.error ?: context.resources.getQuantityString(
+                    progress.error ?: progress.finishedMessage ?: context.resources.getQuantityString(
                         R.plurals.home_moved_contacts,
                         progress.total,
                         progress.total,
@@ -250,7 +251,8 @@ fun HomeScreen(
             if (state.selectionMode) {
                 SelectionBottomBar(
                     mergeEnabled = state.selectedContactIds.size >= 2,
-                    onMove = { showMovePicker = true },
+                    onMove = { selectionPickerMode = AccountOpMode.MOVE },
+                    onCopy = { selectionPickerMode = AccountOpMode.COPY },
                     onDelete = { showDeleteConfirm = true },
                     onMerge = { showMergePicker = true },
                 )
@@ -325,7 +327,8 @@ fun HomeScreen(
                 accounts = state.accounts,
                 selectedAccountKey = state.selectedAccountKey,
                 onSelect = viewModel::selectAccount,
-                onMoveAll = { moveAllSource = it },
+                onMoveAll = { accountOpRequest = AccountOpMode.MOVE to it },
+                onCopyAll = { accountOpRequest = AccountOpMode.COPY to it },
                 onHide = viewModel::hideAccount,
             )
             if (state.loading) {
@@ -378,54 +381,60 @@ fun HomeScreen(
         }
     }
 
-    if (showMovePicker) {
-        MoveSelectedSheet(
+    selectionPickerMode?.let { mode ->
+        SelectionTargetSheet(
+            mode = mode,
             selectedCount = state.selectedContactIds.size,
             accounts = state.accounts,
             onPick = { account ->
-                showMovePicker = false
-                val plan = viewModel.planMove(account)
+                selectionPickerMode = null
+                val plan = when (mode) {
+                    AccountOpMode.MOVE -> viewModel.planMove(account)
+                    AccountOpMode.COPY -> viewModel.planCopy(account)
+                }
                 if (plan.losses.isEmpty()) {
-                    viewModel.moveSelectedTo(account)
+                    viewModel.runSelectionOp(mode, account)
                 } else {
-                    pendingMove = account to plan
+                    pendingSelectionOp = Triple(mode, account, plan)
                 }
             },
-            onDismiss = { showMovePicker = false },
+            onDismiss = { selectionPickerMode = null },
         )
     }
 
-    pendingMove?.let { (account, plan) ->
+    pendingSelectionOp?.let { (mode, account, plan) ->
         FieldsLostDialog(
+            mode = mode,
             account = account,
             plan = plan,
             onConfirm = {
-                pendingMove = null
-                viewModel.moveSelectedTo(account)
+                pendingSelectionOp = null
+                viewModel.runSelectionOp(mode, account)
             },
-            onDismiss = { pendingMove = null },
+            onDismiss = { pendingSelectionOp = null },
         )
     }
 
-    // Target picker for the account chip's "Move all contacts to…" action.
-    moveAllSource?.let { source ->
-        MoveAllTargetSheet(
+    // Target picker for the account chip's "Move/copy all contacts to…" actions.
+    accountOpRequest?.let { (mode, source) ->
+        AccountOpTargetSheet(
+            mode = mode,
             source = source,
             accounts = state.accounts,
             onPick = { target ->
-                moveAllSource = null
-                viewModel.requestMoveAll(source, target)
+                accountOpRequest = null
+                viewModel.requestAccountOp(mode, source, target)
             },
-            onDismiss = { moveAllSource = null },
+            onDismiss = { accountOpRequest = null },
         )
     }
 
-    // Confirmation (with field-loss report) before the move-all batch runs.
-    pendingMoveAll?.let { pending ->
-        MoveAllConfirmDialog(
+    // Confirmation (with field-loss report) before the bulk batch runs.
+    pendingAccountOp?.let { pending ->
+        AccountOpConfirmDialog(
             pending = pending,
-            onConfirm = viewModel::confirmPendingMoveAll,
-            onDismiss = viewModel::dismissPendingMoveAll,
+            onConfirm = viewModel::confirmPendingAccountOp,
+            onDismiss = viewModel::dismissPendingAccountOp,
         )
     }
 

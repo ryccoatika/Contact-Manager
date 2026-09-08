@@ -122,20 +122,23 @@ internal fun HomeTopBar(
     )
 }
 
-/** Selection-mode bottom action bar: move / delete / merge. */
+/** Selection-mode bottom action bar: move / copy / delete / merge. */
 @Composable
 internal fun SelectionBottomBar(
     mergeEnabled: Boolean,
     onMove: () -> Unit,
+    onCopy: () -> Unit,
     onDelete: () -> Unit,
     onMerge: () -> Unit,
 ) {
     BottomAppBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
         TextButton(onClick = onMove) { Text(stringResource(R.string.home_move_to)) }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
+        TextButton(onClick = onCopy) { Text(stringResource(R.string.home_copy_to)) }
+        Spacer(Modifier.width(4.dp))
         TextButton(onClick = onDelete) { Text(stringResource(R.string.home_delete)) }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
         TextButton(onClick = onMerge, enabled = mergeEnabled) {
             Text(stringResource(R.string.home_merge))
         }
@@ -193,6 +196,7 @@ internal fun AccountChipsRow(
     selectedAccountKey: String?,
     onSelect: (String?) -> Unit,
     onMoveAll: (ContactAccount) -> Unit,
+    onCopyAll: (ContactAccount) -> Unit,
     onHide: (ContactAccount) -> Unit,
 ) {
     val context = LocalContext.current
@@ -301,6 +305,14 @@ internal fun AccountChipsRow(
                         onClick = {
                             accountMenuFor = null
                             onMoveAll(account)
+                        },
+                    )
+                    // Copy never touches the source, so it works on read-only accounts too.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.accounts_copy_all_contacts_to)) },
+                        onClick = {
+                            accountMenuFor = null
+                            onCopyAll(account)
                         },
                     )
                     DropdownMenuItem(

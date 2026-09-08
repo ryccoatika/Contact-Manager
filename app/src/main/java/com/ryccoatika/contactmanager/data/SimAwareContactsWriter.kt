@@ -115,25 +115,51 @@ class SimAwareContactsWriter
             }
 
             SimRouting.isSimAccount(targetType) -> {
-                val raw = findRawContact(rawContactId)
-                if (raw == null) {
-                    ContactOpResult.Failure(strings.get(R.string.saw_error_copy_not_found))
-                } else {
-                    insertToSim(
-                        subId = SimRouting.subscriptionIdOf(targetType),
-                        name = raw.simName(),
-                        number = SimRouting.normalizeNumber(
-                            raw.rawContact.phones
-                                .firstOrNull()
-                                ?.value
-                                .orEmpty(),
-                        ),
-                    )
-                }
+                copyProviderContactToSim(rawContactId, targetType)
             }
 
             else -> {
                 delegate.copyRawContact(rawContactId, targetType, targetName)
+            }
+        }
+
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            // Per-id routing (SIM source/target handled by copyRawContact); sources
+            // are never touched, so failures just count — nothing to roll back.
+            // One contacts snapshot serves every provider→SIM lookup.
+            val snapshot = if (SimRouting.isSimAccount(targetType) &&
+                rawContactIds.any { !SimRouting.isSimRawContactId(it) }
+            ) {
+                contactsSource.snapshot()
+            } else {
+                null
+            }
+            var failed = 0
+            var firstMessage: String? = null
+            rawContactIds.forEachIndexed { index, id ->
+                coroutineContext.ensureActive()
+                val result = if (snapshot != null && !SimRouting.isSimRawContactId(id)) {
+                    copyProviderContactToSim(id, targetType, snapshot)
+                } else {
+                    copyRawContact(id, targetType, targetName)
+                }
+                if (result is ContactOpResult.Failure) {
+                    failed++
+                    if (firstMessage == null) firstMessage = result.message
+                }
+                onProgress(index + 1, rawContactIds.size)
+            }
+            return if (failed == 0) {
+                ContactOpResult.Success
+            } else {
+                ContactOpResult.Failure(
+                    firstMessage ?: strings.get(R.string.cwr_error_copy_count, failed, rawContactIds.size),
+                )
             }
         }
 
@@ -234,6 +260,26 @@ class SimAwareContactsWriter
 
         private fun simAggregationFailure() =
             ContactOpResult.Failure(strings.get(R.string.saw_error_sim_no_link))
+
+        /** Down-converts one provider contact to name + first number on the SIM. */
+        private suspend fun copyProviderContactToSim(
+            rawContactId: Long,
+            targetType: String?,
+            snapshot: List<Contact>? = null,
+        ): ContactOpResult {
+            val raw = findRawContact(rawContactId, snapshot)
+                ?: return ContactOpResult.Failure(strings.get(R.string.saw_error_copy_not_found))
+            return insertToSim(
+                subId = SimRouting.subscriptionIdOf(targetType),
+                name = raw.simName(),
+                number = SimRouting.normalizeNumber(
+                    raw.rawContact.phones
+                        .firstOrNull()
+                        ?.value
+                        .orEmpty(),
+                ),
+            )
+        }
 
         // --- SIM primitives -------------------------------------------------
 

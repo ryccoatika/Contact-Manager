@@ -4,6 +4,12 @@ All notable changes to Contact Manager are documented here. This project adheres
 to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+- Copy contacts without moving them: "Copy to…" for selected contacts and
+  "Copy all contacts to…" on any account chip or in Settings › Accounts —
+  works on app-managed accounts too (e.g. WhatsApp), whose contacts can now
+  be copied out even though they can't be moved.
+
 ## [1.1] - 2026-09-03
 - New Settings screen (from the Contacts top bar): Accounts, Theme, a "Rate this
   app" shortcut to Google Play, Contact developer, and About.

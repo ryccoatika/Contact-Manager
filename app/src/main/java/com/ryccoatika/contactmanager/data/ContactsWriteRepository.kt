@@ -67,6 +67,14 @@ interface ContactsWriter {
     /** Duplicates one raw contact (all data rows incl. photo) into the target account. */
     suspend fun copyRawContact(rawContactId: Long, targetType: String?, targetName: String?): ContactOpResult
 
+    /** Duplicates raw contacts into the target account; sources are left untouched. */
+    suspend fun copyRawContacts(
+        rawContactIds: List<Long>,
+        targetType: String?,
+        targetName: String?,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): ContactOpResult
+
     /**
      * Moves raw contacts into the target account, copy-then-delete per contact:
      * a mid-flight failure can leave a duplicate, never lose data.
@@ -155,6 +163,36 @@ class ContactsWriteRepository
             targetName: String?,
         ): ContactOpResult = withContext(ioDispatcher) {
             runCatchingOp(R.string.cwr_action_copy) { insertCopy(rawContactId, targetType, targetName) }
+        }
+
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult = withContext(ioDispatcher) {
+            var failed = 0
+            var firstCause: Throwable? = null
+            rawContactIds.forEachIndexed { index, rawContactId ->
+                ensureActive()
+                try {
+                    insertCopy(rawContactId, targetType, targetName)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failed++
+                    if (firstCause == null) firstCause = e
+                }
+                onProgress(index + 1, rawContactIds.size)
+            }
+            if (failed == 0) {
+                ContactOpResult.Success
+            } else {
+                ContactOpResult.Failure(
+                    strings.get(R.string.cwr_error_copy_count, failed, rawContactIds.size),
+                    firstCause,
+                )
+            }
         }
 
         override suspend fun moveRawContacts(
