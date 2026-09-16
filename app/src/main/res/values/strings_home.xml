@@ -43,6 +43,11 @@
     <string name="home_delete_disclaimer">Entries managed by other apps are skipped. This cannot be undone.</string>
     <string name="home_delete_contact_title">Delete %1$s?</string>
 
+    <!-- Delete account chooser -->
+    <string name="home_delete_from_accounts_title">Delete from which accounts?</string>
+    <string name="home_delete_select_all">Select all</string>
+    <string name="home_delete_read_only_note">Managed by another app</string>
+
     <!-- Empty states -->
     <string name="home_empty_search_title">No matches for \"%1$s\"</string>
     <string name="home_empty_search_hint">Try a different name, number or email.</string>
@@ -87,5 +92,13 @@
     <plurals name="home_delete_contacts_title">
         <item quantity="one">Delete %1$d contact?</item>
         <item quantity="other">Delete %1$d contacts?</item>
+    </plurals>
+    <plurals name="home_delete_account_entry_count">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <plurals name="home_delete_entries">
+        <item quantity="one">Delete %1$d entry</item>
+        <item quantity="other">Delete %1$d entries</item>
     </plurals>
 </resources>

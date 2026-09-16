@@ -5,6 +5,9 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+- Deleting a selection that spans several accounts now asks which accounts to
+  delete from, so you can clear a contact's Google entry while keeping its
+  SIM copy.
 - Copy contacts without moving them: "Copy to…" for selected contacts and
   "Copy all contacts to…" on any account chip or in Settings › Accounts —
   works on app-managed accounts too (e.g. WhatsApp), whose contacts can now

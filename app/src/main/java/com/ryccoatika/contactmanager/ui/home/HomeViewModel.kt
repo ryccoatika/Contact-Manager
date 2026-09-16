@@ -63,6 +63,17 @@ data class HomeUiState(
     val selectionMode: Boolean get() = selectedContactIds.isNotEmpty()
 }
 
+/** One account of the current selection, with its entry count — feeds the delete sheet. */
+data class SelectionAccountEntry(
+    val type: String?,
+    val name: String?,
+    val capability: AccountCapability,
+    val entryCount: Int,
+) {
+    val key: String get() = "$type/$name"
+    val deletable: Boolean get() = capability != AccountCapability.READ_ONLY
+}
+
 /** First non-blank of: organization, a phone, an email — the hint under the name. */
 private fun subtitleOf(contact: Contact): String? =
     contact.rawContacts.firstNotNullOfOrNull { it.organization?.takeIf(String::isNotBlank) }
@@ -264,8 +275,31 @@ class HomeViewModel
             }
         }
 
-        fun deleteSelected() {
-            val ids = movableSelectedRawContacts().map { it.rawContactId }
+        /** Accounts the selection spans, deletable first then by entry count. */
+        fun selectionAccountBreakdown(): List<SelectionAccountEntry> =
+            selectedRawContacts()
+                .groupBy { it.accountType to it.accountName }
+                .map { (account, raws) ->
+                    SelectionAccountEntry(
+                        type = account.first,
+                        name = account.second,
+                        capability = AccountClassifier.classify(account.first),
+                        entryCount = raws.size,
+                    )
+                }.sortedWith(compareBy({ !it.deletable }, { -it.entryCount }))
+
+        /** Deletes the selection's raw contacts living in [accountKeys] (read-only ones never). */
+        fun deleteSelectedFrom(accountKeys: Set<String>) {
+            deleteRawSelection(
+                movableSelectedRawContacts()
+                    .filter { "${it.accountType}/${it.accountName}" in accountKeys }
+                    .map { it.rawContactId },
+            )
+        }
+
+        fun deleteSelected() = deleteRawSelection(movableSelectedRawContacts().map { it.rawContactId })
+
+        private fun deleteRawSelection(ids: List<Long>) {
             clearSelection()
             viewModelScope.launch {
                 if (ids.isEmpty()) {

@@ -2,16 +2,11 @@ package com.ryccoatika.contactmanager.ui.home
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -47,7 +42,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contacts
@@ -64,7 +58,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -199,6 +192,8 @@ fun HomeScreen(
     var accountOpRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
     val pendingAccountOp by viewModel.pendingAccountOp.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    // Delete across several accounts: the per-account chooser sheet's entries.
+    var pendingDeleteBreakdown by remember { mutableStateOf<List<SelectionAccountEntry>?>(null) }
     var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
     var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
@@ -253,34 +248,26 @@ fun HomeScreen(
                     mergeEnabled = state.selectedContactIds.size >= 2,
                     onMove = { selectionPickerMode = AccountOpMode.MOVE },
                     onCopy = { selectionPickerMode = AccountOpMode.COPY },
-                    onDelete = { showDeleteConfirm = true },
+                    onDelete = {
+                        // One account: plain confirm. Several: pick which accounts.
+                        val breakdown = viewModel.selectionAccountBreakdown()
+                        if (breakdown.size > 1) {
+                            pendingDeleteBreakdown = breakdown
+                        } else {
+                            showDeleteConfirm = true
+                        }
+                    },
                     onMerge = { showMergePicker = true },
                 )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            AnimatedVisibility(
+            HomeFab(
                 visible = fabVisible && !state.selectionMode,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut(),
-            ) {
-                FloatingActionButton(
-                    onClick = onAddClick,
-                    shape = MaterialTheme.shapes.medium,
-                    // Shift clear of the fast-scroll rail when it's shown.
-                    modifier = if (state.contacts.size > FAST_SCROLL_MIN_CONTACTS) {
-                        Modifier.padding(end = 28.dp)
-                    } else {
-                        Modifier
-                    },
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = stringResource(R.string.home_new_contact),
-                    )
-                }
-            }
+                railShown = state.contacts.size > FAST_SCROLL_MIN_CONTACTS,
+                onClick = onAddClick,
+            )
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -464,6 +451,17 @@ fun HomeScreen(
                 viewModel.mergeSelected(targetRaw)
             },
             onDismiss = { pendingMergeTarget = null },
+        )
+    }
+
+    pendingDeleteBreakdown?.let { breakdown ->
+        DeleteAccountsSheet(
+            entries = breakdown,
+            onConfirm = { keys ->
+                pendingDeleteBreakdown = null
+                viewModel.deleteSelectedFrom(keys)
+            },
+            onDismiss = { pendingDeleteBreakdown = null },
         )
     }
 
