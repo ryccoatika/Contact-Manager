@@ -31,7 +31,6 @@ com.ryccoatika.contactmanager/
 │   └── sim/           SimRouting (icc pseudo-account rules)
 ├── data/              Android adapters: ContactsContract repositories,
 │   ├── sim/           icc/adn SIM stack, DataStore prefs, batch operations.
-│   ├── billing/       Play Billing donations.
 │   ├── analytics/     FirebaseAnalyticsImpl (interface lives in domain).
 │   └── ops/           multi-repository orchestration (MoveAllContacts).
 │                      Typed results (ContactOpResult); guarded provider
@@ -39,7 +38,7 @@ com.ryccoatika.contactmanager/
 ├── di/                Hilt modules — the only place impls are named and bound.
 └── ui/                Compose presentation.
     ├── <feature>/     home | detail | editor | accounts | duplicates |
-    │                  settings | support | about | onboarding | crash
+    │                  settings | about | onboarding | crash
     │                  — each: Screen(s) + ViewModel, self-contained
     │                  (about is stateless; crash is a bare Activity by design).
     ├── common/        shared composables (ConfirmDialog, AccountPickerSheet,
@@ -108,7 +107,7 @@ Escalate a boundary to a real Gradle module only when one of these fires
 - **T2 team growth**: ≥ 2 distinct human committers in 90 days
   (`git shortlog -sn --since='90 days'`).
 - **T3 second consumer**: a Wear/widget/second-APK target, or a flavor that
-  must strip Firebase/Billing (e.g. F-Droid).
+  must strip Firebase (e.g. F-Droid).
 - **T4 convention failure**: the same audit rule fails in ≥ 3 separate PRs
   within 90 days — that specific boundary has proven grep-unenforceable;
   promote exactly it, not the whole tree.
