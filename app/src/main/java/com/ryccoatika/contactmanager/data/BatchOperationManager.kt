@@ -16,6 +16,8 @@ data class BatchProgress(
     val label: String,
     val finished: Boolean,
     val error: String? = null,
+    /** Snackbar text for a clean finish, resolved up-front by the caller. */
+    val finishedMessage: String? = null,
 )
 
 /**
@@ -32,6 +34,16 @@ interface BatchRunner {
         targetType: String?,
         targetName: String?,
         label: String,
+        finishedMessage: String,
+    ): Boolean
+
+    /** Starts the copy (sources untouched); false when another batch is running. */
+    fun copyContacts(
+        rawContactIds: List<Long>,
+        targetType: String?,
+        targetName: String?,
+        label: String,
+        finishedMessage: String,
     ): Boolean
 
     fun cancel()
@@ -57,19 +69,40 @@ class BatchOperationManager
             targetType: String?,
             targetName: String?,
             label: String,
+            finishedMessage: String,
+        ): Boolean = start(rawContactIds.size, label, finishedMessage) { onProgress ->
+            writer.moveRawContacts(rawContactIds, targetType, targetName, onProgress)
+        }
+
+        override fun copyContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            label: String,
+            finishedMessage: String,
+        ): Boolean = start(rawContactIds.size, label, finishedMessage) { onProgress ->
+            writer.copyRawContacts(rawContactIds, targetType, targetName, onProgress)
+        }
+
+        private fun start(
+            total: Int,
+            label: String,
+            finishedMessage: String,
+            operation: suspend (onProgress: (Int, Int) -> Unit) -> ContactOpResult,
         ): Boolean {
             if (job?.isActive == true) return false
-            _progress.value = BatchProgress(0, rawContactIds.size, label, finished = false)
+            _progress.value = BatchProgress(0, total, label, finished = false)
             job = scope.launch {
-                val result = writer.moveRawContacts(rawContactIds, targetType, targetName) { done, total ->
-                    _progress.value = BatchProgress(done, total, label, finished = false)
+                val result = operation { done, t ->
+                    _progress.value = BatchProgress(done, t, label, finished = false)
                 }
                 _progress.value = BatchProgress(
-                    done = rawContactIds.size,
-                    total = rawContactIds.size,
+                    done = total,
+                    total = total,
                     label = label,
                     finished = true,
                     error = (result as? ContactOpResult.Failure)?.message,
+                    finishedMessage = finishedMessage,
                 )
             }
             return true

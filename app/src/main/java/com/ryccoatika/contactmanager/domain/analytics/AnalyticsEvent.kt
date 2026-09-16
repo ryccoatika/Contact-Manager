@@ -10,6 +10,11 @@ sealed class AnalyticsEvent(
         val targetCapability: String,
     ) : AnalyticsEvent("contact_move", mapOf("count" to count, "target_capability" to targetCapability))
 
+    data class ContactCopy(
+        val count: Int,
+        val targetCapability: String,
+    ) : AnalyticsEvent("contact_copy", mapOf("count" to count, "target_capability" to targetCapability))
+
     data class ContactDelete(
         val count: Int,
     ) : AnalyticsEvent("contact_delete", mapOf("count" to count))
@@ -35,6 +40,10 @@ sealed class AnalyticsEvent(
     data class AccountMoveAll(
         val count: Int,
     ) : AnalyticsEvent("account_move_all", mapOf("count" to count))
+
+    data class AccountCopyAll(
+        val count: Int,
+    ) : AnalyticsEvent("account_copy_all", mapOf("count" to count))
 
     data class Search(
         val queryLength: Int,

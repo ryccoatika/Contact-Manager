@@ -10,7 +10,7 @@ import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.ops.DefaultMoveAllContacts
+import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -80,6 +80,8 @@ class HomeViewModelTest {
     private class FakeWriter : ContactsWriter {
         val deletedIds = mutableListOf<List<Long>>()
         val movedIds = mutableListOf<Long>()
+        val copiedIds = mutableListOf<Long>()
+        var copyTarget: Pair<String?, String?>? = null
         var moveTarget: Pair<String?, String?>? = null
         var merged: Pair<RawContact, List<RawContact>>? = null
 
@@ -113,6 +115,17 @@ class HomeViewModelTest {
         ): ContactOpResult {
             movedIds += rawContactIds
             moveTarget = targetType to targetName
+            return ContactOpResult.Success
+        }
+
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            copiedIds += rawContactIds
+            copyTarget = targetType to targetName
             return ContactOpResult.Success
         }
 
@@ -157,7 +170,7 @@ class HomeViewModelTest {
             accountsSource = fakeAccounts,
             writer = writer,
             batchManager = batchManager,
-            moveAll = DefaultMoveAllContacts(fakeContacts, batchManager, analytics, strings),
+            bulkOps = DefaultAccountBulkOps(fakeContacts, batchManager, analytics, strings),
             duplicatePrefs = fakePrefs,
             appPrefs = appPrefs,
             strings = strings,
@@ -286,6 +299,23 @@ class HomeViewModelTest {
         job.cancel()
     }
 
+    @Test fun `copySelectedTo copies the whole selection including read-only raws`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val analytics = FakeAnalytics()
+        val vm = vm(writer, analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(2)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.copySelectedTo(googleTarget)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(writer.copiedIds.isNotEmpty())
+        assertTrue(writer.movedIds.isEmpty())
+        val copy = analytics.events.filterIsInstance<AnalyticsEvent.ContactCopy>().single()
+        assertEquals(writer.copiedIds.size, copy.count)
+        job.cancel()
+    }
+
     @Test fun `setQuery logs search with query length`() = runTest(dispatcher) {
         val analytics = FakeAnalytics()
         val vm = vm(analytics = analytics)
@@ -363,6 +393,53 @@ class HomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(listOf(10L, 30L)), writer.deletedIds)
         assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
+    }
+
+    @Test fun `selectionAccountBreakdown groups selection raws by account, deletable first`() = runTest(dispatcher) {
+        val vm = vm()
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val breakdown = vm.selectionAccountBreakdown()
+        assertEquals(
+            listOf(
+                SelectionAccountEntry("com.google", "acc", AccountCapability.FULL_CRUD, 2),
+                SelectionAccountEntry("com.whatsapp", "acc", AccountCapability.READ_ONLY, 1),
+            ),
+            breakdown,
+        )
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom deletes only raws of the chosen accounts and clears selection`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(2)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.google/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(listOf(10L, 30L)), writer.deletedIds)
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom never deletes read-only raws even when their account is chosen`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.whatsapp/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<List<Long>>(), writer.deletedIds)
         job.cancel()
     }
 }
