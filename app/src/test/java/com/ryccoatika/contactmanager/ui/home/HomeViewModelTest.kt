@@ -395,4 +395,51 @@ class HomeViewModelTest {
         assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
         job.cancel()
     }
+
+    @Test fun `selectionAccountBreakdown groups selection raws by account, deletable first`() = runTest(dispatcher) {
+        val vm = vm()
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val breakdown = vm.selectionAccountBreakdown()
+        assertEquals(
+            listOf(
+                SelectionAccountEntry("com.google", "acc", AccountCapability.FULL_CRUD, 2),
+                SelectionAccountEntry("com.whatsapp", "acc", AccountCapability.READ_ONLY, 1),
+            ),
+            breakdown,
+        )
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom deletes only raws of the chosen accounts and clears selection`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(2)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.google/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(listOf(10L, 30L)), writer.deletedIds)
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom never deletes read-only raws even when their account is chosen`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.whatsapp/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<List<Long>>(), writer.deletedIds)
+        job.cancel()
+    }
 }

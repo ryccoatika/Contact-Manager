@@ -1,5 +1,10 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Difference
 import androidx.compose.material.icons.filled.Settings
@@ -26,6 +32,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -141,6 +148,31 @@ internal fun SelectionBottomBar(
         Spacer(Modifier.width(4.dp))
         TextButton(onClick = onMerge, enabled = mergeEnabled) {
             Text(stringResource(R.string.home_merge))
+        }
+    }
+}
+
+/** New-contact FAB: hides on scroll-down, shifts clear of the fast-scroll rail. */
+@Composable
+internal fun HomeFab(
+    visible: Boolean,
+    railShown: Boolean,
+    onClick: () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = scaleIn() + fadeIn(),
+        exit = scaleOut() + fadeOut(),
+    ) {
+        FloatingActionButton(
+            onClick = onClick,
+            shape = MaterialTheme.shapes.medium,
+            modifier = if (railShown) Modifier.padding(end = 28.dp) else Modifier,
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = stringResource(R.string.home_new_contact),
+            )
         }
     }
 }
