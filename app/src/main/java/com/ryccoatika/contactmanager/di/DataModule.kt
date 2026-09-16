@@ -15,8 +15,6 @@ import com.ryccoatika.contactmanager.data.DataStoreDuplicatePrefs
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.SimAwareContactsWriter
 import com.ryccoatika.contactmanager.data.StringProvider
-import com.ryccoatika.contactmanager.data.billing.Billing
-import com.ryccoatika.contactmanager.data.billing.BillingManager
 import com.ryccoatika.contactmanager.data.ops.AccountBulkOps
 import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
 import com.ryccoatika.contactmanager.data.sim.DataStoreSimCapabilityCache
@@ -71,8 +69,6 @@ abstract class DataModule {
     @Binds abstract fun bindBatchRunner(impl: BatchOperationManager): BatchRunner
 
     @Binds abstract fun bindSimStore(impl: SimRepository): SimStore
-
-    @Binds abstract fun bindBilling(impl: BillingManager): Billing
 
     @Binds abstract fun bindAccountBulkOps(impl: DefaultAccountBulkOps): AccountBulkOps
 }

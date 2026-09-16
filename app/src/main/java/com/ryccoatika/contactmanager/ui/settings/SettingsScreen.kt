@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.ManageAccounts
@@ -70,7 +69,6 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     onAccountsClick: () -> Unit,
-    onSupportClick: () -> Unit,
     onContactClick: () -> Unit,
     onAboutClick: () -> Unit,
     embedded: Boolean = false,
@@ -82,7 +80,6 @@ fun SettingsScreen(
         onThemeSelected = viewModel::setThemeMode,
         onBack = onBack,
         onAccountsClick = onAccountsClick,
-        onSupportClick = onSupportClick,
         onContactClick = onContactClick,
         onAboutClick = onAboutClick,
         embedded = embedded,
@@ -96,7 +93,6 @@ private fun SettingsContent(
     onThemeSelected: (ThemeMode) -> Unit,
     onBack: () -> Unit,
     onAccountsClick: () -> Unit,
-    onSupportClick: () -> Unit,
     onContactClick: () -> Unit,
     onAboutClick: () -> Unit,
     embedded: Boolean,
@@ -187,13 +183,6 @@ private fun SettingsContent(
                     title = stringResource(R.string.settings_rate),
                     subtitle = stringResource(R.string.settings_rate_desc),
                     onClick = rateApp,
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                SettingsRow(
-                    icon = Icons.Default.Favorite,
-                    title = stringResource(R.string.settings_support),
-                    subtitle = stringResource(R.string.settings_support_desc),
-                    onClick = onSupportClick,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 SettingsRow(
@@ -339,7 +328,6 @@ private fun SettingsScreenPreview() {
             onThemeSelected = {},
             onBack = {},
             onAccountsClick = {},
-            onSupportClick = {},
             onContactClick = {},
             onAboutClick = {},
             embedded = false,
