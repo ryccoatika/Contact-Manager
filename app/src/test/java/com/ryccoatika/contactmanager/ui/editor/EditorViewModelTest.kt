@@ -142,6 +142,13 @@ class EditorViewModelTest {
             onProgress: (done: Int, total: Int) -> Unit,
         ): ContactOpResult = result
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult = result
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult = result
 
         override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult = result

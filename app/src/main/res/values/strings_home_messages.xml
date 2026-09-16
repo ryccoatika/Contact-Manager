@@ -6,6 +6,7 @@
     <string name="home_msg_deleted_named">Deleted %1$s.</string>
     <string name="home_msg_busy">Another operation is still running — try again when it finishes.</string>
     <string name="home_msg_moving_label">Moving %1$d to %2$s</string>
+    <string name="home_msg_copying_label">Copying %1$d to %2$s</string>
     <string name="home_msg_this_device">this device</string>
 
     <plurals name="home_msg_deleted_entries">

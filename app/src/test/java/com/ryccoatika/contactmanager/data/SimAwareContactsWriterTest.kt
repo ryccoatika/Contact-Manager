@@ -74,6 +74,19 @@ class SimAwareContactsWriterTest {
             return result
         }
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            rawContactIds.forEachIndexed { i, id ->
+                copied = Triple(id, targetType, targetName)
+                onProgress(i + 1, rawContactIds.size)
+            }
+            return result
+        }
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult {
             linked = rawContactIds
             return result

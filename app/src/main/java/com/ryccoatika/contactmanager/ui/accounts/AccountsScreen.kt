@@ -60,16 +60,17 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
+import com.ryccoatika.contactmanager.ui.common.AccountOpConfirmDialog
+import com.ryccoatika.contactmanager.ui.common.AccountOpTargetSheet
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.CapabilityTag
 import com.ryccoatika.contactmanager.ui.common.CardsSkeleton
 import com.ryccoatika.contactmanager.ui.common.CollectUiEvents
-import com.ryccoatika.contactmanager.ui.common.MoveAllConfirmDialog
-import com.ryccoatika.contactmanager.ui.common.MoveAllTargetSheet
 import com.ryccoatika.contactmanager.ui.common.PhonePermissionPrompt
 import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.common.isMoveTarget
@@ -87,9 +88,9 @@ fun AccountsScreen(
     TrackScreenView("accounts")
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val pendingMove by viewModel.pendingMove.collectAsStateWithLifecycle()
+    val pendingOp by viewModel.pendingOp.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var moveSource by remember { mutableStateOf<ContactAccount?>(null) }
+    var opRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
 
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -144,7 +145,8 @@ fun AccountsScreen(
                             account = account,
                             hidden = account.key in state.hiddenAccountKeys,
                             onClick = { onAccountClick(account.key) },
-                            onMoveAll = { moveSource = account },
+                            onMoveAll = { opRequest = AccountOpMode.MOVE to account },
+                            onCopyAll = { opRequest = AccountOpMode.COPY to account },
                             onToggleHidden = { hidden -> viewModel.setAccountHidden(account, hidden) },
                         )
                     }
@@ -153,23 +155,24 @@ fun AccountsScreen(
         }
     }
 
-    moveSource?.let { source ->
-        MoveAllTargetSheet(
+    opRequest?.let { (mode, source) ->
+        AccountOpTargetSheet(
+            mode = mode,
             source = source,
             accounts = state.accounts,
             onPick = { target ->
-                moveSource = null
-                viewModel.requestMoveAll(source, target)
+                opRequest = null
+                viewModel.requestAccountOp(mode, source, target)
             },
-            onDismiss = { moveSource = null },
+            onDismiss = { opRequest = null },
         )
     }
 
-    pendingMove?.let { pending ->
-        MoveAllConfirmDialog(
+    pendingOp?.let { pending ->
+        AccountOpConfirmDialog(
             pending = pending,
-            onConfirm = viewModel::confirmPendingMove,
-            onDismiss = viewModel::dismissPendingMove,
+            onConfirm = viewModel::confirmPendingOp,
+            onDismiss = viewModel::dismissPendingOp,
         )
     }
 }
@@ -180,6 +183,7 @@ private fun AccountRow(
     hidden: Boolean = false,
     onClick: () -> Unit,
     onMoveAll: () -> Unit,
+    onCopyAll: () -> Unit = {},
     onToggleHidden: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -252,6 +256,14 @@ private fun AccountRow(
                         onClick = {
                             menuOpen = false
                             onMoveAll()
+                        },
+                    )
+                    // Copy never touches the source, so it works on read-only accounts too.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.accounts_copy_all_contacts_to)) },
+                        onClick = {
+                            menuOpen = false
+                            onCopyAll()
                         },
                     )
                     DropdownMenuItem(
