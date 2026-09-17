@@ -1,5 +1,6 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.R
@@ -13,6 +14,8 @@ import com.ryccoatika.contactmanager.data.ContactsWriter
 import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.ops.AccountBulkOps
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.TransferResult
 import com.ryccoatika.contactmanager.di.DefaultDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
 import com.ryccoatika.contactmanager.domain.DuplicateFinder
@@ -99,6 +102,7 @@ class HomeViewModel
         private val appPrefs: AppPrefs,
         private val strings: StringProvider,
         private val analytics: Analytics,
+        private val transfer: ContactTransfer,
         @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         private val query = MutableStateFlow("")
@@ -271,6 +275,40 @@ class HomeViewModel
             } else {
                 viewModelScope.launch {
                     _events.emit(UiEvent.ShowSnackbar(strings.get(R.string.home_msg_busy)))
+                }
+            }
+        }
+
+        /** Exports the whole selection (read-only included) into a single vCard file at [uri]. */
+        fun exportSelected(uri: Uri) {
+            val raws = selectedRawContacts()
+            val accountCount = selectionAccountBreakdown().size
+            clearSelection()
+            if (raws.isEmpty()) return
+            viewModelScope.launch {
+                when (val result = transfer.exportRawContacts(raws.map { it.rawContactId }, uri)) {
+                    is TransferResult.Success -> {
+                        analytics.logEvent(
+                            AnalyticsEvent.ContactsExport(
+                                count = result.contactCount,
+                                accountCount = accountCount,
+                                perAccountFiles = false,
+                            ),
+                        )
+                        _events.emit(
+                            UiEvent.ShowSnackbar(
+                                strings.getQuantity(
+                                    R.plurals.home_msg_exported,
+                                    result.contactCount,
+                                    result.contactCount,
+                                ),
+                            ),
+                        )
+                    }
+
+                    is TransferResult.Failure -> {
+                        _events.emit(UiEvent.ShowSnackbar(result.message))
+                    }
                 }
             }
         }
