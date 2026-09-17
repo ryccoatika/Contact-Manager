@@ -204,13 +204,24 @@ class AccountsViewModel
         /** Starts the parked import as a background batch. */
         fun confirmPendingImport() {
             val pending = _pendingImport.value ?: return
+            startPendingImport(pending, pending.contacts)
+        }
+
+        /** Starts the parked import for [selected] only — the picker sheet's confirm. */
+        fun confirmPendingImportOf(selected: List<VCardContact>) {
+            if (selected.isEmpty()) return
+            val pending = _pendingImport.value ?: return
+            startPendingImport(pending, selected)
+        }
+
+        private fun startPendingImport(pending: PendingImport, contacts: List<VCardContact>) {
             _pendingImport.value = null
             viewModelScope.launch {
-                val started = transfer.startImport(pending.contacts, pending.targets)
+                val started = transfer.startImport(contacts, pending.targets)
                 if (started) {
                     analytics.logEvent(
                         AnalyticsEvent.ContactsImport(
-                            count = pending.contacts.size,
+                            count = contacts.size,
                             accountCount = pending.targets.size,
                             simTarget = pending.targets.any { it.capability == AccountCapability.SIM },
                         ),

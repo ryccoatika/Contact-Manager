@@ -9,8 +9,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
   once (as one combined file or one file per account), or just the contacts
   you've selected — from Settings › Accounts or the contacts list.
 - Import contacts from a file into one or more accounts, including SIM
-  (name and first number only); you're shown what will be imported, and
-  what will be skipped or lost, before it starts.
+  (name and first number only) — choose exactly which contacts to
+  bring in, and see what will be skipped or lost, before it starts.
 - Removed the "Support development" screen and its Settings entry (donations
   are not available on this Play account).
 - Deleting a selection that spans several accounts now asks which accounts to

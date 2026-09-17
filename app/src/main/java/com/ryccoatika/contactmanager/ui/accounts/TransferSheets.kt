@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
@@ -38,11 +40,13 @@ import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
+import com.ryccoatika.contactmanager.ui.theme.TabularNums
 
 /** Which flow [TransferAccountsSheet] is picking accounts for. */
 internal enum class TransferMode { EXPORT, IMPORT }
@@ -190,11 +194,18 @@ internal fun ExportModeDialog(
     )
 }
 
-/** Summarizes a parsed import before it starts — SIM targets lose everything but name + first number. */
+/**
+ * Summarizes a parsed import before it starts — SIM targets lose everything but name + first
+ * number. Stock M3 [AlertDialog] only exposes two button slots (`confirmButton`/`dismissButton`),
+ * so the third "Choose contacts…" action rides inside the `confirmButton` slot alongside Import —
+ * that keeps Cancel visually separated (still its own `dismissButton`) while Choose sits directly
+ * before Import, per the requested left-to-right increasing-commitment order.
+ */
 @Composable
 internal fun ImportConfirmDialog(
     pending: PendingImport,
     onConfirm: () -> Unit,
+    onChoose: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -230,12 +241,100 @@ internal fun ImportConfirmDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.accounts_import)) }
+            Row {
+                TextButton(onClick = onChoose) { Text(stringResource(R.string.accounts_import_choose)) }
+                TextButton(onClick = onConfirm) { Text(stringResource(R.string.accounts_import)) }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.accounts_cancel)) }
         },
     )
+}
+
+/**
+ * Lets the user drop individual contacts out of a parsed import before it starts — reachable via
+ * "Choose contacts…" on [ImportConfirmDialog]. Same checked-row-list idiom as
+ * [TransferAccountsSheet]: every contact starts checked, a select-all row sits above the list, and
+ * the confirm button is pinned below a `weight(1f, fill = false)` scroll region so it never gets
+ * pushed off-screen by a long list. Unlike the account/target pickers, [pending] can hold thousands
+ * of rows, so the list itself is a [LazyColumn].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ImportContactsPickerSheet(
+    pending: PendingImport,
+    onConfirm: (List<VCardContact>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    TrackScreenView("import_contact_picker")
+    val contacts = pending.contacts
+    // Index-based, not identity-based: VCardContact isn't guaranteed unique per field, and the
+    // list dies with the process anyway (pendingImport itself isn't saved across process death),
+    // so a plain `remember` (no rememberSaveable) matches the rest of this file's picker state.
+    var checkedIndices by remember(contacts) { mutableStateOf(contacts.indices.toSet()) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Text(
+            stringResource(R.string.accounts_import_picker_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        val allChecked = checkedIndices.size == contacts.size
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = allChecked,
+                    role = Role.Checkbox,
+                    onValueChange = { checkedIndices = if (it) contacts.indices.toSet() else emptySet() },
+                ).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = allChecked, onCheckedChange = null)
+            Text(
+                stringResource(R.string.accounts_select_all),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 16.dp),
+            )
+        }
+        Column(Modifier.weight(1f, fill = false)) {
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(contacts.size, key = { it }) { index ->
+                    val contact = contacts[index]
+                    val checked = index in checkedIndices
+                    val supporting = contact.phones.firstOrNull()?.first ?: contact.emails.firstOrNull()?.first
+                    ListItem(
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .toggleable(
+                                value = checked,
+                                role = Role.Checkbox,
+                                onValueChange = {
+                                    checkedIndices = if (it) checkedIndices + index else checkedIndices - index
+                                },
+                            ),
+                        headlineContent = { Text(contact.displayName) },
+                        supportingContent = supporting?.let { { Text(it, style = TabularNums.merge(MaterialTheme.typography.bodySmall)) } },
+                        trailingContent = { Checkbox(checked = checked, onCheckedChange = null) },
+                    )
+                }
+            }
+        }
+        Button(
+            onClick = { onConfirm(checkedIndices.sorted().map { contacts[it] }) },
+            enabled = checkedIndices.isNotEmpty(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text(pluralStringResource(R.plurals.accounts_import_selected, checkedIndices.size, checkedIndices.size))
+        }
+        Spacer(Modifier.height(24.dp))
+    }
 }
 
 @Preview(name = "Transfer sheet · light")
@@ -262,6 +361,45 @@ private fun TransferAccountsSheetPreview() {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(stringResource(R.string.accounts_export))
+                }
+            }
+        }
+    }
+}
+
+@Preview(name = "Import picker sheet · light")
+@Preview(name = "Import picker sheet · dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun ImportContactsPickerSheetPreview() {
+    ContactManagerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = true, onCheckedChange = null)
+                    Text(
+                        stringResource(R.string.accounts_select_all),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
+                }
+                ListItem(
+                    headlineContent = { Text("Andi Wijaya") },
+                    supportingContent = { Text("0812-3456-7890", style = TabularNums.merge(MaterialTheme.typography.bodySmall)) },
+                    trailingContent = { Checkbox(checked = true, onCheckedChange = null) },
+                )
+                ListItem(
+                    headlineContent = { Text("Budi Santoso") },
+                    supportingContent = { Text("0812-9876-5432", style = TabularNums.merge(MaterialTheme.typography.bodySmall)) },
+                    trailingContent = { Checkbox(checked = false, onCheckedChange = null) },
+                )
+                Button(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(pluralStringResource(R.plurals.accounts_import_selected, 1, 1))
                 }
             }
         }
