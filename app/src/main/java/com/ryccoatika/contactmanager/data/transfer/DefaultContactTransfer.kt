@@ -74,12 +74,20 @@ class DefaultContactTransfer
                         }
                         val name = uniqueName(sanitizeFileName(account.displayLabel ?: account.name ?: account.type), usedNames)
                         val fileUri = files.createInTree(treeUri, "$name.vcf")
-                            ?: return@withContext TransferResult.Failure(strings.get(R.string.transfer_error_open_file))
+                        if (fileUri == null) {
+                            // A later account's file couldn't be created — clean up every file
+                            // already created for earlier accounts so nothing is left orphaned.
+                            createdUris.forEach { files.delete(it) }
+                            return@withContext TransferResult.Failure(strings.get(R.string.transfer_error_open_file))
+                        }
                         createdUris += fileUri
                         totalContacts += writeVCardTo(fileUri, pairs)
                     }
                     TransferResult.Success(totalContacts, createdUris.size)
                 } catch (e: IOException) {
+                    createdUris.forEach { files.delete(it) }
+                    TransferResult.Failure(strings.get(R.string.transfer_error_write))
+                } catch (e: SecurityException) {
                     createdUris.forEach { files.delete(it) }
                     TransferResult.Failure(strings.get(R.string.transfer_error_write))
                 }
@@ -97,20 +105,35 @@ class DefaultContactTransfer
         override fun startImport(contacts: List<VCardContact>, targets: List<ContactAccount>): Boolean = false
 
         private suspend fun writeSingleFile(pairs: List<Pair<Contact, RawContact>>, uri: Uri): TransferResult {
-            val out = files.openWrite(uri)
-                ?: return TransferResult.Failure(strings.get(R.string.transfer_error_open_file))
+            val out = openOrNull(uri) ?: return TransferResult.Failure(strings.get(R.string.transfer_error_open_file))
             return try {
                 val count = writeVCard(out, pairs)
                 TransferResult.Success(count, 1)
             } catch (e: IOException) {
                 files.delete(uri)
                 TransferResult.Failure(strings.get(R.string.transfer_error_write))
+            } catch (e: SecurityException) {
+                files.delete(uri)
+                TransferResult.Failure(strings.get(R.string.transfer_error_write))
             }
         }
 
         private suspend fun writeVCardTo(uri: Uri, pairs: List<Pair<Contact, RawContact>>): Int {
-            val out = files.openWrite(uri) ?: throw IOException("Could not open $uri for writing")
+            val out = openOrNull(uri) ?: throw IOException("Could not open $uri for writing")
             return writeVCard(out, pairs)
+        }
+
+        /**
+         * `ContentResolver.openOutputStream` can throw `IOException` or `SecurityException`
+         * (a SAF grant revoked mid-session) instead of just returning null — never let either
+         * crash the caller; both collapse to "couldn't open" here, same as a null return.
+         */
+        private fun openOrNull(uri: Uri): OutputStream? = try {
+            files.openWrite(uri)
+        } catch (e: IOException) {
+            null
+        } catch (e: SecurityException) {
+            null
         }
 
         private suspend fun writeVCard(out: OutputStream, pairs: List<Pair<Contact, RawContact>>): Int {
