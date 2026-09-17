@@ -1,17 +1,25 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
+import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.data.ops.AccountBulkOps
 import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.ParseOutcome
+import com.ryccoatika.contactmanager.data.transfer.TransferResult
 import com.ryccoatika.contactmanager.domain.analytics.Analytics
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.PendingAccountOp
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
 import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,6 +41,13 @@ data class AccountsUiState(
     val hiddenAccountKeys: Set<String> = emptySet(),
 )
 
+/** Parsed import waiting for the user's confirm. */
+data class PendingImport(
+    val targets: List<ContactAccount>,
+    val contacts: List<VCardContact>,
+    val skippedCards: Int,
+)
+
 @HiltViewModel
 class AccountsViewModel
     @Inject
@@ -43,6 +58,8 @@ class AccountsViewModel
         private val simSubscriptionsSource: SimSubscriptionsSource,
         private val appPrefs: AppPrefs,
         private val analytics: Analytics,
+        private val transfer: ContactTransfer,
+        private val strings: StringProvider,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(AccountsUiState())
         val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
@@ -52,6 +69,9 @@ class AccountsViewModel
 
         private val _pendingOp = MutableStateFlow<PendingAccountOp?>(null)
         val pendingOp: StateFlow<PendingAccountOp?> = _pendingOp.asStateFlow()
+
+        private val _pendingImport = MutableStateFlow<PendingImport?>(null)
+        val pendingImport: StateFlow<PendingImport?> = _pendingImport.asStateFlow()
 
         init {
             viewModelScope.launch {
@@ -114,5 +134,106 @@ class AccountsViewModel
         /** Moves/copies every raw contact of [source] into [target] as a background batch. */
         fun executeAccountOp(mode: AccountOpMode, source: ContactAccount, target: ContactAccount) {
             viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(bulkOps.execute(mode, source, target))) }
+        }
+
+        /** Exports [accounts] into a single combined vCard file at [uri]. */
+        fun exportToFile(accounts: List<ContactAccount>, uri: Uri) {
+            viewModelScope.launch {
+                handleExportResult(transfer.exportAccounts(accounts, uri), accounts, perAccountFiles = false)
+            }
+        }
+
+        /** Exports [accounts] as one vCard file per account inside the SAF tree at [treeUri]. */
+        fun exportToFolder(accounts: List<ContactAccount>, treeUri: Uri) {
+            viewModelScope.launch {
+                handleExportResult(transfer.exportAccountsToFolder(accounts, treeUri), accounts, perAccountFiles = true)
+            }
+        }
+
+        private suspend fun handleExportResult(
+            result: TransferResult,
+            accounts: List<ContactAccount>,
+            perAccountFiles: Boolean,
+        ) {
+            when (result) {
+                is TransferResult.Success -> {
+                    analytics.logEvent(
+                        AnalyticsEvent.ContactsExport(
+                            count = result.contactCount,
+                            accountCount = accounts.size,
+                            perAccountFiles = perAccountFiles,
+                        ),
+                    )
+                    _events.emit(
+                        UiEvent.ShowSnackbar(
+                            strings.getQuantity(
+                                R.plurals.accounts_msg_exported,
+                                result.contactCount,
+                                result.contactCount,
+                            ),
+                        ),
+                    )
+                }
+
+                is TransferResult.Failure -> {
+                    _events.emit(UiEvent.ShowSnackbar(result.message))
+                }
+            }
+        }
+
+        /** Parses the vCard file at [uri]; parks the result for confirmation or reports the parse error. */
+        fun requestImport(targets: List<ContactAccount>, uri: Uri) {
+            viewModelScope.launch {
+                when (val outcome = transfer.parseFile(uri)) {
+                    is ParseOutcome.Parsed -> {
+                        _pendingImport.value =
+                            PendingImport(targets, outcome.contacts, outcome.skippedCards)
+                    }
+
+                    is ParseOutcome.Failure -> {
+                        _events.emit(UiEvent.ShowSnackbar(outcome.message))
+                    }
+                }
+            }
+        }
+
+        fun dismissPendingImport() {
+            _pendingImport.value = null
+        }
+
+        /** Starts the parked import as a background batch. */
+        fun confirmPendingImport() {
+            val pending = _pendingImport.value ?: return
+            startPendingImport(pending, pending.contacts)
+        }
+
+        /** Starts the parked import for [selected] only — the picker sheet's confirm. */
+        fun confirmPendingImportOf(selected: List<VCardContact>) {
+            if (selected.isEmpty()) return
+            val pending = _pendingImport.value ?: return
+            startPendingImport(pending, selected)
+        }
+
+        private fun startPendingImport(pending: PendingImport, contacts: List<VCardContact>) {
+            _pendingImport.value = null
+            viewModelScope.launch {
+                val started = transfer.startImport(contacts, pending.targets)
+                if (started) {
+                    analytics.logEvent(
+                        AnalyticsEvent.ContactsImport(
+                            count = contacts.size,
+                            accountCount = pending.targets.size,
+                            simTarget = pending.targets.any { it.capability == AccountCapability.SIM },
+                        ),
+                    )
+                }
+                _events.emit(
+                    UiEvent.ShowSnackbar(
+                        strings.get(
+                            if (started) R.string.accounts_msg_import_started else R.string.accounts_msg_busy,
+                        ),
+                    ),
+                )
+            }
         }
     }

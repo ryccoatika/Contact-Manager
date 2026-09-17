@@ -35,4 +35,18 @@
     <string name="icc_action_delete">delete the SIM contact</string>
     <string name="icc_error_rejected">Could not %1$s — the SIM rejected the change (it may be full or read-only).</string>
     <string name="icc_error_no_access">Could not %1$s — this device does not allow SIM storage access.</string>
+
+    <!-- DefaultContactTransfer (data/transfer/DefaultContactTransfer.kt) -->
+    <string name="transfer_error_open_file">Could not open the file.</string>
+    <string name="transfer_error_write">Could not save the file.</string>
+    <string name="transfer_error_no_contacts">No contacts found in this file.</string>
+    <string name="transfer_imported_partial">Imported %1$d of %2$d contacts.</string>
+    <plurals name="transfer_importing_label">
+        <item quantity="one">Importing %1$d contact</item>
+        <item quantity="other">Importing %1$d contacts</item>
+    </plurals>
+    <plurals name="transfer_imported">
+        <item quantity="one">Imported %1$d contact</item>
+        <item quantity="other">Imported %1$d contacts</item>
+    </plurals>
 </resources>

@@ -27,6 +27,12 @@ import com.ryccoatika.contactmanager.data.sim.SimContactSource
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
+import com.ryccoatika.contactmanager.data.transfer.AndroidTransferFiles
+import com.ryccoatika.contactmanager.data.transfer.ContactPhotoSource
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.DefaultContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.ProviderContactPhotoSource
+import com.ryccoatika.contactmanager.data.transfer.TransferFiles
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -71,4 +77,10 @@ abstract class DataModule {
     @Binds abstract fun bindSimStore(impl: SimRepository): SimStore
 
     @Binds abstract fun bindAccountBulkOps(impl: DefaultAccountBulkOps): AccountBulkOps
+
+    @Binds abstract fun bindContactTransfer(impl: DefaultContactTransfer): ContactTransfer
+
+    @Binds abstract fun bindTransferFiles(impl: AndroidTransferFiles): TransferFiles
+
+    @Binds abstract fun bindContactPhotoSource(impl: ProviderContactPhotoSource): ContactPhotoSource
 }

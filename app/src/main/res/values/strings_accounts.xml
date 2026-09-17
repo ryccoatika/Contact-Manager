@@ -21,6 +21,21 @@
     <string name="accounts_copy_anyway">Copy anyway</string>
     <string name="accounts_cancel">Cancel</string>
 
+    <string name="accounts_export_contacts">Export contacts…</string>
+    <string name="accounts_import_contacts">Import contacts…</string>
+    <string name="accounts_transfer_menu">Export or import contacts</string>
+    <string name="accounts_export_pick_title">Choose accounts to export</string>
+    <string name="accounts_import_pick_title">Choose accounts to import into</string>
+    <string name="accounts_select_all">Select all</string>
+    <string name="accounts_export">Export</string>
+    <string name="accounts_import">Import</string>
+    <string name="accounts_export_mode_title">Export as…</string>
+    <string name="accounts_export_mode_one_file">One combined file</string>
+    <string name="accounts_export_mode_per_account">One file per account</string>
+    <string name="accounts_import_sim_warning">SIM only stores a name and one phone number — everything else will be lost there.</string>
+    <string name="accounts_import_choose">Choose contacts…</string>
+    <string name="accounts_import_picker_title">Choose contacts to import</string>
+
     <plurals name="accounts_move_contacts_title">
         <item quantity="one">Move %1$d contact?</item>
         <item quantity="other">Move %1$d contacts?</item>
@@ -32,5 +47,21 @@
     <plurals name="accounts_move_dialog_losses">
         <item quantity="one">%1$d of them will lose: %2$s.</item>
         <item quantity="other">%1$d of them will lose: %2$s.</item>
+    </plurals>
+    <plurals name="accounts_import_confirm_title">
+        <item quantity="one">Import %1$d contact?</item>
+        <item quantity="other">Import %1$d contacts?</item>
+    </plurals>
+    <plurals name="accounts_import_confirm_body">
+        <item quantity="one">%1$d contact will be imported into %2$s.</item>
+        <item quantity="other">%1$d contacts will be imported into %2$s.</item>
+    </plurals>
+    <plurals name="accounts_import_skipped">
+        <item quantity="one">%1$d record couldn\'t be read and will be skipped.</item>
+        <item quantity="other">%1$d records couldn\'t be read and will be skipped.</item>
+    </plurals>
+    <plurals name="accounts_import_selected">
+        <item quantity="one">Import %1$d contact</item>
+        <item quantity="other">Import %1$d contacts</item>
     </plurals>
 </resources>

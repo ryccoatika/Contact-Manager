@@ -28,6 +28,14 @@ data class BatchProgress(
 interface BatchRunner {
     val progress: StateFlow<BatchProgress?>
 
+    /** Runs an arbitrary counted batch; false when another batch is running. */
+    fun run(
+        total: Int,
+        label: String,
+        finishedMessage: String,
+        operation: suspend (onProgress: (Int, Int) -> Unit) -> ContactOpResult,
+    ): Boolean
+
     /** Starts the move; false when another batch is still running (nothing started). */
     fun moveContacts(
         rawContactIds: List<Long>,
@@ -70,7 +78,7 @@ class BatchOperationManager
             targetName: String?,
             label: String,
             finishedMessage: String,
-        ): Boolean = start(rawContactIds.size, label, finishedMessage) { onProgress ->
+        ): Boolean = run(rawContactIds.size, label, finishedMessage) { onProgress ->
             writer.moveRawContacts(rawContactIds, targetType, targetName, onProgress)
         }
 
@@ -80,11 +88,11 @@ class BatchOperationManager
             targetName: String?,
             label: String,
             finishedMessage: String,
-        ): Boolean = start(rawContactIds.size, label, finishedMessage) { onProgress ->
+        ): Boolean = run(rawContactIds.size, label, finishedMessage) { onProgress ->
             writer.copyRawContacts(rawContactIds, targetType, targetName, onProgress)
         }
 
-        private fun start(
+        override fun run(
             total: Int,
             label: String,
             finishedMessage: String,

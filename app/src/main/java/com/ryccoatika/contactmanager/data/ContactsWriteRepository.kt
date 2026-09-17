@@ -55,6 +55,7 @@ data class EditableContact(
     val addresses: List<String> = emptyList(),
     val birthday: String? = null, // "yyyy-MM-dd"
     val anniversary: String? = null,
+    val photo: ByteArray? = null,
 )
 
 interface ContactsWriter {
@@ -126,6 +127,14 @@ class ContactsWriteRepository
                 // Back-references point at op 0, so a create always fits one chunk:
                 // a single contact's ops stay far below MAX_OPS_PER_BATCH.
                 ops += ContactOps.dataInsertOps(contact) { it.withValueBackReference(Data.RAW_CONTACT_ID, 0) }
+                contact.photo?.takeIf { it.isNotEmpty() }?.let { bytes ->
+                    ops += ContentProviderOperation
+                        .newInsert(Data.CONTENT_URI)
+                        .withValueBackReference(Data.RAW_CONTACT_ID, 0)
+                        .withValue(Data.MIMETYPE, Photo.CONTENT_ITEM_TYPE)
+                        .withValue(Photo.PHOTO, bytes)
+                        .build()
+                }
                 ContactOps.applyChunked(context.contentResolver, ops)
             }
         }

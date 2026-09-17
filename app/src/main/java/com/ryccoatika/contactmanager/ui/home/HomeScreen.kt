@@ -2,6 +2,8 @@ package com.ryccoatika.contactmanager.ui.home
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -136,6 +138,9 @@ import com.ryccoatika.contactmanager.ui.theme.TabularNums
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -197,6 +202,11 @@ fun HomeScreen(
     var pendingDeleteContact by remember { mutableStateOf<Contact?>(null) }
     var showMergePicker by remember { mutableStateOf(false) }
     var pendingMergeTarget by remember { mutableStateOf<Pair<Contact, RawContact>?>(null) }
+    // Selection itself doesn't survive process death (lives in the ViewModel, matching move/copy);
+    // a null uri means the user backed out of the picker.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/x-vcard"),
+    ) { uri -> if (uri != null) viewModel.exportSelected(uri) }
 
     LaunchedEffect(pendingFilterAccountKey) {
         if (pendingFilterAccountKey != null) {
@@ -248,6 +258,10 @@ fun HomeScreen(
                     mergeEnabled = state.selectedContactIds.size >= 2,
                     onMove = { selectionPickerMode = AccountOpMode.MOVE },
                     onCopy = { selectionPickerMode = AccountOpMode.COPY },
+                    onExport = {
+                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                        exportLauncher.launch("contacts-$date.vcf")
+                    },
                     onDelete = {
                         // One account: plain confirm. Several: pick which accounts.
                         val breakdown = viewModel.selectionAccountBreakdown()
