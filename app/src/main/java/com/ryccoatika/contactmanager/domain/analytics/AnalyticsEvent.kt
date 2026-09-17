@@ -60,4 +60,22 @@ sealed class AnalyticsEvent(
     ) : AnalyticsEvent(if (skipped) "onboarding_skip" else "onboarding_complete")
 
     data object SimPermissionGrant : AnalyticsEvent("sim_permission_grant")
+
+    data class ContactsExport(
+        val count: Int,
+        val accountCount: Int,
+        val perAccountFiles: Boolean,
+    ) : AnalyticsEvent(
+            "contacts_export",
+            mapOf("count" to count, "account_count" to accountCount, "per_account_files" to perAccountFiles),
+        )
+
+    data class ContactsImport(
+        val count: Int,
+        val accountCount: Int,
+        val simTarget: Boolean,
+    ) : AnalyticsEvent(
+            "contacts_import",
+            mapOf("count" to count, "account_count" to accountCount, "sim_target" to simTarget),
+        )
 }
