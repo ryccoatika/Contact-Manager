@@ -35,4 +35,8 @@
     <string name="icc_action_delete">delete the SIM contact</string>
     <string name="icc_error_rejected">Could not %1$s — the SIM rejected the change (it may be full or read-only).</string>
     <string name="icc_error_no_access">Could not %1$s — this device does not allow SIM storage access.</string>
+
+    <!-- DefaultContactTransfer (data/transfer/DefaultContactTransfer.kt) -->
+    <string name="transfer_error_open_file">Could not open the file for the vCard transfer.</string>
+    <string name="transfer_error_write">Could not write the vCard file.</string>
 </resources>
