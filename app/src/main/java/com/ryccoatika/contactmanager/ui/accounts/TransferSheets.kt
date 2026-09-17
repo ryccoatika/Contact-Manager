@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -39,6 +41,7 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.ui.analytics.TrackScreenView
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
+import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 
 /** Which flow [TransferAccountsSheet] is picking accounts for. */
@@ -59,8 +62,14 @@ internal fun TransferAccountsSheet(
 ) {
     val context = LocalContext.current
     TrackScreenView(if (mode == TransferMode.EXPORT) "export_account_picker" else "import_account_picker")
-    val allKeys = remember(accounts) { accounts.map { it.key }.toSet() }
-    var checkedKeys by remember(accounts) { mutableStateOf(allKeys) }
+    // Export never mutates, so every account is offered; import only ever writes into a valid
+    // target (FULL_CRUD, or a SIM that passed the write probe) — read-only app-managed accounts
+    // (WhatsApp etc.) and non-writable SIMs are filtered out before display/precheck.
+    val visibleAccounts = remember(accounts, mode) {
+        if (mode == TransferMode.IMPORT) accounts.filter(::isMoveTarget) else accounts
+    }
+    val allKeys = remember(visibleAccounts) { visibleAccounts.map { it.key }.toSet() }
+    var checkedKeys by remember(visibleAccounts) { mutableStateOf(allKeys) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -97,30 +106,36 @@ internal fun TransferAccountsSheet(
                 )
             }
         }
-        accounts.forEach { account ->
-            val checked = account.key in checkedKeys
-            ListItem(
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .toggleable(
-                        value = checked,
-                        role = Role.Checkbox,
-                        onValueChange = {
-                            checkedKeys = if (it) checkedKeys + account.key else checkedKeys - account.key
-                        },
-                    ),
-                headlineContent = {
-                    Text(account.displayLabel ?: AccountVisuals.label(context, account.type, account.name))
-                },
-                supportingContent = {
-                    Text(account.name ?: stringResource(R.string.accounts_on_this_device))
-                },
-                leadingContent = { AccountDot(account.type, account.name, size = 12.dp) },
-                trailingContent = { Checkbox(checked = checked, onCheckedChange = null) },
-            )
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            visibleAccounts.forEach { account ->
+                val checked = account.key in checkedKeys
+                ListItem(
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .toggleable(
+                            value = checked,
+                            role = Role.Checkbox,
+                            onValueChange = {
+                                checkedKeys = if (it) checkedKeys + account.key else checkedKeys - account.key
+                            },
+                        ),
+                    headlineContent = {
+                        Text(account.displayLabel ?: AccountVisuals.label(context, account.type, account.name))
+                    },
+                    supportingContent = {
+                        Text(account.name ?: stringResource(R.string.accounts_on_this_device))
+                    },
+                    leadingContent = { AccountDot(account.type, account.name, size = 12.dp) },
+                    trailingContent = { Checkbox(checked = checked, onCheckedChange = null) },
+                )
+            }
         }
         Button(
-            onClick = { onConfirm(accounts.filter { it.key in checkedKeys }) },
+            onClick = { onConfirm(visibleAccounts.filter { it.key in checkedKeys }) },
             enabled = checkedKeys.isNotEmpty(),
             modifier = Modifier
                 .fillMaxWidth()

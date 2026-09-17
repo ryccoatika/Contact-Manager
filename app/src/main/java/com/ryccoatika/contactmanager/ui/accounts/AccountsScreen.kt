@@ -403,6 +403,7 @@ private fun AccountRow(
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
+    val notImportTarget = !isMoveTarget(account)
     val label = account.displayLabel ?: AccountVisuals.label(context, account.type, account.name)
     // Prefer the SIM number as the subtitle; hide opaque native SIM account names.
     val subtitle = if (hidden) {
@@ -488,7 +489,19 @@ private fun AccountRow(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.accounts_import_contacts)) },
+                        enabled = !notImportTarget,
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.accounts_import_contacts))
+                                if (readOnly) {
+                                    Text(
+                                        stringResource(R.string.accounts_managed_by_app),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
                         onClick = {
                             menuOpen = false
                             onImport()
