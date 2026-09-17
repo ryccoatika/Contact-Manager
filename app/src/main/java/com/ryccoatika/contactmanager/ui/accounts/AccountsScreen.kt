@@ -105,6 +105,10 @@ fun AccountsScreen(
     // Menu is transient chrome — fine to lose across process death, unlike the SAF hand-offs below.
     var transferMenuOpen by remember { mutableStateOf(false) }
     var sheetMode by rememberSaveable(stateSaver = TransferModeSaver) { mutableStateOf<TransferMode?>(null) }
+    // Transient chrome, same rationale as transferMenuOpen above — a stale flag is reset
+    // wherever ImportConfirmDialog itself is dismissed/confirmed so it can't leak into the
+    // next parsed import.
+    var showImportPicker by remember { mutableStateOf(false) }
     // ContactAccount isn't Parcelable/Serializable, so SAF round-trips (which can outlive the
     // process on low memory) persist lightweight account keys instead and re-resolve against
     // state.accounts once it has (re)loaded — see the LaunchedEffects below. Resolution is never
@@ -341,11 +345,29 @@ fun AccountsScreen(
                 viewModel.dismissPendingImport()
                 snackbarHostState.showSnackbar(importNoneMessage)
             }
+        } else if (showImportPicker) {
+            ImportContactsPickerSheet(
+                pending = pending,
+                onConfirm = {
+                    showImportPicker = false
+                    viewModel.confirmPendingImportOf(it)
+                },
+                // Falls back to the confirm dialog rather than dismissing the whole import —
+                // pending is kept, only the picker step is backed out of.
+                onDismiss = { showImportPicker = false },
+            )
         } else {
             ImportConfirmDialog(
                 pending = pending,
-                onConfirm = viewModel::confirmPendingImport,
-                onDismiss = viewModel::dismissPendingImport,
+                onConfirm = {
+                    showImportPicker = false
+                    viewModel.confirmPendingImport()
+                },
+                onChoose = { showImportPicker = true },
+                onDismiss = {
+                    showImportPicker = false
+                    viewModel.dismissPendingImport()
+                },
             )
         }
     }

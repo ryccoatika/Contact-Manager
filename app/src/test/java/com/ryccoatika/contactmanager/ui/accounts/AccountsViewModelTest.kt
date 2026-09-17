@@ -436,6 +436,54 @@ class AccountsViewModelTest {
             job.cancel()
         }
 
+    @Test fun `confirmPendingImportOf imports only the chosen contacts and logs their count`() =
+        runTest(dispatcher) {
+            val parsedContacts = listOf(
+                VCardContact(displayName = "Andi"),
+                VCardContact(displayName = "Budi"),
+                VCardContact(displayName = "Citra"),
+            )
+            val transfer = FakeContactTransfer().apply {
+                parseFileResult = ParseOutcome.Parsed(contacts = parsedContacts, skippedCards = 0)
+                startImportResult = true
+            }
+            val analytics = FakeAnalytics()
+            val vm = vm(transfer = transfer, analytics = analytics)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.requestImport(listOf(googleAccount), FakeUri("content://import"))
+            dispatcher.scheduler.advanceUntilIdle()
+            val chosen = listOf(parsedContacts[0], parsedContacts[2])
+            vm.confirmPendingImportOf(chosen)
+
+            assertNull(vm.pendingImport.value)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(listOf(chosen to listOf(googleAccount)), transfer.startImportCalls)
+            assertEquals(
+                AnalyticsEvent.ContactsImport(count = 2, accountCount = 1, simTarget = false),
+                analytics.events.single(),
+            )
+        }
+
+    @Test fun `confirmPendingImportOf with empty selection keeps pending and imports nothing`() =
+        runTest(dispatcher) {
+            val parsedContacts = listOf(VCardContact(displayName = "Andi"))
+            val transfer = FakeContactTransfer().apply {
+                parseFileResult = ParseOutcome.Parsed(contacts = parsedContacts, skippedCards = 0)
+            }
+            val vm = vm(transfer = transfer)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.requestImport(listOf(googleAccount), FakeUri("content://import"))
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.confirmPendingImportOf(emptyList())
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(parsedContacts, vm.pendingImport.value?.contacts)
+            assertTrue(transfer.startImportCalls.isEmpty())
+        }
+
     @Test fun `confirmPendingImport emits busy snackbar when batch already running`() = runTest(dispatcher) {
         val parsedContacts = listOf(VCardContact(displayName = "Andi"))
         val transfer = FakeContactTransfer().apply {

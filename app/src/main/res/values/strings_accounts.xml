@@ -33,6 +33,8 @@
     <string name="accounts_export_mode_one_file">One combined file</string>
     <string name="accounts_export_mode_per_account">One file per account</string>
     <string name="accounts_import_sim_warning">SIM only stores a name and one phone number — everything else will be lost there.</string>
+    <string name="accounts_import_choose">Choose contacts…</string>
+    <string name="accounts_import_picker_title">Choose contacts to import</string>
 
     <plurals name="accounts_move_contacts_title">
         <item quantity="one">Move %1$d contact?</item>
@@ -57,5 +59,9 @@
     <plurals name="accounts_import_skipped">
         <item quantity="one">%1$d record couldn\'t be read and will be skipped.</item>
         <item quantity="other">%1$d records couldn\'t be read and will be skipped.</item>
+    </plurals>
+    <plurals name="accounts_import_selected">
+        <item quantity="one">Import %1$d contact</item>
+        <item quantity="other">Import %1$d contacts</item>
     </plurals>
 </resources>
