@@ -39,4 +39,14 @@
     <!-- DefaultContactTransfer (data/transfer/DefaultContactTransfer.kt) -->
     <string name="transfer_error_open_file">Could not open the file for the vCard transfer.</string>
     <string name="transfer_error_write">Could not write the vCard file.</string>
+    <string name="transfer_error_no_contacts">No contacts found in this file.</string>
+    <string name="transfer_imported_partial">Imported %1$d of %2$d contacts.</string>
+    <plurals name="transfer_importing_label">
+        <item quantity="one">Importing %1$d contact…</item>
+        <item quantity="other">Importing %1$d contacts…</item>
+    </plurals>
+    <plurals name="transfer_imported">
+        <item quantity="one">Imported %1$d contact</item>
+        <item quantity="other">Imported %1$d contacts</item>
+    </plurals>
 </resources>

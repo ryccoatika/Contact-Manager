@@ -3,8 +3,10 @@ package com.ryccoatika.contactmanager.data.transfer
 import android.net.Uri
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.BatchRunner
+import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.ContactsWriter
+import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.StringProvider
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.model.Contact
@@ -14,15 +16,19 @@ import com.ryccoatika.contactmanager.domain.vcard.VCardContact
 import com.ryccoatika.contactmanager.domain.vcard.VCardParser
 import com.ryccoatika.contactmanager.domain.vcard.VCardWriter
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 /**
- * Export half implemented here (Task 5); [parseFile] is a trivial read-and-parse and
- * [startImport] always reports "busy" until Task 6 wires the batched import.
+ * vCard export/import: reads/writes files via [TransferFiles], parses/serializes via
+ * [VCardParser]/[VCardWriter], and batches [startImport] through [batchRunner] so it
+ * survives config changes and reports progress like move/copy.
  */
 @Singleton
 class DefaultContactTransfer
@@ -94,15 +100,47 @@ class DefaultContactTransfer
             }
 
         override suspend fun parseFile(uri: Uri): ParseOutcome = withContext(ioDispatcher) {
-            val input = files.openRead(uri)
+            val input = openReadOrNull(uri)
                 ?: return@withContext ParseOutcome.Failure(strings.get(R.string.transfer_error_open_file))
-            val text = input.use { it.readBytes().toString(Charsets.UTF_8) }
+            val text = try {
+                input.use { it.readBytes().toString(Charsets.UTF_8) }
+            } catch (e: IOException) {
+                return@withContext ParseOutcome.Failure(strings.get(R.string.transfer_error_open_file))
+            } catch (e: SecurityException) {
+                return@withContext ParseOutcome.Failure(strings.get(R.string.transfer_error_open_file))
+            }
             val result = VCardParser.parse(text)
-            ParseOutcome.Parsed(result.contacts, result.skippedCards)
+            if (result.contacts.isEmpty()) {
+                ParseOutcome.Failure(strings.get(R.string.transfer_error_no_contacts))
+            } else {
+                ParseOutcome.Parsed(result.contacts, result.skippedCards)
+            }
         }
 
-        // Real batched import lands in Task 6, wired through [batchRunner] and [writer].
-        override fun startImport(contacts: List<VCardContact>, targets: List<ContactAccount>): Boolean = false
+        override fun startImport(contacts: List<VCardContact>, targets: List<ContactAccount>): Boolean {
+            val total = contacts.size * targets.size
+            val label = strings.getQuantity(R.plurals.transfer_importing_label, total, total)
+            val finishedMessage = strings.getQuantity(R.plurals.transfer_imported, total, total)
+            return batchRunner.run(total, label, finishedMessage) { onProgress ->
+                var done = 0
+                var failed = 0
+                contacts.forEach { vc ->
+                    val editable = vc.toEditableContact()
+                    targets.forEach { target ->
+                        coroutineContext.ensureActive()
+                        val result = writer.createContact(target.type, target.name, editable)
+                        if (result is ContactOpResult.Failure) failed++
+                        done++
+                        onProgress(done, total)
+                    }
+                }
+                if (failed == 0) {
+                    ContactOpResult.Success
+                } else {
+                    ContactOpResult.Failure(strings.get(R.string.transfer_imported_partial, total - failed, total))
+                }
+            }
+        }
 
         private suspend fun writeSingleFile(pairs: List<Pair<Contact, RawContact>>, uri: Uri): TransferResult {
             val out = openOrNull(uri) ?: return TransferResult.Failure(strings.get(R.string.transfer_error_open_file))
@@ -135,6 +173,30 @@ class DefaultContactTransfer
         } catch (e: SecurityException) {
             null
         }
+
+        /** Same "never let open() crash the caller" treatment as [openOrNull], for reads. */
+        private fun openReadOrNull(uri: Uri): InputStream? = try {
+            files.openRead(uri)
+        } catch (e: IOException) {
+            null
+        } catch (e: SecurityException) {
+            null
+        }
+
+        private fun VCardContact.toEditableContact() = EditableContact(
+            displayName = displayName,
+            phones = phones,
+            emails = emails,
+            organization = organization,
+            note = note,
+            jobTitle = jobTitle,
+            nickname = nickname,
+            websites = websites,
+            addresses = addresses,
+            birthday = birthday,
+            anniversary = anniversary,
+            photo = photo,
+        )
 
         private suspend fun writeVCard(out: OutputStream, pairs: List<Pair<Contact, RawContact>>): Int {
             val vcards = pairs.map { (contact, raw) -> toVCardContact(contact.displayName, raw) }

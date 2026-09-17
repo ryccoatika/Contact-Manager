@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.data.transfer
 
 import android.net.FakeUri
 import com.ryccoatika.contactmanager.R
+import com.ryccoatika.contactmanager.data.BatchOperationManager
 import com.ryccoatika.contactmanager.data.BatchProgress
 import com.ryccoatika.contactmanager.data.BatchRunner
 import com.ryccoatika.contactmanager.data.ContactOpResult
@@ -14,15 +15,20 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
 import com.ryccoatika.contactmanager.domain.vcard.VCardParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -137,6 +143,44 @@ class DefaultContactTransferTest {
         override suspend fun mergeContacts(target: RawContact, sources: List<RawContact>) = ContactOpResult.Success
     }
 
+    /** Records [createContact] calls; [failFor] lets selected calls return a Failure. */
+    private class FakeContactsWriter : ContactsWriter {
+        val created = mutableListOf<Triple<String?, String?, EditableContact>>()
+        var failFor: (String?, String?, EditableContact) -> Boolean = { _, _, _ -> false }
+
+        override suspend fun createContact(accountType: String?, accountName: String?, contact: EditableContact): ContactOpResult {
+            created += Triple(accountType, accountName, contact)
+            return if (failFor(accountType, accountName, contact)) ContactOpResult.Failure("x") else ContactOpResult.Success
+        }
+
+        override suspend fun updateRawContact(rawContactId: Long, contact: EditableContact) = ContactOpResult.Success
+
+        override suspend fun deleteRawContacts(rawContactIds: List<Long>) = ContactOpResult.Success
+
+        override suspend fun copyRawContact(rawContactId: Long, targetType: String?, targetName: String?) =
+            ContactOpResult.Success
+
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ) = ContactOpResult.Success
+
+        override suspend fun moveRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ) = ContactOpResult.Success
+
+        override suspend fun linkContacts(rawContactIds: List<Long>) = ContactOpResult.Success
+
+        override suspend fun keepSeparate(rawContactIds: List<Long>) = ContactOpResult.Success
+
+        override suspend fun mergeContacts(target: RawContact, sources: List<RawContact>) = ContactOpResult.Success
+    }
+
     private class NoopBatchRunner : BatchRunner {
         override val progress: StateFlow<BatchProgress?> = MutableStateFlow(null)
 
@@ -178,10 +222,12 @@ class DefaultContactTransferTest {
         items: List<Contact> = contacts,
         files: FakeTransferFiles = FakeTransferFiles(),
         photos: ContactPhotoSource = FakePhotoSource(),
+        writer: ContactsWriter = NoopContactsWriter(),
+        batchRunner: BatchRunner = NoopBatchRunner(),
     ) = DefaultContactTransfer(
         contactsSource = fakeContactsSource(items),
-        writer = NoopContactsWriter(),
-        batchRunner = NoopBatchRunner(),
+        writer = writer,
+        batchRunner = batchRunner,
         files = files,
         photos = photos,
         strings = strings,
@@ -287,5 +333,140 @@ class DefaultContactTransferTest {
         val result = transfer(files = files).exportAccounts(listOf(googleAccount), uri)
 
         assertEquals(TransferResult.Failure(strings.get(R.string.transfer_error_open_file)), result)
+    }
+
+    @Test fun `parseFile returns contacts and skipped count`() = runTest(dispatcher) {
+        val files = FakeTransferFiles()
+        val uri = FakeUri("file:///in.vcf")
+        files.reads[uri.toString()] = """
+            BEGIN:VCARD
+            FN:Alice Wonderland
+            END:VCARD
+            BEGIN:VCARD
+            FN:Bob Marley
+            END:VCARD
+            BEGIN:VCARD
+            FN:Broken
+        """.trimIndent()
+
+        val result = transfer(files = files).parseFile(uri)
+
+        assertTrue(result is ParseOutcome.Parsed)
+        val parsed = result as ParseOutcome.Parsed
+        assertEquals(listOf("Alice Wonderland", "Bob Marley"), parsed.contacts.map { it.displayName })
+        assertEquals(1, parsed.skippedCards)
+    }
+
+    @Test fun `parseFile returns Failure when stream is null`() = runTest(dispatcher) {
+        val files = FakeTransferFiles()
+        val uri = FakeUri("file:///missing.vcf")
+
+        val result = transfer(files = files).parseFile(uri)
+
+        assertEquals(ParseOutcome.Failure(strings.get(R.string.transfer_error_open_file)), result)
+    }
+
+    @Test fun `parseFile returns Failure when zero cards parse`() = runTest(dispatcher) {
+        val files = FakeTransferFiles()
+        val uri = FakeUri("file:///garbage.vcf")
+        files.reads[uri.toString()] = "this is not a vcard\njust some random text"
+
+        val result = transfer(files = files).parseFile(uri)
+
+        assertEquals(ParseOutcome.Failure(strings.get(R.string.transfer_error_no_contacts)), result)
+    }
+
+    @Test fun `startImport creates every contact in every target account`() = runTest(dispatcher) {
+        val writer = FakeContactsWriter()
+        val batchRunner = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val vc1 = VCardContact(displayName = "Alice Wonderland")
+        val vc2 = VCardContact(displayName = "Bob Marley")
+        val target1 = ContactAccount("acc1", "com.google", AccountCapability.FULL_CRUD)
+        val target2 = ContactAccount("acc2", "com.whatsapp", AccountCapability.READ_ONLY)
+
+        val started = transfer(writer = writer, batchRunner = batchRunner)
+            .startImport(listOf(vc1, vc2), listOf(target1, target2))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(started)
+        assertEquals(4, writer.created.size)
+        assertEquals(
+            listOf(
+                "com.google" to "acc1",
+                "com.whatsapp" to "acc2",
+                "com.google" to "acc1",
+                "com.whatsapp" to "acc2",
+            ),
+            writer.created.map { it.first to it.second },
+        )
+    }
+
+    @Test fun `startImport maps vcard fields into EditableContact including photo`() = runTest(dispatcher) {
+        val writer = FakeContactsWriter()
+        val batchRunner = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val photoBytes = byteArrayOf(9, 8, 7)
+        val vc = VCardContact(
+            displayName = "Carol Lee",
+            givenName = "Carol",
+            familyName = "Lee",
+            phones = listOf("+1000" to "Mobile"),
+            emails = listOf("carol@x.com" to "Home"),
+            organization = "Acme",
+            jobTitle = "Engineer",
+            nickname = "Caz",
+            websites = listOf("http://acme.example"),
+            addresses = listOf("123 Main St"),
+            birthday = "1990-01-01",
+            anniversary = "2010-01-01",
+            note = "vip",
+            photo = photoBytes,
+        )
+        val target = ContactAccount("acc1", "com.google", AccountCapability.FULL_CRUD)
+
+        transfer(writer = writer, batchRunner = batchRunner).startImport(listOf(vc), listOf(target))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val (accountType, accountName, contact) = writer.created.single()
+        assertEquals("com.google", accountType)
+        assertEquals("acc1", accountName)
+        assertEquals(vc.displayName, contact.displayName)
+        assertEquals(vc.phones, contact.phones)
+        assertEquals(vc.emails, contact.emails)
+        assertEquals(vc.organization, contact.organization)
+        assertEquals(vc.note, contact.note)
+        assertEquals(vc.jobTitle, contact.jobTitle)
+        assertEquals(vc.nickname, contact.nickname)
+        assertEquals(vc.websites, contact.websites)
+        assertEquals(vc.addresses, contact.addresses)
+        assertEquals(vc.birthday, contact.birthday)
+        assertEquals(vc.anniversary, contact.anniversary)
+        assertSame(photoBytes, contact.photo)
+    }
+
+    @Test fun `startImport counts failures and finishes with imported-x-of-y message`() = runTest(dispatcher) {
+        val writer = FakeContactsWriter().apply { failFor = { _, _, contact -> contact.displayName == "Bob Marley" } }
+        val batchRunner = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val vc1 = VCardContact(displayName = "Alice Wonderland")
+        val vc2 = VCardContact(displayName = "Bob Marley")
+        val target = ContactAccount("acc1", "com.google", AccountCapability.FULL_CRUD)
+
+        transfer(writer = writer, batchRunner = batchRunner).startImport(listOf(vc1, vc2), listOf(target))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val progress = batchRunner.progress.value
+        assertEquals(true, progress?.finished)
+        assertEquals(strings.get(R.string.transfer_imported_partial, 1, 2), progress?.error)
+    }
+
+    @Test fun `startImport returns false while another batch runs`() = runTest(dispatcher) {
+        val writer = FakeContactsWriter()
+        val batchRunner = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val vc = VCardContact(displayName = "Alice Wonderland")
+        val target = ContactAccount("acc1", "com.google", AccountCapability.FULL_CRUD)
+        val t = transfer(writer = writer, batchRunner = batchRunner)
+
+        assertTrue(t.startImport(listOf(vc), listOf(target)))
+        assertFalse(t.startImport(listOf(vc), listOf(target)))
+        dispatcher.scheduler.advanceUntilIdle()
     }
 }
