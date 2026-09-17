@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -153,5 +154,27 @@ class BatchOperationManagerTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(1L, 2L), writer.moved)
         assertEquals("First", manager.progress.value?.label)
+    }
+
+    @Test fun `run drives progress and finishes with the given message`() = runTest(dispatcher) {
+        val manager = BatchOperationManager(FakeWriter(), CoroutineScope(SupervisorJob() + dispatcher))
+        val started = manager.run(total = 2, label = "L", finishedMessage = "done!") { onProgress ->
+            onProgress(1, 2)
+            onProgress(2, 2)
+            ContactOpResult.Success
+        }
+        assertTrue(started)
+        dispatcher.scheduler.advanceUntilIdle()
+        val p = manager.progress.value!!
+        assertTrue(p.finished)
+        assertEquals("done!", p.finishedMessage)
+        assertNull(p.error)
+    }
+
+    @Test fun `run refuses while another batch is active`() = runTest(dispatcher) {
+        val manager = BatchOperationManager(FakeWriter(), CoroutineScope(SupervisorJob() + dispatcher))
+        manager.run(1, "L", "m") { kotlinx.coroutines.awaitCancellation() }
+        assertFalse(manager.run(1, "L2", "m2") { ContactOpResult.Success })
+        manager.cancel()
     }
 }
