@@ -13,4 +13,5 @@
         <item quantity="other">Exported %1$d contacts</item>
     </plurals>
     <string name="accounts_msg_import_started">Import started — progress is shown on the contacts screen.</string>
+    <string name="accounts_msg_import_none">The file had no contacts to import.</string>
 </resources>

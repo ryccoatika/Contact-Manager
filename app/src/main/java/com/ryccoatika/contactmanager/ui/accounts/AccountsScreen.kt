@@ -1,6 +1,9 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.content.Context
 import android.content.res.Configuration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +79,9 @@ import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,8 +95,49 @@ fun AccountsScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingOp by viewModel.pendingOp.collectAsStateWithLifecycle()
+    val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var opRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
+    var transferMenuOpen by remember { mutableStateOf(false) }
+    var sheetMode by remember { mutableStateOf<TransferMode?>(null) }
+    var exportRequest by remember { mutableStateOf<List<ContactAccount>?>(null) }
+    var importTargets by remember { mutableStateOf<List<ContactAccount>?>(null) }
+    val importNoneMessage = stringResource(R.string.accounts_msg_import_none)
+
+    val exportFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/x-vcard"),
+    ) { uri ->
+        val accounts = exportRequest
+        exportRequest = null
+        if (uri != null && accounts != null) viewModel.exportToFile(accounts, uri)
+    }
+    val exportFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { treeUri ->
+        val accounts = exportRequest
+        exportRequest = null
+        if (treeUri != null && accounts != null) viewModel.exportToFolder(accounts, treeUri)
+    }
+    val importFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        val targets = importTargets
+        importTargets = null
+        if (uri != null && targets != null) viewModel.requestImport(targets, uri)
+    }
+
+    fun startExport(accounts: List<ContactAccount>) {
+        exportRequest = accounts
+        if (accounts.size == 1) {
+            exportFileLauncher.launch(suggestedExportFileName(context, accounts))
+        }
+        // Otherwise exportRequest?.let { … } below shows ExportModeDialog to pick one-file/per-account.
+    }
+
+    fun startImport(targets: List<ContactAccount>) {
+        importTargets = targets
+        importFileLauncher.launch(IMPORT_MIME_TYPES)
+    }
 
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -108,6 +155,35 @@ fun AccountsScreen(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.accounts_back),
                             )
+                        }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { transferMenuOpen = true }) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.accounts_transfer_menu),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = transferMenuOpen,
+                                onDismissRequest = { transferMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.accounts_export_contacts)) },
+                                    onClick = {
+                                        transferMenuOpen = false
+                                        sheetMode = TransferMode.EXPORT
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.accounts_import_contacts)) },
+                                    onClick = {
+                                        transferMenuOpen = false
+                                        sheetMode = TransferMode.IMPORT
+                                    },
+                                )
+                            }
                         }
                     },
                 )
@@ -147,6 +223,8 @@ fun AccountsScreen(
                             onClick = { onAccountClick(account.key) },
                             onMoveAll = { opRequest = AccountOpMode.MOVE to account },
                             onCopyAll = { opRequest = AccountOpMode.COPY to account },
+                            onExport = { startExport(listOf(account)) },
+                            onImport = { startImport(listOf(account)) },
                             onToggleHidden = { hidden -> viewModel.setAccountHidden(account, hidden) },
                         )
                     }
@@ -175,6 +253,65 @@ fun AccountsScreen(
             onDismiss = viewModel::dismissPendingOp,
         )
     }
+
+    sheetMode?.let { mode ->
+        TransferAccountsSheet(
+            mode = mode,
+            accounts = state.accounts,
+            onConfirm = { selected ->
+                sheetMode = null
+                if (mode == TransferMode.EXPORT) startExport(selected) else startImport(selected)
+            },
+            onDismiss = { sheetMode = null },
+        )
+    }
+
+    exportRequest?.let { accounts ->
+        if (accounts.size > 1) {
+            ExportModeDialog(
+                onOneFile = { exportFileLauncher.launch(suggestedExportFileName(context, accounts)) },
+                onPerAccount = { exportFolderLauncher.launch(null) },
+                onDismiss = { exportRequest = null },
+            )
+        }
+    }
+
+    pendingImport?.let { pending ->
+        if (pending.contacts.isEmpty()) {
+            LaunchedEffect(pending) {
+                viewModel.dismissPendingImport()
+                snackbarHostState.showSnackbar(importNoneMessage)
+            }
+        } else {
+            ImportConfirmDialog(
+                pending = pending,
+                onConfirm = viewModel::confirmPendingImport,
+                onDismiss = viewModel::dismissPendingImport,
+            )
+        }
+    }
+}
+
+// MIME types offered when picking a vCard file to import; the wildcard entry covers OEM pickers
+// that mislabel .vcf files with a generic MIME type.
+private val IMPORT_MIME_TYPES = arrayOf("text/x-vcard", "text/vcard", "text/directory", "*/*")
+
+private fun sanitizedFileStem(label: String): String =
+    label
+        .trim()
+        .replace(Regex("[^A-Za-z0-9]+"), "-")
+        .trim('-')
+        .ifBlank { "account" }
+
+private fun suggestedExportFileName(context: Context, accounts: List<ContactAccount>): String {
+    val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    return if (accounts.size == 1) {
+        val account = accounts.first()
+        val label = account.displayLabel ?: AccountVisuals.label(context, account.type, account.name)
+        "${sanitizedFileStem(label)}-$date.vcf"
+    } else {
+        "contacts-$date.vcf"
+    }
 }
 
 @Composable
@@ -184,6 +321,8 @@ private fun AccountRow(
     onClick: () -> Unit,
     onMoveAll: () -> Unit,
     onCopyAll: () -> Unit = {},
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
     onToggleHidden: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -264,6 +403,20 @@ private fun AccountRow(
                         onClick = {
                             menuOpen = false
                             onCopyAll()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.accounts_export_contacts)) },
+                        onClick = {
+                            menuOpen = false
+                            onExport()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.accounts_import_contacts)) },
+                        onClick = {
+                            menuOpen = false
+                            onImport()
                         },
                     )
                     DropdownMenuItem(
