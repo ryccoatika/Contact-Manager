@@ -49,7 +49,7 @@ fun ContactsTwoPane() {
                     }
                 },
                 onAddClick = { detailNav.navigate(Routes.EDITOR_NEW) { launchSingleTop = true } },
-                onAccountsClick = {},
+                onSettingsClick = {},
                 onDuplicatesClick = {},
                 embedded = true,
             )
@@ -62,8 +62,14 @@ fun ContactsTwoPane() {
                     Routes.DETAIL,
                     arguments = listOf(
                         navArgument("contactId") { type = NavType.LongType },
-                        navArgument("name") { type = NavType.StringType; defaultValue = "" },
-                        navArgument("photo") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("name") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("photo") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
                     ),
                 ) {
                     DetailScreen(
@@ -99,7 +105,8 @@ fun ContactsTwoPane() {
 )
 @Composable
 private fun EmptyDetailPreview() {
-    com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme { EmptyDetail() }
+    com.ryccoatika.contactmanager.ui.theme
+        .ContactManagerTheme { EmptyDetail() }
 }
 
 /** Friendly placeholder shown in the detail pane before a contact is picked. */

@@ -1,5 +1,7 @@
 package com.ryccoatika.contactmanager.domain.model
 
+import com.ryccoatika.contactmanager.domain.FieldLoss
+
 data class LabeledValue(
     val dataId: Long,
     val value: String,
@@ -14,7 +16,7 @@ data class RawContact(
     val familyName: String? = null,
     val phones: List<LabeledValue> = emptyList(),
     val emails: List<LabeledValue> = emptyList(),
-    val organization: String? = null,   // company
+    val organization: String? = null, // company
     val jobTitle: String? = null,
     val nickname: String? = null,
     val websites: List<LabeledValue> = emptyList(),
@@ -35,6 +37,9 @@ data class Contact(
 
 enum class AccountCapability { FULL_CRUD, READ_ONLY, SIM }
 
+/** User's app theme choice; SYSTEM follows the device dark-mode setting. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 data class ContactAccount(
     val name: String?,
     val type: String?,
@@ -52,10 +57,10 @@ data class ContactAccount(
 
 /** One entry on the SIM card (EF_ADN record). */
 data class SimContact(
-    val indexOnIcc: Int?,        // null when the icc provider does not expose an index
+    val indexOnIcc: Int?, // null when the icc provider does not expose an index
     val name: String,
     val number: String,
-    val subscriptionId: Int?,    // null on single-SIM/legacy path
+    val subscriptionId: Int?, // null on single-SIM/legacy path
 )
 
 /** Probe result for one SIM: what the icc provider actually allows. */
@@ -63,4 +68,15 @@ data class SimCapabilities(
     val canRead: Boolean,
     val canWrite: Boolean,
     val maxNameLength: Int = 14,
+)
+
+/** What a bulk account operation does with the source contacts. */
+enum class AccountOpMode { MOVE, COPY }
+
+/** Bulk account op awaiting confirmation; [losses] lists SIM down-conversion casualties. */
+data class PendingAccountOp(
+    val mode: AccountOpMode,
+    val source: ContactAccount,
+    val target: ContactAccount,
+    val losses: List<FieldLoss>,
 )

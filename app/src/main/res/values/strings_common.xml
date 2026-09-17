@@ -27,4 +27,11 @@
     <string name="account_telegram">Telegram</string>
     <string name="account_sim">SIM</string>
     <string name="account_sim_numbered">SIM %1$d</string>
+    <string name="update_downloaded">An update has just been downloaded.</string>
+    <string name="update_restart">Restart</string>
+
+    <!-- Crash screen -->
+    <string name="crash_title">Something went wrong</string>
+    <string name="crash_body">We\'re sorry this happened. The error was reported automatically and we\'ll work on fixing it as soon as possible.</string>
+    <string name="crash_restart">Restart app</string>
 </resources>

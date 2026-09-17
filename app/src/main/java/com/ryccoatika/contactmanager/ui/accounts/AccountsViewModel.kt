@@ -1,30 +1,35 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
-import com.ryccoatika.contactmanager.data.BatchOperationManager
-import com.ryccoatika.contactmanager.data.ContactsSource
 import com.ryccoatika.contactmanager.data.StringProvider
-import com.ryccoatika.contactmanager.data.analytics.Analytics
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.sim.SimRepository
+import com.ryccoatika.contactmanager.data.ops.AccountBulkOps
+import com.ryccoatika.contactmanager.data.sim.SimStore
 import com.ryccoatika.contactmanager.data.sim.SimSubscriptionsSource
-import com.ryccoatika.contactmanager.domain.FieldLoss
-import com.ryccoatika.contactmanager.domain.MovePlanner
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.ParseOutcome
+import com.ryccoatika.contactmanager.data.transfer.TransferResult
+import com.ryccoatika.contactmanager.domain.analytics.Analytics
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.model.AccountCapability
+import com.ryccoatika.contactmanager.domain.model.AccountOpMode
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.PendingAccountOp
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class AccountsUiState(
     val accounts: List<ContactAccount> = emptyList(),
@@ -36,121 +41,199 @@ data class AccountsUiState(
     val hiddenAccountKeys: Set<String> = emptySet(),
 )
 
-/** Move-all awaiting user confirmation; [losses] lists SIM down-conversion casualties. */
-data class PendingMoveAll(
-    val source: ContactAccount,
-    val target: ContactAccount,
-    val losses: List<FieldLoss>,
+/** Parsed import waiting for the user's confirm. */
+data class PendingImport(
+    val targets: List<ContactAccount>,
+    val contacts: List<VCardContact>,
+    val skippedCards: Int,
 )
 
 @HiltViewModel
-class AccountsViewModel @Inject constructor(
-    private val accountsSource: AccountsSource,
-    private val contactsSource: ContactsSource,
-    private val batchManager: BatchOperationManager,
-    private val simRepository: SimRepository,
-    private val simSubscriptionsSource: SimSubscriptionsSource,
-    private val appPrefs: AppPrefs,
-    private val strings: StringProvider,
-    private val analytics: Analytics,
-) : ViewModel() {
+class AccountsViewModel
+    @Inject
+    constructor(
+        private val accountsSource: AccountsSource,
+        private val bulkOps: AccountBulkOps,
+        private val simRepository: SimStore,
+        private val simSubscriptionsSource: SimSubscriptionsSource,
+        private val appPrefs: AppPrefs,
+        private val analytics: Analytics,
+        private val transfer: ContactTransfer,
+        private val strings: StringProvider,
+    ) : ViewModel() {
+        private val _uiState = MutableStateFlow(AccountsUiState())
+        val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
 
-    private val _uiState = MutableStateFlow(AccountsUiState())
-    val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
+        private val _events = MutableSharedFlow<UiEvent>()
+        val events: SharedFlow<UiEvent> = _events
 
-    private val _events = MutableSharedFlow<String>()
-    val events: SharedFlow<String> = _events
+        private val _pendingOp = MutableStateFlow<PendingAccountOp?>(null)
+        val pendingOp: StateFlow<PendingAccountOp?> = _pendingOp.asStateFlow()
 
-    private val _pendingMove = MutableStateFlow<PendingMoveAll?>(null)
-    val pendingMove: StateFlow<PendingMoveAll?> = _pendingMove.asStateFlow()
+        private val _pendingImport = MutableStateFlow<PendingImport?>(null)
+        val pendingImport: StateFlow<PendingImport?> = _pendingImport.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            val accounts = accountsSource.getAccounts()
-            val asked = appPrefs.phonePermissionAsked()
-            _uiState.update {
-                it.copy(accounts = accounts, loading = false, phonePermissionAsked = asked)
+        init {
+            viewModelScope.launch {
+                val accounts = accountsSource.getAccounts()
+                val asked = appPrefs.phonePermissionAsked()
+                _uiState.update {
+                    it.copy(accounts = accounts, loading = false, phonePermissionAsked = asked)
+                }
+            }
+            viewModelScope.launch {
+                appPrefs.observeHiddenAccountKeys().collect { keys ->
+                    _uiState.update { it.copy(hiddenAccountKeys = keys) }
+                }
             }
         }
-        viewModelScope.launch {
-            appPrefs.observeHiddenAccountKeys().collect { keys ->
-                _uiState.update { it.copy(hiddenAccountKeys = keys) }
+
+        /** Hide/show an account in the Home selector. */
+        fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
+            analytics.logEvent(AnalyticsEvent.AccountVisibility(hidden))
+            viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
+        }
+
+        fun markPhonePermissionAsked() {
+            _uiState.update { it.copy(phonePermissionAsked = true) }
+            viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
+        }
+
+        /**
+         * Pull-to-refresh: re-probes every active SIM subscription (fixing stale
+         * capability caches after a SIM swap) and re-fetches the account list.
+         */
+        fun refresh() {
+            if (_uiState.value.refreshing) return
+            _uiState.update { it.copy(refreshing = true) }
+            viewModelScope.launch {
+                simSubscriptionsSource.activeSubscriptions().forEach { subscription ->
+                    simRepository.refreshCapabilities(subscription.subscriptionId)
+                }
+                _uiState.update {
+                    it.copy(accounts = accountsSource.getAccounts(), loading = false, refreshing = false)
+                }
+            }
+        }
+
+        /** Plans the op and parks it for confirmation (with SIM loss report when relevant). */
+        fun requestAccountOp(mode: AccountOpMode, source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch { _pendingOp.value = bulkOps.plan(mode, source, target) }
+        }
+
+        fun dismissPendingOp() {
+            _pendingOp.value = null
+        }
+
+        fun confirmPendingOp() {
+            val pending = _pendingOp.value ?: return
+            _pendingOp.value = null
+            executeAccountOp(pending.mode, pending.source, pending.target)
+        }
+
+        /** Moves/copies every raw contact of [source] into [target] as a background batch. */
+        fun executeAccountOp(mode: AccountOpMode, source: ContactAccount, target: ContactAccount) {
+            viewModelScope.launch { _events.emit(UiEvent.ShowSnackbar(bulkOps.execute(mode, source, target))) }
+        }
+
+        /** Exports [accounts] into a single combined vCard file at [uri]. */
+        fun exportToFile(accounts: List<ContactAccount>, uri: Uri) {
+            viewModelScope.launch {
+                handleExportResult(transfer.exportAccounts(accounts, uri), accounts, perAccountFiles = false)
+            }
+        }
+
+        /** Exports [accounts] as one vCard file per account inside the SAF tree at [treeUri]. */
+        fun exportToFolder(accounts: List<ContactAccount>, treeUri: Uri) {
+            viewModelScope.launch {
+                handleExportResult(transfer.exportAccountsToFolder(accounts, treeUri), accounts, perAccountFiles = true)
+            }
+        }
+
+        private suspend fun handleExportResult(
+            result: TransferResult,
+            accounts: List<ContactAccount>,
+            perAccountFiles: Boolean,
+        ) {
+            when (result) {
+                is TransferResult.Success -> {
+                    analytics.logEvent(
+                        AnalyticsEvent.ContactsExport(
+                            count = result.contactCount,
+                            accountCount = accounts.size,
+                            perAccountFiles = perAccountFiles,
+                        ),
+                    )
+                    _events.emit(
+                        UiEvent.ShowSnackbar(
+                            strings.getQuantity(
+                                R.plurals.accounts_msg_exported,
+                                result.contactCount,
+                                result.contactCount,
+                            ),
+                        ),
+                    )
+                }
+
+                is TransferResult.Failure -> {
+                    _events.emit(UiEvent.ShowSnackbar(result.message))
+                }
+            }
+        }
+
+        /** Parses the vCard file at [uri]; parks the result for confirmation or reports the parse error. */
+        fun requestImport(targets: List<ContactAccount>, uri: Uri) {
+            viewModelScope.launch {
+                when (val outcome = transfer.parseFile(uri)) {
+                    is ParseOutcome.Parsed -> {
+                        _pendingImport.value =
+                            PendingImport(targets, outcome.contacts, outcome.skippedCards)
+                    }
+
+                    is ParseOutcome.Failure -> {
+                        _events.emit(UiEvent.ShowSnackbar(outcome.message))
+                    }
+                }
+            }
+        }
+
+        fun dismissPendingImport() {
+            _pendingImport.value = null
+        }
+
+        /** Starts the parked import as a background batch. */
+        fun confirmPendingImport() {
+            val pending = _pendingImport.value ?: return
+            startPendingImport(pending, pending.contacts)
+        }
+
+        /** Starts the parked import for [selected] only — the picker sheet's confirm. */
+        fun confirmPendingImportOf(selected: List<VCardContact>) {
+            if (selected.isEmpty()) return
+            val pending = _pendingImport.value ?: return
+            startPendingImport(pending, selected)
+        }
+
+        private fun startPendingImport(pending: PendingImport, contacts: List<VCardContact>) {
+            _pendingImport.value = null
+            viewModelScope.launch {
+                val started = transfer.startImport(contacts, pending.targets)
+                if (started) {
+                    analytics.logEvent(
+                        AnalyticsEvent.ContactsImport(
+                            count = contacts.size,
+                            accountCount = pending.targets.size,
+                            simTarget = pending.targets.any { it.capability == AccountCapability.SIM },
+                        ),
+                    )
+                }
+                _events.emit(
+                    UiEvent.ShowSnackbar(
+                        strings.get(
+                            if (started) R.string.accounts_msg_import_started else R.string.accounts_msg_busy,
+                        ),
+                    ),
+                )
             }
         }
     }
-
-    /** Hide/show an account in the Home selector. */
-    fun setAccountHidden(account: ContactAccount, hidden: Boolean) {
-        analytics.logEvent(AnalyticsEvent.AccountVisibility(hidden))
-        viewModelScope.launch { appPrefs.setAccountHidden(account.key, hidden) }
-    }
-
-    fun markPhonePermissionAsked() {
-        _uiState.update { it.copy(phonePermissionAsked = true) }
-        viewModelScope.launch { appPrefs.setPhonePermissionAsked() }
-    }
-
-    /**
-     * Pull-to-refresh: re-probes every active SIM subscription (fixing stale
-     * capability caches after a SIM swap) and re-fetches the account list.
-     */
-    fun refresh() {
-        if (_uiState.value.refreshing) return
-        _uiState.update { it.copy(refreshing = true) }
-        viewModelScope.launch {
-            simSubscriptionsSource.activeSubscriptions().forEach { subscription ->
-                simRepository.refreshCapabilities(subscription.subscriptionId)
-            }
-            _uiState.update {
-                it.copy(accounts = accountsSource.getAccounts(), loading = false, refreshing = false)
-            }
-        }
-    }
-
-    /** Plans the move and parks it for confirmation (with SIM loss report when relevant). */
-    fun requestMoveAll(source: ContactAccount, target: ContactAccount) {
-        viewModelScope.launch {
-            val sources = contactsSource.observeContacts().first()
-                .flatMap { it.rawContacts }
-                .filter { it.accountType == source.type && it.accountName == source.name }
-            val plan = MovePlanner.plan(sources, target.type, target.name)
-            _pendingMove.value = PendingMoveAll(source, target, plan.losses)
-        }
-    }
-
-    fun dismissPendingMove() {
-        _pendingMove.value = null
-    }
-
-    fun confirmPendingMove() {
-        val pending = _pendingMove.value ?: return
-        _pendingMove.value = null
-        moveAllContacts(pending.source, pending.target)
-    }
-
-    /** Moves every raw contact of [source] into [target] as a background batch. */
-    fun moveAllContacts(source: ContactAccount, target: ContactAccount) {
-        viewModelScope.launch {
-            val rawIds = contactsSource.observeContacts().first()
-                .flatMap { it.rawContacts }
-                .filter { it.accountType == source.type && it.accountName == source.name }
-                .map { it.rawContactId }
-            if (rawIds.isEmpty()) {
-                _events.emit(strings.get(R.string.accounts_msg_no_contacts))
-                return@launch
-            }
-            val targetName = target.name ?: strings.get(R.string.accounts_msg_this_device)
-            val started = batchManager.moveContacts(
-                rawContactIds = rawIds,
-                targetType = target.type,
-                targetName = target.name,
-                label = strings.get(R.string.accounts_msg_moving_label, rawIds.size, targetName),
-            )
-            if (started) analytics.logEvent(AnalyticsEvent.AccountMoveAll(rawIds.size))
-            _events.emit(
-                if (started) strings.get(R.string.accounts_msg_move_started)
-                else strings.get(R.string.accounts_msg_busy),
-            )
-        }
-    }
-}

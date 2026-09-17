@@ -84,7 +84,7 @@ jobs:
           VERSION_CODE: ${{ steps.version.outputs.code }}
         run: |
           set -euo pipefail
-          VERSION_NAME=$(grep -E 'appVersionName\s*=\s*"' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_NAME=$(grep -E '^appVersionName=' gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')
           TAG="v${VERSION_NAME}"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -129,9 +129,10 @@ jobs:
           fi
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          VERSION_NAME=$(grep -E '^appVersionName=' gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')
 
-          TEXT=$(printf '\xE2\x9C\x85 ContactManager deployed\nTrack: %s\nVersion: 1.0 (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
-            "$TRACK" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
+          TEXT=$(printf '\xE2\x9C\x85 ContactManager deployed\nTrack: %s\nVersion: %s (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
+            "$TRACK" "$VERSION_NAME" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
           if [ -n "${IAS_URL:-}" ]; then
             TEXT=$(printf '%s\nInstall: %s' "$TEXT" "$IAS_URL")
           fi

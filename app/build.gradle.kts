@@ -6,28 +6,28 @@ plugins {
     alias(libs.plugins.changelog)
 }
 
-// Firebase is optional: wire google-services only when the json (kept in the
-// gitignored release/ folder, next to the keystores) is present. The plugin
-// only scans app/, so bridge the file into place first. Absent → no FirebaseApp
-// → NoOpAnalytics, and the build/tests still pass.
-//
-// The Crashlytics plugin is mandatory whenever the crashlytics SDK ships: it
-// generates the com.google.firebase.crashlytics.build_id resource that
-// CrashlyticsCore.onPreExecute() requires, and its absence is a hard crash at
-// FirebaseApp init — not a degraded no-op.
+// Firebase is mandatory: the json lives in the gitignored release/ folder
+// (next to the keystores) and the build fails fast without it — a missing
+// google-services wiring would otherwise ship a build whose Crashlytics
+// startup crashes (the plugin generates the build_id resource that
+// CrashlyticsCore.onPreExecute() requires). The google-services plugin only
+// scans app/, so bridge the file into place first.
 val googleServicesJson = rootProject.file("release/google-services.json")
-if (googleServicesJson.exists()) {
-    googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
-    apply(plugin = "com.google.gms.google-services")
-    apply(plugin = "com.google.firebase.crashlytics")
+check(googleServicesJson.exists()) {
+    "release/google-services.json is missing — run ENCRYPT_KEY=<passphrase> ./release/decrypt-secrets.sh first. " +
+        "Firebase (google-services + crashlytics plugins) is mandatory."
 }
+googleServicesJson.copyTo(file("google-services.json"), overwrite = true)
+apply(plugin = "com.google.gms.google-services")
+apply(plugin = "com.google.firebase.crashlytics")
 
 // versionCode is CI-driven so Play testing tracks always get a monotonically
 // increasing code. CI passes -PappVersionCode=<git commit count>; default 1 locally.
 val appVersionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
-// Single source of truth for the version name — used by the manifest and by the
-// gradle-changelog-plugin (so `getChangelog` returns this version's section).
-val appVersionName = "1.0"
+// Version name lives in gradle.properties (single source shared with CI) — used
+// by the manifest and the gradle-changelog-plugin (so `getChangelog` returns
+// this version's section).
+val appVersionName = project.findProperty("appVersionName") as String
 
 android {
     namespace = "com.ryccoatika.contactmanager"
@@ -81,6 +81,13 @@ android {
             // R8 in full mode (default since AGP 8.0; pinned in gradle.properties).
             isMinifyEnabled = true
             isShrinkResources = true
+            // Bundle native debug symbols into the AAB so Play can symbolicate
+            // native crash stack traces — silences the "App Bundle contains native
+            // code without debug symbols" upload warning. Play reads them straight
+            // from the bundle, so no extra upload step is needed.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             proguardFiles(
                 // Optimizing defaults — never proguard-android.txt (forces -dontoptimize).
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -91,6 +98,15 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlin {
+        compilerOptions {
+            // Warnings are errors: deprecations and compiler nags get fixed, not shipped.
+            allWarningsAsErrors.set(true)
+            // Opt into the future (2.4+) default: constructor-param annotations also
+            // target the property — silences KT-73255 migration warnings coherently.
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+        }
     }
     buildFeatures {
         compose = true
@@ -115,6 +131,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -129,6 +146,8 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
     implementation(libs.play.review)
+    implementation(libs.play.app.update)
+    implementation(libs.androidx.browser)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

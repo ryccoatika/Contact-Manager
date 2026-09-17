@@ -24,11 +24,11 @@ data class DuplicateGroup(
  * Raw contacts already aggregated into the same [Contact] never match themselves.
  */
 object DuplicateFinder {
-
     private enum class Reason { PHONE, EMAIL, NAME }
 
     fun find(contacts: List<Contact>, dismissedKeys: Set<String> = emptySet()): List<DuplicateGroup> {
         val buckets = HashMap<String, LinkedHashSet<Int>>()
+
         fun put(key: String, index: Int) = buckets.getOrPut(key) { LinkedHashSet() }.add(index)
 
         contacts.forEachIndexed { index, contact ->
@@ -50,6 +50,7 @@ object DuplicateFinder {
 
         // Union-find with path halving; every bucket with 2+ members is a set of edges.
         val parent = IntArray(contacts.size) { it }
+
         fun root(i: Int): Int {
             var x = i
             while (parent[x] != x) {
@@ -81,30 +82,33 @@ object DuplicateFinder {
             if (r in reasonsByRoot) membersByRoot.getOrPut(r) { mutableListOf() } += contact
         }
 
-        return membersByRoot.mapNotNull { (r, members) ->
-            if (members.size < 2) return@mapNotNull null
-            val reasons = reasonsByRoot.getValue(r)
-            DuplicateGroup(
-                confidence = if (Reason.PHONE in reasons || Reason.EMAIL in reasons) {
-                    MatchConfidence.HIGH
-                } else {
-                    MatchConfidence.MEDIUM
-                },
-                contacts = members.sortedBy { it.contactId },
-                matchReason = when {
-                    Reason.PHONE in reasons -> MatchReason.PHONE
-                    Reason.EMAIL in reasons -> MatchReason.EMAIL
-                    else -> MatchReason.NAME
-                },
-            )
-        }
-            .filterNot { groupKey(it) in dismissedKeys }
+        return membersByRoot
+            .mapNotNull { (r, members) ->
+                if (members.size < 2) return@mapNotNull null
+                val reasons = reasonsByRoot.getValue(r)
+                DuplicateGroup(
+                    confidence = if (Reason.PHONE in reasons || Reason.EMAIL in reasons) {
+                        MatchConfidence.HIGH
+                    } else {
+                        MatchConfidence.MEDIUM
+                    },
+                    contacts = members.sortedBy { it.contactId },
+                    matchReason = when {
+                        Reason.PHONE in reasons -> MatchReason.PHONE
+                        Reason.EMAIL in reasons -> MatchReason.EMAIL
+                        else -> MatchReason.NAME
+                    },
+                )
+            }.filterNot { groupKey(it) in dismissedKeys }
             .sortedWith(compareBy({ it.confidence }, { it.contacts.first().contactId }))
     }
 
     /** Stable per-group id: sorted contact ids joined with dashes. */
     fun groupKey(group: DuplicateGroup): String =
-        group.contacts.map { it.contactId }.sorted().joinToString("-")
+        group.contacts
+            .map { it.contactId }
+            .sorted()
+            .joinToString("-")
 
     /** Strips everything but digits, keeping a leading '+'. */
     internal fun normalizePhone(s: String): String {

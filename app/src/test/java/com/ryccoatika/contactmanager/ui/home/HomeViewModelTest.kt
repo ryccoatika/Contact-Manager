@@ -1,5 +1,7 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import android.net.FakeUri
+import android.net.Uri
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
@@ -10,20 +12,26 @@ import com.ryccoatika.contactmanager.data.DuplicatePrefs
 import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
-import com.ryccoatika.contactmanager.data.analytics.AnalyticsEvent
-import com.ryccoatika.contactmanager.data.analytics.FakeAnalytics
+import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.ParseOutcome
+import com.ryccoatika.contactmanager.data.transfer.TransferResult
+import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
+import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
+import com.ryccoatika.contactmanager.ui.common.UiEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -38,38 +46,48 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private fun raw(id: Long, accType: String?, phone: String? = null) = RawContact(
-        rawContactId = id, accountType = accType, accountName = "acc",
+        rawContactId = id,
+        accountType = accType,
+        accountName = "acc",
         phones = phone?.let { listOf(LabeledValue(1, it, null)) } ?: emptyList(),
     )
 
     private fun contact(id: Long, name: String, vararg raws: RawContact) = Contact(
-        contactId = id, displayName = name, rawContacts = raws.toList(),
+        contactId = id,
+        displayName = name,
+        rawContacts = raws.toList(),
     )
 
-    private val contactsFlow = MutableStateFlow(listOf(
-        contact(1, "Andi Wijaya", raw(10, "com.google", "+62812111")),
-        contact(2, "Budi Santoso", raw(20, "com.whatsapp")),
-        contact(3, "Citra Lestari", raw(30, "com.google", "+62899000"), raw(31, "com.whatsapp")),
-    ))
+    private val contactsFlow = MutableStateFlow(
+        listOf(
+            contact(1, "Andi Wijaya", raw(10, "com.google", "+62812111")),
+            contact(2, "Budi Santoso", raw(20, "com.whatsapp")),
+            contact(3, "Citra Lestari", raw(30, "com.google", "+62899000"), raw(31, "com.whatsapp")),
+        ),
+    )
 
     private val fakeContacts = object : ContactsSource {
         override fun observeContacts(): Flow<List<Contact>> = contactsFlow
+
+        override suspend fun snapshot(): List<Contact> = contactsFlow.value
     }
     private val fakeAccounts = object : AccountsSource {
         override suspend fun getAccounts() = listOf(
             ContactAccount("acc", "com.google", AccountCapability.FULL_CRUD, 2),
             ContactAccount("acc", "com.whatsapp", AccountCapability.READ_ONLY, 2),
         )
+
         override fun observeAccounts() = flow { emit(getAccounts()) }
     }
 
     private class FakeWriter : ContactsWriter {
         val deletedIds = mutableListOf<List<Long>>()
         val movedIds = mutableListOf<Long>()
+        val copiedIds = mutableListOf<Long>()
+        var copyTarget: Pair<String?, String?>? = null
         var moveTarget: Pair<String?, String?>? = null
         var merged: Pair<RawContact, List<RawContact>>? = null
 
@@ -106,6 +124,17 @@ class HomeViewModelTest {
             return ContactOpResult.Success
         }
 
+        override suspend fun copyRawContacts(
+            rawContactIds: List<Long>,
+            targetType: String?,
+            targetName: String?,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): ContactOpResult {
+            copiedIds += rawContactIds
+            copyTarget = targetType to targetName
+            return ContactOpResult.Success
+        }
+
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
             ContactOpResult.Success
 
@@ -121,13 +150,36 @@ class HomeViewModelTest {
         }
     }
 
+    private class FakeContactTransfer : ContactTransfer {
+        var exportRawContactsResult: TransferResult = TransferResult.Success(contactCount = 0, fileCount = 1)
+        val exportRawContactsCalls = mutableListOf<Pair<List<Long>, Uri>>()
+
+        override suspend fun exportAccounts(accounts: List<ContactAccount>, uri: Uri): TransferResult =
+            throw UnsupportedOperationException()
+
+        override suspend fun exportAccountsToFolder(accounts: List<ContactAccount>, treeUri: Uri): TransferResult =
+            throw UnsupportedOperationException()
+
+        override suspend fun exportRawContacts(rawContactIds: List<Long>, uri: Uri): TransferResult {
+            exportRawContactsCalls += rawContactIds to uri
+            return exportRawContactsResult
+        }
+
+        override suspend fun parseFile(uri: Uri): ParseOutcome = throw UnsupportedOperationException()
+
+        override fun startImport(contacts: List<VCardContact>, targets: List<ContactAccount>): Boolean =
+            throw UnsupportedOperationException()
+    }
+
     private val googleTarget = ContactAccount("b@gmail.com", "com.google", AccountCapability.FULL_CRUD, 0)
 
     private val dismissedKeys = MutableStateFlow<Set<String>>(emptySet())
 
     private val fakePrefs = object : DuplicatePrefs {
         override fun observeDismissedKeys(): Flow<Set<String>> = dismissedKeys
+
         override suspend fun dismissedKeys(): Set<String> = dismissedKeys.value
+
         override suspend fun dismiss(key: String) {
             dismissedKeys.value = dismissedKeys.value + key
         }
@@ -137,20 +189,32 @@ class HomeViewModelTest {
         writer: FakeWriter = FakeWriter(),
         appPrefs: AppPrefs = FakeAppPrefs(),
         analytics: FakeAnalytics = FakeAnalytics(),
-    ) = HomeViewModel(
-        contactsSource = fakeContacts,
-        accountsSource = fakeAccounts,
-        writer = writer,
-        batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher)),
-        duplicatePrefs = fakePrefs,
-        appPrefs = appPrefs,
-        strings = FakeStringProvider(),
-        analytics = analytics,
-        defaultDispatcher = dispatcher,
-    )
+        transfer: ContactTransfer = FakeContactTransfer(),
+    ): HomeViewModel {
+        val batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
+        val strings = FakeStringProvider()
+        return HomeViewModel(
+            contactsSource = fakeContacts,
+            accountsSource = fakeAccounts,
+            writer = writer,
+            batchManager = batchManager,
+            bulkOps = DefaultAccountBulkOps(fakeContacts, batchManager, analytics, strings),
+            duplicatePrefs = fakePrefs,
+            appPrefs = appPrefs,
+            strings = strings,
+            analytics = analytics,
+            transfer = transfer,
+            defaultDispatcher = dispatcher,
+        )
+    }
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test fun `hidden account drops its chip and its only-contacts from All`() = runTest(dispatcher) {
         val vm = vm(appPrefs = FakeAppPrefs(hiddenAccountKeys = setOf("com.whatsapp/acc")))
@@ -180,7 +244,8 @@ class HomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf("Budi Santoso", "Citra Lestari"),
-            vm.uiState.value.contacts.map { it.displayName },
+            vm.uiState.value.contacts
+                .map { it.displayName },
         )
         job.cancel()
     }
@@ -193,7 +258,11 @@ class HomeViewModelTest {
         assertEquals(1, vm.uiState.value.contacts.size)
         vm.setQuery("812111")
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf("Andi Wijaya"), vm.uiState.value.contacts.map { it.displayName })
+        assertEquals(
+            listOf("Andi Wijaya"),
+            vm.uiState.value.contacts
+                .map { it.displayName },
+        )
         job.cancel()
     }
 
@@ -259,6 +328,70 @@ class HomeViewModelTest {
         job.cancel()
     }
 
+    @Test fun `copySelectedTo copies the whole selection including read-only raws`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val analytics = FakeAnalytics()
+        val vm = vm(writer, analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(2)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.copySelectedTo(googleTarget)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(writer.copiedIds.isNotEmpty())
+        assertTrue(writer.movedIds.isEmpty())
+        val copy = analytics.events.filterIsInstance<AnalyticsEvent.ContactCopy>().single()
+        assertEquals(writer.copiedIds.size, copy.count)
+        job.cancel()
+    }
+
+    @Test fun `exportSelected exports every selected raw id including read-only and clears selection`() = runTest(dispatcher) {
+        val transfer = FakeContactTransfer().apply {
+            exportRawContactsResult = TransferResult.Success(contactCount = 2, fileCount = 1)
+        }
+        val analytics = FakeAnalytics()
+        val vm = vm(transfer = transfer, analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(2)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val uri = FakeUri("content://export")
+
+        vm.exportSelected(uri)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(listOf(20L, 30L, 31L) to (uri as Uri)), transfer.exportRawContactsCalls)
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        assertEquals(
+            AnalyticsEvent.ContactsExport(count = 2, accountCount = 2, perAccountFiles = false),
+            analytics.events.filterIsInstance<AnalyticsEvent.ContactsExport>().single(),
+        )
+        job.cancel()
+    }
+
+    @Test fun `exportSelected emits failure snackbar on Failure`() = runTest(dispatcher) {
+        val transfer = FakeContactTransfer().apply {
+            exportRawContactsResult = TransferResult.Failure("boom")
+        }
+        val analytics = FakeAnalytics()
+        val vm = vm(transfer = transfer, analytics = analytics)
+        val stateJob = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        dispatcher.scheduler.advanceUntilIdle()
+        val events = mutableListOf<UiEvent>()
+        val job = launch { vm.events.collect { events += it } }
+
+        vm.exportSelected(FakeUri("content://export"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf<UiEvent>(UiEvent.ShowSnackbar("boom")), events)
+        assertTrue(analytics.events.isEmpty())
+        job.cancel()
+        stateJob.cancel()
+    }
+
     @Test fun `setQuery logs search with query length`() = runTest(dispatcher) {
         val analytics = FakeAnalytics()
         val vm = vm(analytics = analytics)
@@ -273,7 +406,7 @@ class HomeViewModelTest {
         val writer = FakeWriter()
         val vm = vm(writer)
         val job = launch { vm.uiState.collect {} }
-        val messages = mutableListOf<String>()
+        val messages = mutableListOf<UiEvent>()
         val eventsJob = launch { vm.events.collect { messages += it } }
         dispatcher.scheduler.advanceUntilIdle()
         vm.toggleSelect(2)
@@ -309,7 +442,10 @@ class HomeViewModelTest {
         vm.toggleSelect(1)
         vm.toggleSelect(3)
         dispatcher.scheduler.advanceUntilIdle()
-        val target = contactsFlow.value.first { it.contactId == 1L }.rawContacts.single()
+        val target = contactsFlow.value
+            .first { it.contactId == 1L }
+            .rawContacts
+            .single()
         vm.mergeSelected(target)
         dispatcher.scheduler.advanceUntilIdle()
         val (mergedTarget, sources) = writer.merged!!
@@ -333,6 +469,53 @@ class HomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(listOf(10L, 30L)), writer.deletedIds)
         assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
+    }
+
+    @Test fun `selectionAccountBreakdown groups selection raws by account, deletable first`() = runTest(dispatcher) {
+        val vm = vm()
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val breakdown = vm.selectionAccountBreakdown()
+        assertEquals(
+            listOf(
+                SelectionAccountEntry("com.google", "acc", AccountCapability.FULL_CRUD, 2),
+                SelectionAccountEntry("com.whatsapp", "acc", AccountCapability.READ_ONLY, 1),
+            ),
+            breakdown,
+        )
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom deletes only raws of the chosen accounts and clears selection`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        vm.toggleSelect(2)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.google/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(listOf(10L, 30L)), writer.deletedIds)
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        job.cancel()
+    }
+
+    @Test fun `deleteSelectedFrom never deletes read-only raws even when their account is chosen`() = runTest(dispatcher) {
+        val writer = FakeWriter()
+        val vm = vm(writer)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.deleteSelectedFrom(setOf("com.whatsapp/acc"))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<List<Long>>(), writer.deletedIds)
         job.cancel()
     }
 }

@@ -94,16 +94,29 @@ fun AccountDot(accountType: String?, accountName: String?, modifier: Modifier = 
 fun CapabilityTag(capability: AccountCapability, writable: Boolean = true) {
     val brass = MaterialTheme.extendedColors
     val (label, container, onContainer) = when (capability) {
-        AccountCapability.FULL_CRUD ->
-            Triple(stringResource(R.string.common_capability_full), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-        AccountCapability.READ_ONLY ->
-            Triple(stringResource(R.string.common_capability_readonly), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
-        AccountCapability.SIM ->
+        AccountCapability.FULL_CRUD -> {
+            Triple(
+                stringResource(R.string.common_capability_full),
+                MaterialTheme.colorScheme.secondaryContainer,
+                MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+
+        AccountCapability.READ_ONLY -> {
+            Triple(
+                stringResource(R.string.common_capability_readonly),
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        AccountCapability.SIM -> {
             Triple(
                 stringResource(if (writable) R.string.common_capability_sim else R.string.common_capability_sim_limited),
                 brass.brassContainer,
                 brass.brass,
             )
+        }
     }
     Text(
         label,

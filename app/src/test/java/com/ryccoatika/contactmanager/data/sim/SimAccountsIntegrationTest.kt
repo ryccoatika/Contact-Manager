@@ -7,6 +7,7 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
+import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -56,8 +57,12 @@ class FakeSimContactSource(
 
 class InMemorySimCapabilityCache : SimCapabilityCache {
     private val map = mutableMapOf<Int?, SimCapabilities>()
+
     override suspend fun get(subId: Int?): SimCapabilities? = map[subId]
-    override suspend fun set(subId: Int?, caps: SimCapabilities) { map[subId] = caps }
+
+    override suspend fun set(subId: Int?, caps: SimCapabilities) {
+        map[subId] = caps
+    }
 }
 
 class FakeSimSubscriptionsSource(
@@ -67,7 +72,6 @@ class FakeSimSubscriptionsSource(
 }
 
 class SimAccountsIntegrationTest {
-
     private val dualSim = listOf(
         SimSubscription(1, "SIM 1 · Telkomsel"),
         SimSubscription(2, "SIM 2 · XL"),
@@ -137,12 +141,20 @@ class SimAccountsIntegrationTest {
             ),
         )
         val nativeEsim = Contact(
-            contactId = 9, displayName = "OnEsim",
+            contactId = 9,
+            displayName = "OnEsim",
             rawContacts = listOf(RawContact(90, "vnd.sec.contact.sim2", "sim2")),
         )
         val contacts = integration(source, subs).simContacts(listOf(nativeEsim))
         assertEquals(listOf("Budi"), contacts.map { it.displayName })
-        assertEquals("icc/1", contacts.single().rawContacts.single().accountType)
+        assertEquals(
+            "icc/1",
+            contacts
+                .single()
+                .rawContacts
+                .single()
+                .accountType,
+        )
     }
 
     @Test fun `pseudo account per readable subscription with count and writability`() = runTest {

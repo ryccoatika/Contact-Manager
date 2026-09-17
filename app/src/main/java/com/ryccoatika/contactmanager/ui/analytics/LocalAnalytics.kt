@@ -4,8 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.ryccoatika.contactmanager.data.analytics.Analytics
-import com.ryccoatika.contactmanager.data.analytics.NoOpAnalytics
+import com.ryccoatika.contactmanager.domain.analytics.Analytics
+import com.ryccoatika.contactmanager.domain.analytics.NoOpAnalytics
 
 /** Analytics for composables; provided at the app root, defaults to no-op. */
 val LocalAnalytics: ProvidableCompositionLocal<Analytics> = staticCompositionLocalOf { NoOpAnalytics }
