@@ -2,6 +2,7 @@ package com.ryccoatika.contactmanager.ui.accounts
 
 import android.content.Context
 import android.content.res.Configuration
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -106,35 +107,74 @@ fun AccountsScreen(
     var sheetMode by rememberSaveable(stateSaver = TransferModeSaver) { mutableStateOf<TransferMode?>(null) }
     // ContactAccount isn't Parcelable/Serializable, so SAF round-trips (which can outlive the
     // process on low memory) persist lightweight account keys instead and re-resolve against
-    // state.accounts wherever they're consumed.
+    // state.accounts once it has (re)loaded — see the LaunchedEffects below. Resolution is never
+    // done inline in a launcher callback or in composition: after a process-death restore, both
+    // can run before AccountsViewModel's init fetch has repopulated state.accounts.
     var exportRequestKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
         mutableStateOf<List<String>?>(null)
     }
     var importTargetKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
         mutableStateOf<List<String>?>(null)
     }
+    // The picked SAF result itself; Uri is Parcelable so rememberSaveable handles it natively.
+    var pendingExportFileUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingExportFolderUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingImportFileUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val importNoneMessage = stringResource(R.string.accounts_msg_import_none)
 
     val exportFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/x-vcard"),
     ) { uri ->
-        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
-        exportRequestKeys = null
-        if (uri != null && !accounts.isNullOrEmpty()) viewModel.exportToFile(accounts, uri)
+        // A null uri means the user backed out of the picker — safe to clear right away here,
+        // this is an event handler, not composition.
+        if (uri == null) exportRequestKeys = null else pendingExportFileUri = uri
     }
     val exportFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { treeUri ->
-        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
-        exportRequestKeys = null
-        if (treeUri != null && !accounts.isNullOrEmpty()) viewModel.exportToFolder(accounts, treeUri)
+        if (treeUri == null) exportRequestKeys = null else pendingExportFolderUri = treeUri
     }
     val importFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
+        if (uri == null) importTargetKeys = null else pendingImportFileUri = uri
+    }
+
+    // Waits for state.loading to settle before resolving keys → accounts and calling the
+    // ViewModel, so a SAF result delivered right after a process-death restore isn't silently
+    // dropped because the account list hadn't reloaded yet.
+    LaunchedEffect(pendingExportFileUri, state.loading) {
+        val uri = pendingExportFileUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingExportFileUri = null
+        exportRequestKeys = null
+        if (!accounts.isNullOrEmpty()) viewModel.exportToFile(accounts, uri)
+    }
+    LaunchedEffect(pendingExportFolderUri, state.loading) {
+        val treeUri = pendingExportFolderUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingExportFolderUri = null
+        exportRequestKeys = null
+        if (!accounts.isNullOrEmpty()) viewModel.exportToFolder(accounts, treeUri)
+    }
+    LaunchedEffect(pendingImportFileUri, state.loading) {
+        val uri = pendingImportFileUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
         val targets = importTargetKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingImportFileUri = null
         importTargetKeys = null
-        if (uri != null && !targets.isNullOrEmpty()) viewModel.requestImport(targets, uri)
+        if (!targets.isNullOrEmpty()) viewModel.requestImport(targets, uri)
+    }
+    // No SAF result yet (still on the ExportModeDialog step) but the saved keys no longer
+    // resolve to a current account once loading has settled — clear instead of leaving the
+    // dialog stuck on a dead selection. An effect, not inline in composition, since it's a
+    // state write.
+    LaunchedEffect(exportRequestKeys, state.loading) {
+        val keys = exportRequestKeys ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        if (state.accounts.none { it.key in keys }) exportRequestKeys = null
     }
 
     fun startExport(accounts: List<ContactAccount>) {
@@ -279,13 +319,11 @@ fun AccountsScreen(
     }
 
     exportRequestKeys?.let { keys ->
+        // Empty resolution (account removed, or restore before the list finished loading) is
+        // handled by the LaunchedEffect above — nothing to show here either way, and no state
+        // write belongs in composition.
         val accounts = state.accounts.filter { it.key in keys }
-        if (accounts.isEmpty()) {
-            // Keys didn't resolve to a current account — either it was removed while the
-            // sheet/picker was open, or (on restore after process death) the account list
-            // hasn't finished loading yet. Only give up once loading has settled.
-            if (!state.loading) exportRequestKeys = null
-        } else if (accounts.size > 1) {
+        if (accounts.size > 1) {
             ExportModeDialog(
                 onOneFile = { exportFileLauncher.launch(suggestedExportFileName(context, accounts)) },
                 onPerAccount = { exportFolderLauncher.launch(null) },
