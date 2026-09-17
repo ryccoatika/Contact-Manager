@@ -5,6 +5,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+- Removed the "Support development" screen and its Settings entry (donations
+  are not available on this Play account).
 - Deleting a selection that spans several accounts now asks which accounts to
   delete from, so you can clear a contact's Google entry while keeping its
   SIM copy.

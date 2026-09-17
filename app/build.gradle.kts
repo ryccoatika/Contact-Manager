@@ -148,7 +148,6 @@ dependencies {
     implementation(libs.play.review)
     implementation(libs.play.app.update)
     implementation(libs.androidx.browser)
-    implementation(libs.billing.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

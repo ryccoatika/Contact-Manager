@@ -83,12 +83,11 @@ domain/                pure Kotlin: AccountClassifier, MovePlanner,
                        ContactAccount, AccountCapability, ThemeMode, …
 data/                  ContactsContract repositories (reads + decorated writer),
   ├ sim/               icc/adn SIM sources, capability probe/cache, subscriptions
-  ├ billing/           Play Billing donations (Support screen)
   └ analytics/         Analytics interface, AnalyticsEvent, Firebase/NoOp impls
 di/                    Hilt modules (the only place impls are named/bound)
 ui/
   ├ home | detail | editor | accounts | duplicates |     feature packages:
-  │ settings | support | about | onboarding | crash      Screen + ViewModel
+  │ settings | about | onboarding | crash                Screen + ViewModel
   │   (about is stateless; crash is a bare Activity — no VM by design)
   ├ common/            shared composables, AccountVisuals, PhonePermissionPrompt
   ├ theme/             design system (see below) — imports nothing project-local
@@ -220,9 +219,6 @@ reference examples. Don't skip this for multi-screen features.
   build_id resource whose absence is a startup crash. CI (check.yml and
   deploy.yml) decrypts the json from its committed `.gpg` blob;
   `AnalyticsModule`'s NoOp fallback remains only as a runtime guard.
-- **Play Billing** (Support donations): consumables, consumed immediately, no
-  entitlements. Product ids `support_*` must exist in Play Console; billing is
-  a no-op on debug/sideload builds.
 - **In-app update/review** (`ui/update`, `ui/review`): Play-installed builds
   only; both are best-effort and silent on failure. Update flow picks
   immediate vs flexible from the release's `inAppUpdatePriority`
