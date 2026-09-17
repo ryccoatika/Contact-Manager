@@ -17,9 +17,11 @@ class FakeTransferFiles : TransferFiles {
     var openWriteFailsFor: Set<String> = emptySet()
     var writeThrowsFor: Set<String> = emptySet()
     var createFailsFor: Set<String> = emptySet()
+    var openWriteThrowsSecurityFor: Set<String> = emptySet()
 
     override fun openWrite(uri: Uri): OutputStream? {
         val key = uri.toString()
+        if (key in openWriteThrowsSecurityFor) throw SecurityException("SAF grant revoked for $key")
         if (key in openWriteFailsFor) return null
         if (key in writeThrowsFor) return ThrowingOutputStream()
         val stream = ByteArrayOutputStream()

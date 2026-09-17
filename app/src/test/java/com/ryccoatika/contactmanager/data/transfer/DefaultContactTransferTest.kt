@@ -269,4 +269,23 @@ class DefaultContactTransferTest {
         assertEquals(TransferResult.Failure(strings.get(R.string.transfer_error_write)), result)
         assertEquals(listOf(uri.toString()), files.deleted)
     }
+
+    @Test fun `exportAccountsToFolder deletes earlier files when a later createInTree fails`() = runTest(dispatcher) {
+        val files = FakeTransferFiles().apply { createFailsFor = setOf("Second.vcf") }
+        val treeUri = FakeUri("content://tree/root")
+        val accountA = ContactAccount("First", "com.google", AccountCapability.FULL_CRUD)
+        val accountB = ContactAccount("Second", "com.whatsapp", AccountCapability.READ_ONLY)
+        val result = transfer(files = files).exportAccountsToFolder(listOf(accountA, accountB), treeUri)
+
+        assertEquals(TransferResult.Failure(strings.get(R.string.transfer_error_open_file)), result)
+        assertEquals(listOf("$treeUri/First.vcf"), files.deleted)
+    }
+
+    @Test fun `export returns Failure without crashing when opening the stream throws SecurityException`() = runTest(dispatcher) {
+        val uri = FakeUri("file:///out.vcf")
+        val files = FakeTransferFiles().apply { openWriteThrowsSecurityFor = setOf(uri.toString()) }
+        val result = transfer(files = files).exportAccounts(listOf(googleAccount), uri)
+
+        assertEquals(TransferResult.Failure(strings.get(R.string.transfer_error_open_file)), result)
+    }
 }
