@@ -1,7 +1,8 @@
 package com.ryccoatika.contactmanager.domain.vcard
 
 import java.nio.charset.Charset
-import java.util.Base64
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /** One property line, decoded down to: optional group ("item1."), name, params, raw value. */
 private data class Prop(
@@ -11,6 +12,7 @@ private data class Prop(
 )
 
 /** Tolerant vCard reader: 2.1 (QP/BASE64/CHARSET), 3.0, 4.0 basics. No GEO/TZ/KIND. */
+@OptIn(ExperimentalEncodingApi::class)
 object VCardParser {
     fun parse(text: String): VCardParseResult {
         val logical = unfold(text)
@@ -260,7 +262,7 @@ object VCardParser {
                 "PHOTO" -> {
                     val encoding = prop.params.firstOrNull { it.first == "ENCODING" }?.second
                     if (encoding.equals("B", true) || encoding.equals("BASE64", true)) {
-                        photo = runCatching { Base64.getMimeDecoder().decode(decoded) }.getOrNull()
+                        photo = runCatching { Base64.Mime.decode(decoded) }.getOrNull()
                     }
                 }
 

@@ -1,8 +1,10 @@
 package com.ryccoatika.contactmanager.domain.vcard
 
-import java.util.Base64
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /** Serializes contacts as vCard 3.0 (CRLF, 75-octet folding, deterministic order). */
+@OptIn(ExperimentalEncodingApi::class)
 object VCardWriter {
     fun write(contacts: List<VCardContact>): String = buildString {
         contacts.forEach { c ->
@@ -22,7 +24,7 @@ object VCardWriter {
             c.note?.ifBlank { null }?.let { line("NOTE:${esc(it)}") }
             c.photo
                 ?.takeIf { it.isNotEmpty() }
-                ?.let { line("PHOTO;ENCODING=b;TYPE=JPEG:${Base64.getEncoder().encodeToString(it)}") }
+                ?.let { line("PHOTO;ENCODING=b;TYPE=JPEG:${Base64.encode(it)}") }
             line("END:VCARD")
         }
     }
