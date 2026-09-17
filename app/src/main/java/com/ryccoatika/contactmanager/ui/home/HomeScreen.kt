@@ -4,11 +4,18 @@ import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -24,14 +31,17 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -87,12 +97,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -100,6 +113,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -144,7 +158,12 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(
+    ExperimentalFoundationApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalSharedTransitionApi::class,
+    ExperimentalLayoutApi::class,
+)
 @Composable
 fun HomeScreen(
     onContactClick: (Contact) -> Unit,
@@ -169,20 +188,45 @@ fun HomeScreen(
     val launchReview = rememberReviewLauncher()
     // Hoisted from the list: the FAB (in the Scaffold slot) reacts to its scroll.
     val listState = rememberLazyListState()
-    // FAB hides while scrolling down, shows when scrolling up or back at the top.
-    var fabVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(listState) {
-        var lastIndex = 0
-        var lastOffset = 0
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                val scrollingDown = index > lastIndex || (index == lastIndex && offset > lastOffset)
-                val atTop = index == 0 && offset == 0
-                fabVisible = atTop || !scrollingDown
-                lastIndex = index
-                lastOffset = offset
-            }
+    // Local input state keeps the cursor stable while typing; filtering is
+    // debounced to the ViewModel so the list only re-filters after a pause.
+    // Hoisted above the Scaffold so the top bar's search action can read it too.
+    var queryInput by remember { mutableStateOf(state.query) }
+    LaunchedEffect(state.query) {
+        if (state.query != queryInput) queryInput = state.query
     }
+    LaunchedEffect(queryInput) {
+        delay(500)
+        if (queryInput != state.query) viewModel.setQuery(queryInput)
+    }
+    // Keeps the search field expanded while it has focus, even with an empty query.
+    var searchFieldFocused by remember { mutableStateOf(false) }
+    // Dismissing the IME (back button, gesture, done action) doesn't clear
+    // Compose focus by itself — without this the field stays "focused"
+    // (invisibly, no cursor) and pins the collapse logic open forever.
+    val imeVisible = WindowInsets.isImeVisible
+    val focusManager = LocalFocusManager.current
+    var imeWasVisible by remember { mutableStateOf(imeVisible) }
+    LaunchedEffect(imeVisible) {
+        // Only react to a visible-to-hidden transition, and never on the
+        // very first composition (imeWasVisible starts equal to imeVisible).
+        if (imeWasVisible && !imeVisible && searchFieldFocused) {
+            focusManager.clearFocus()
+        }
+        imeWasVisible = imeVisible
+    }
+    // FAB + search field share one scroll-direction signal: both hide on
+    // scroll-down, return on scroll-up or at the top (the field additionally
+    // never collapses mid-search — see rememberHomeScrollSignals).
+    val scrollSignals = rememberHomeScrollSignals(
+        listState = listState,
+        queryEmpty = queryInput.isEmpty(),
+        searchFieldFocused = searchFieldFocused,
+    )
+    // Tap-to-search from the collapsed top bar: expand, then focus once the
+    // field re-enters composition (its own LaunchedEffect(Unit) below).
+    val searchFocusRequester = remember { FocusRequester() }
+    var focusSearchOnExpand by remember { mutableStateOf(false) }
     // The one row whose avatar carries the shared-element modifier: the last
     // tapped contact. Keeps every other row free of shared-element bookkeeping
     // during scroll. Saveable so the pop-back morph still finds the row after
@@ -247,6 +291,11 @@ fun HomeScreen(
             } else if (!embedded) {
                 HomeTopBar(
                     duplicateCount = state.duplicateCount,
+                    searchActionVisible = !scrollSignals.searchFieldExpanded,
+                    onSearchClick = {
+                        focusSearchOnExpand = true
+                        scrollSignals.searchFieldExpanded = true
+                    },
                     onDuplicatesClick = onDuplicatesClick,
                     onSettingsClick = onSettingsClick,
                 )
@@ -278,13 +327,18 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             HomeFab(
-                visible = fabVisible && !state.selectionMode,
+                visible = scrollSignals.fabVisible && !state.selectionMode,
                 railShown = state.contacts.size > FAST_SCROLL_MIN_CONTACTS,
                 onClick = onAddClick,
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
+        // The nested scroll connection sits on this ancestor of the contact
+        // list below: real gesture/fling deltas bubble up through it before
+        // the list (or this collapse/expand animation) ever touches the
+        // list's own scroll offset — see HomeScrollSignals for why that
+        // separation matters.
+        Column(Modifier.padding(padding).fillMaxSize().nestedScroll(scrollSignals.nestedScrollConnection)) {
             batchProgress?.takeIf { !it.finished }?.let { progress ->
                 BatchProgressBar(
                     label = progress.label,
@@ -293,37 +347,59 @@ fun HomeScreen(
                     onCancel = viewModel::cancelBatch,
                 )
             }
-            // Local input state keeps the cursor stable while typing; filtering is
-            // debounced to the ViewModel so the list only re-filters after a pause.
-            var queryInput by remember { mutableStateOf(state.query) }
-            LaunchedEffect(state.query) {
-                if (state.query != queryInput) queryInput = state.query
-            }
-            LaunchedEffect(queryInput) {
-                delay(500)
-                if (queryInput != state.query) viewModel.setQuery(queryInput)
-            }
-            SearchField(
-                query = queryInput,
-                placeholder = stringResource(R.string.home_search_hint, state.contacts.size),
-                onQueryChange = { queryInput = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = if (queryInput.isNotEmpty()) {
-                    {
-                        IconButton(onClick = {
-                            queryInput = ""
-                            viewModel.setQuery("")
-                        }) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = stringResource(R.string.home_clear_search),
-                            )
+            // Collapses on scroll-down, returns on scroll-up/at-top (never while
+            // there's a query or the field is focused) — chips glide up under it.
+            // Compose BOM 2026.02.01 ships material3 1.4, but MaterialTheme.motionScheme
+            // is `internal` there — no public spatial spring to reach for, so a
+            // plain tween stands in for the "expressive" spring this would otherwise use.
+            // 200ms (down from an earlier 250ms): cheaper under the app-wide
+            // SharedTransitionLayout lookahead pass every full-layout height
+            // animation pays a tax against (see AGENTS.md's transitions gotcha).
+            AnimatedVisibility(
+                visible = scrollSignals.searchFieldExpanded,
+                enter = expandVertically(
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                    expandFrom = Alignment.Top,
+                ) + fadeIn(tween(200)),
+                exit = shrinkVertically(
+                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                    shrinkTowards = Alignment.Top,
+                ) + fadeOut(tween(200)),
+            ) {
+                SearchField(
+                    query = queryInput,
+                    placeholder = stringResource(R.string.home_search_hint, state.contacts.size),
+                    onQueryChange = { queryInput = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .focusRequester(searchFocusRequester)
+                        .onFocusChanged { searchFieldFocused = it.isFocused },
+                    trailing = if (queryInput.isNotEmpty()) {
+                        {
+                            IconButton(onClick = {
+                                queryInput = ""
+                                viewModel.setQuery("")
+                            }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.home_clear_search),
+                                )
+                            }
                         }
+                    } else {
+                        null
+                    },
+                )
+                // Fires once when the field re-enters composition (i.e. right when
+                // it expands) — only acts on a tap-triggered expand.
+                LaunchedEffect(Unit) {
+                    if (focusSearchOnExpand) {
+                        searchFocusRequester.requestFocus()
+                        focusSearchOnExpand = false
                     }
-                } else {
-                    null
-                },
-            )
+                }
+            }
             AccountChipsRow(
                 accounts = state.accounts,
                 selectedAccountKey = state.selectedAccountKey,

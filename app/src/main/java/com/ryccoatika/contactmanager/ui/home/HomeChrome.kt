@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -46,18 +48,26 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.R
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -65,6 +75,140 @@ import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.ui.common.AccountDot
 import com.ryccoatika.contactmanager.ui.common.AccountVisuals
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+// ~3x touch slop (Android's default TouchSlop is 8dp): the minimum
+// accumulated gesture/fling delta before the chrome flips collapsed/expanded.
+// Large enough to absorb small jitters (and the list's own settle motion once
+// the field's height animation nudges it) without real intentional scrolls
+// feeling unresponsive.
+private val COLLAPSE_HYSTERESIS: Dp = 28.dp
+
+/**
+ * FAB visibility and search-field expansion, driven by one shared scroll
+ * signal fed by [nestedScrollConnection]: both hide once accumulated
+ * scroll-down gesture/fling delta clears a hysteresis threshold, return the
+ * same way on scroll-up, or snap open at the top of the list.
+ * [searchFieldExpanded] is mutable from outside too — the collapsed top
+ * bar's search action and a non-empty query/focus force it back open
+ * independent of scrolling (see [HomeScreen]'s usage).
+ */
+@Stable
+internal class HomeScrollSignals(
+    private val hysteresisPx: Float,
+    private val queryEmpty: () -> Boolean,
+    private val searchFieldFocused: () -> Boolean,
+) {
+    var fabVisible by mutableStateOf(true)
+    var searchFieldExpanded by mutableStateOf(true)
+
+    // Net gesture/fling delta since the last direction flip or reset. Only
+    // real pointer/fling deltas from nestedScrollConnection feed this —
+    // never derived from the list's own reported scroll offset, which the
+    // chrome's own collapse/expand animation also perturbs (the feedback
+    // loop that caused the old offset-direction detector to jitter).
+    private var accumulated = 0f
+
+    fun resetAccumulator() {
+        accumulated = 0f
+    }
+
+    /**
+     * Attach to an ancestor of the contact list via `Modifier.nestedScroll`.
+     * Consumes nothing — it only observes real drag/fling deltas to detect
+     * direction with hysteresis, immune to layout-shift feedback from the
+     * chrome's own expand/collapse animation.
+     */
+    val nestedScrollConnection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            onScroll(available.y)
+            return Offset.Zero
+        }
+
+        override fun onPostScroll(
+            consumed: Offset,
+            available: Offset,
+            source: NestedScrollSource,
+        ): Offset {
+            // Nothing extra to do here: onPreScroll already sees the full
+            // gesture/fling delta before the list consumes any of it. Kept
+            // as an explicit no-op override so both nested-scroll phases are
+            // visibly considered, per the diagnosis this replaces.
+            return Offset.Zero
+        }
+
+        private fun onScroll(deltaY: Float) {
+            if (deltaY == 0f) return
+            // Negative dy: finger dragging up / fling towards later items —
+            // scrolling down the list. Positive dy: scrolling up.
+            val sameDirection = (deltaY < 0f && accumulated <= 0f) || (deltaY > 0f && accumulated >= 0f)
+            accumulated = if (sameDirection) accumulated + deltaY else deltaY
+            when {
+                accumulated <= -hysteresisPx -> {
+                    fabVisible = false
+                    if (queryEmpty() && !searchFieldFocused()) searchFieldExpanded = false
+                    accumulated = 0f
+                }
+
+                accumulated >= hysteresisPx -> {
+                    fabVisible = true
+                    if (queryEmpty() && !searchFieldFocused()) searchFieldExpanded = true
+                    accumulated = 0f
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Builds [HomeScrollSignals] wired to [listState]'s ancestor via
+ * [HomeScrollSignals.nestedScrollConnection] (attach it in [HomeScreen]). The
+ * search field only follows scroll while [queryEmpty] and not
+ * [searchFieldFocused] — a query or focus always wins and forces it back
+ * open.
+ */
+@Composable
+internal fun rememberHomeScrollSignals(
+    listState: LazyListState,
+    queryEmpty: Boolean,
+    searchFieldFocused: Boolean,
+): HomeScrollSignals {
+    // rememberUpdatedState: the nested-scroll connection and the collect
+    // lambda both outlive recompositions, so they must read the latest
+    // flags, not the ones captured when they were created.
+    val queryEmptyState = rememberUpdatedState(queryEmpty)
+    val focusedState = rememberUpdatedState(searchFieldFocused)
+    val hysteresisPx = with(LocalDensity.current) { COLLAPSE_HYSTERESIS.toPx() }
+    val signals = remember {
+        HomeScrollSignals(
+            hysteresisPx = hysteresisPx,
+            queryEmpty = { queryEmptyState.value },
+            searchFieldFocused = { focusedState.value },
+        )
+    }
+    // Cheap, offset-derived and deliberately narrow: only used to snap the
+    // chrome back open at rest, not to detect direction (that's the nested
+    // scroll connection's job — see the class doc for why offset-derived
+    // direction detection was the source of the jitter this replaces).
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+            .distinctUntilChanged()
+            .collect { atTop ->
+                if (atTop) {
+                    signals.fabVisible = true
+                    if (queryEmptyState.value && !focusedState.value) signals.searchFieldExpanded = true
+                    signals.resetAccumulator()
+                }
+            }
+    }
+    // A query or focus can arrive between scroll events (e.g. right after a
+    // tap on the collapsed top bar's search action) — force the field open
+    // immediately rather than waiting for the next scroll tick.
+    LaunchedEffect(queryEmpty, searchFieldFocused) {
+        if (!queryEmpty || searchFieldFocused) signals.searchFieldExpanded = true
+    }
+    return signals
+}
 
 /** Selection-mode top bar: count + clear. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,11 +237,13 @@ internal fun SelectionTopBar(
     )
 }
 
-/** Default top bar: title + duplicates badge + settings. */
+/** Default top bar: title + search (only while the field is collapsed) + duplicates badge + settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeTopBar(
     duplicateCount: Int,
+    searchActionVisible: Boolean,
+    onSearchClick: () -> Unit,
     onDuplicatesClick: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
@@ -107,6 +253,20 @@ internal fun HomeTopBar(
             containerColor = MaterialTheme.colorScheme.background,
         ),
         actions = {
+            // Mirrors the HomeFab scale/fade idiom: no size animation (no
+            // expand/shrink), so the neighboring actions never shift.
+            AnimatedVisibility(
+                visible = searchActionVisible,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut(),
+            ) {
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = stringResource(R.string.home_search),
+                    )
+                }
+            }
             IconButton(onClick = onDuplicatesClick) {
                 BadgedBox(
                     badge = {

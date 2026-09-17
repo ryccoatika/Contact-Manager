@@ -5,6 +5,9 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+- The search box now tucks away while you scroll down the contact list and
+  glides back on scroll-up — or tap the new search icon in the top bar to
+  bring it back with the keyboard ready.
 - Export contacts to a file (vCard): a whole account, several accounts at
   once (as one combined file or one file per account), or just the contacts
   you've selected — from Settings › Accounts or the contacts list.
