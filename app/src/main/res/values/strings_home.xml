@@ -9,6 +9,7 @@
     <!-- Selection actions -->
     <string name="home_move_to">Move to…</string>
     <string name="home_copy_to">Copy to…</string>
+    <string name="home_export">Export</string>
     <string name="home_delete">Delete</string>
     <string name="home_merge">Merge</string>
     <string name="home_move_anyway">Move anyway</string>

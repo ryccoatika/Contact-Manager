@@ -1,5 +1,7 @@
 package com.ryccoatika.contactmanager.ui.home
 
+import android.net.FakeUri
+import android.net.Uri
 import com.ryccoatika.contactmanager.data.AccountsSource
 import com.ryccoatika.contactmanager.data.AppPrefs
 import com.ryccoatika.contactmanager.data.BatchOperationManager
@@ -11,6 +13,9 @@ import com.ryccoatika.contactmanager.data.EditableContact
 import com.ryccoatika.contactmanager.data.FakeAppPrefs
 import com.ryccoatika.contactmanager.data.FakeStringProvider
 import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
+import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
+import com.ryccoatika.contactmanager.data.transfer.ParseOutcome
+import com.ryccoatika.contactmanager.data.transfer.TransferResult
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -18,6 +23,7 @@ import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
+import com.ryccoatika.contactmanager.domain.vcard.VCardContact
 import com.ryccoatika.contactmanager.ui.common.UiEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -144,6 +150,27 @@ class HomeViewModelTest {
         }
     }
 
+    private class FakeContactTransfer : ContactTransfer {
+        var exportRawContactsResult: TransferResult = TransferResult.Success(contactCount = 0, fileCount = 1)
+        val exportRawContactsCalls = mutableListOf<Pair<List<Long>, Uri>>()
+
+        override suspend fun exportAccounts(accounts: List<ContactAccount>, uri: Uri): TransferResult =
+            throw UnsupportedOperationException()
+
+        override suspend fun exportAccountsToFolder(accounts: List<ContactAccount>, treeUri: Uri): TransferResult =
+            throw UnsupportedOperationException()
+
+        override suspend fun exportRawContacts(rawContactIds: List<Long>, uri: Uri): TransferResult {
+            exportRawContactsCalls += rawContactIds to uri
+            return exportRawContactsResult
+        }
+
+        override suspend fun parseFile(uri: Uri): ParseOutcome = throw UnsupportedOperationException()
+
+        override fun startImport(contacts: List<VCardContact>, targets: List<ContactAccount>): Boolean =
+            throw UnsupportedOperationException()
+    }
+
     private val googleTarget = ContactAccount("b@gmail.com", "com.google", AccountCapability.FULL_CRUD, 0)
 
     private val dismissedKeys = MutableStateFlow<Set<String>>(emptySet())
@@ -162,6 +189,7 @@ class HomeViewModelTest {
         writer: FakeWriter = FakeWriter(),
         appPrefs: AppPrefs = FakeAppPrefs(),
         analytics: FakeAnalytics = FakeAnalytics(),
+        transfer: ContactTransfer = FakeContactTransfer(),
     ): HomeViewModel {
         val batchManager = BatchOperationManager(writer, CoroutineScope(SupervisorJob() + dispatcher))
         val strings = FakeStringProvider()
@@ -175,6 +203,7 @@ class HomeViewModelTest {
             appPrefs = appPrefs,
             strings = strings,
             analytics = analytics,
+            transfer = transfer,
             defaultDispatcher = dispatcher,
         )
     }
@@ -314,6 +343,53 @@ class HomeViewModelTest {
         val copy = analytics.events.filterIsInstance<AnalyticsEvent.ContactCopy>().single()
         assertEquals(writer.copiedIds.size, copy.count)
         job.cancel()
+    }
+
+    @Test fun `exportSelected exports every selected raw id including read-only and clears selection`() = runTest(dispatcher) {
+        val transfer = FakeContactTransfer().apply {
+            exportRawContactsResult = TransferResult.Success(contactCount = 2, fileCount = 1)
+        }
+        val analytics = FakeAnalytics()
+        val vm = vm(transfer = transfer, analytics = analytics)
+        val job = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(2)
+        vm.toggleSelect(3)
+        dispatcher.scheduler.advanceUntilIdle()
+        val uri = FakeUri("content://export")
+
+        vm.exportSelected(uri)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(listOf(20L, 30L, 31L) to (uri as Uri)), transfer.exportRawContactsCalls)
+        assertEquals(emptySet<Long>(), vm.uiState.value.selectedContactIds)
+        assertEquals(
+            AnalyticsEvent.ContactsExport(count = 2, accountCount = 2, perAccountFiles = false),
+            analytics.events.filterIsInstance<AnalyticsEvent.ContactsExport>().single(),
+        )
+        job.cancel()
+    }
+
+    @Test fun `exportSelected emits failure snackbar on Failure`() = runTest(dispatcher) {
+        val transfer = FakeContactTransfer().apply {
+            exportRawContactsResult = TransferResult.Failure("boom")
+        }
+        val analytics = FakeAnalytics()
+        val vm = vm(transfer = transfer, analytics = analytics)
+        val stateJob = launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelect(1)
+        dispatcher.scheduler.advanceUntilIdle()
+        val events = mutableListOf<UiEvent>()
+        val job = launch { vm.events.collect { events += it } }
+
+        vm.exportSelected(FakeUri("content://export"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf<UiEvent>(UiEvent.ShowSnackbar("boom")), events)
+        assertTrue(analytics.events.isEmpty())
+        job.cancel()
+        stateJob.cancel()
     }
 
     @Test fun `setQuery logs search with query length`() = runTest(dispatcher) {

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -129,25 +131,30 @@ internal fun HomeTopBar(
     )
 }
 
-/** Selection-mode bottom action bar: move / copy / delete / merge. */
+/** Selection-mode bottom action bar: move / copy / export / delete / merge. */
 @Composable
 internal fun SelectionBottomBar(
     mergeEnabled: Boolean,
     onMove: () -> Unit,
     onCopy: () -> Unit,
+    onExport: () -> Unit,
     onDelete: () -> Unit,
     onMerge: () -> Unit,
 ) {
     BottomAppBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onMove) { Text(stringResource(R.string.home_move_to)) }
-        Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onCopy) { Text(stringResource(R.string.home_copy_to)) }
-        Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onDelete) { Text(stringResource(R.string.home_delete)) }
-        Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onMerge, enabled = mergeEnabled) {
-            Text(stringResource(R.string.home_merge))
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onMove) { Text(stringResource(R.string.home_move_to)) }
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onCopy) { Text(stringResource(R.string.home_copy_to)) }
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onExport) { Text(stringResource(R.string.home_export)) }
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.home_delete)) }
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onMerge, enabled = mergeEnabled) {
+                Text(stringResource(R.string.home_merge))
+            }
         }
     }
 }
