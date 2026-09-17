@@ -2,7 +2,6 @@ package com.ryccoatika.contactmanager.domain.vcard
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class VCardParserTest {
