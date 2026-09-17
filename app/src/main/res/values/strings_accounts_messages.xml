@@ -8,4 +8,10 @@
     <string name="accounts_msg_copy_started">Copy started — progress is shown on the contacts screen.</string>
     <string name="accounts_msg_copying_label">Copying %1$d to %2$s</string>
     <string name="accounts_msg_this_device">this device</string>
+    <plurals name="accounts_msg_exported">
+        <item quantity="one">Exported %1$d contact.</item>
+        <item quantity="other">Exported %1$d contacts.</item>
+    </plurals>
+    <string name="accounts_msg_import_started">Import started — progress is shown on the contacts screen.</string>
+    <string name="accounts_msg_import_none">The file had no contacts to import.</string>
 </resources>

@@ -1,6 +1,10 @@
 package com.ryccoatika.contactmanager.ui.accounts
 
+import android.content.Context
 import android.content.res.Configuration
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +50,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +83,9 @@ import com.ryccoatika.contactmanager.ui.common.SectionCard
 import com.ryccoatika.contactmanager.ui.common.isMoveTarget
 import com.ryccoatika.contactmanager.ui.theme.ContactManagerTheme
 import com.ryccoatika.contactmanager.ui.theme.TabularNums
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,8 +99,101 @@ fun AccountsScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingOp by viewModel.pendingOp.collectAsStateWithLifecycle()
+    val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var opRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
+    // Menu is transient chrome — fine to lose across process death, unlike the SAF hand-offs below.
+    var transferMenuOpen by remember { mutableStateOf(false) }
+    var sheetMode by rememberSaveable(stateSaver = TransferModeSaver) { mutableStateOf<TransferMode?>(null) }
+    // Transient chrome, same rationale as transferMenuOpen above — a stale flag is reset
+    // wherever ImportConfirmDialog itself is dismissed/confirmed so it can't leak into the
+    // next parsed import.
+    var showImportPicker by remember { mutableStateOf(false) }
+    // ContactAccount isn't Parcelable/Serializable, so SAF round-trips (which can outlive the
+    // process on low memory) persist lightweight account keys instead and re-resolve against
+    // state.accounts once it has (re)loaded — see the LaunchedEffects below. Resolution is never
+    // done inline in a launcher callback or in composition: after a process-death restore, both
+    // can run before AccountsViewModel's init fetch has repopulated state.accounts.
+    var exportRequestKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
+        mutableStateOf<List<String>?>(null)
+    }
+    var importTargetKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
+        mutableStateOf<List<String>?>(null)
+    }
+    // The picked SAF result itself; Uri is Parcelable so rememberSaveable handles it natively.
+    var pendingExportFileUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingExportFolderUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingImportFileUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    val importNoneMessage = stringResource(R.string.accounts_msg_import_none)
+
+    val exportFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/x-vcard"),
+    ) { uri ->
+        // A null uri means the user backed out of the picker — safe to clear right away here,
+        // this is an event handler, not composition.
+        if (uri == null) exportRequestKeys = null else pendingExportFileUri = uri
+    }
+    val exportFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { treeUri ->
+        if (treeUri == null) exportRequestKeys = null else pendingExportFolderUri = treeUri
+    }
+    val importFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) importTargetKeys = null else pendingImportFileUri = uri
+    }
+
+    // Waits for state.loading to settle before resolving keys → accounts and calling the
+    // ViewModel, so a SAF result delivered right after a process-death restore isn't silently
+    // dropped because the account list hadn't reloaded yet.
+    LaunchedEffect(pendingExportFileUri, state.loading) {
+        val uri = pendingExportFileUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingExportFileUri = null
+        exportRequestKeys = null
+        if (!accounts.isNullOrEmpty()) viewModel.exportToFile(accounts, uri)
+    }
+    LaunchedEffect(pendingExportFolderUri, state.loading) {
+        val treeUri = pendingExportFolderUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingExportFolderUri = null
+        exportRequestKeys = null
+        if (!accounts.isNullOrEmpty()) viewModel.exportToFolder(accounts, treeUri)
+    }
+    LaunchedEffect(pendingImportFileUri, state.loading) {
+        val uri = pendingImportFileUri ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val targets = importTargetKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        pendingImportFileUri = null
+        importTargetKeys = null
+        if (!targets.isNullOrEmpty()) viewModel.requestImport(targets, uri)
+    }
+    // No SAF result yet (still on the ExportModeDialog step) but the saved keys no longer
+    // resolve to a current account once loading has settled — clear instead of leaving the
+    // dialog stuck on a dead selection. An effect, not inline in composition, since it's a
+    // state write.
+    LaunchedEffect(exportRequestKeys, state.loading) {
+        val keys = exportRequestKeys ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        if (state.accounts.none { it.key in keys }) exportRequestKeys = null
+    }
+
+    fun startExport(accounts: List<ContactAccount>) {
+        exportRequestKeys = accounts.map { it.key }
+        if (accounts.size == 1) {
+            exportFileLauncher.launch(suggestedExportFileName(context, accounts))
+        }
+        // Otherwise exportRequestKeys?.let { … } below shows ExportModeDialog to pick
+        // one-file/per-account.
+    }
+
+    fun startImport(targets: List<ContactAccount>) {
+        importTargetKeys = targets.map { it.key }
+        importFileLauncher.launch(IMPORT_MIME_TYPES)
+    }
 
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -108,6 +211,35 @@ fun AccountsScreen(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.accounts_back),
                             )
+                        }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { transferMenuOpen = true }) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.accounts_transfer_menu),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = transferMenuOpen,
+                                onDismissRequest = { transferMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.accounts_export_contacts)) },
+                                    onClick = {
+                                        transferMenuOpen = false
+                                        sheetMode = TransferMode.EXPORT
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.accounts_import_contacts)) },
+                                    onClick = {
+                                        transferMenuOpen = false
+                                        sheetMode = TransferMode.IMPORT
+                                    },
+                                )
+                            }
                         }
                     },
                 )
@@ -147,6 +279,8 @@ fun AccountsScreen(
                             onClick = { onAccountClick(account.key) },
                             onMoveAll = { opRequest = AccountOpMode.MOVE to account },
                             onCopyAll = { opRequest = AccountOpMode.COPY to account },
+                            onExport = { startExport(listOf(account)) },
+                            onImport = { startImport(listOf(account)) },
                             onToggleHidden = { hidden -> viewModel.setAccountHidden(account, hidden) },
                         )
                     }
@@ -175,6 +309,106 @@ fun AccountsScreen(
             onDismiss = viewModel::dismissPendingOp,
         )
     }
+
+    sheetMode?.let { mode ->
+        TransferAccountsSheet(
+            mode = mode,
+            accounts = state.accounts,
+            onConfirm = { selected ->
+                sheetMode = null
+                if (mode == TransferMode.EXPORT) startExport(selected) else startImport(selected)
+            },
+            onDismiss = { sheetMode = null },
+        )
+    }
+
+    exportRequestKeys?.let { keys ->
+        // Empty resolution (account removed, or restore before the list finished loading) is
+        // handled by the LaunchedEffect above — nothing to show here either way, and no state
+        // write belongs in composition.
+        val accounts = state.accounts.filter { it.key in keys }
+        if (accounts.size > 1) {
+            ExportModeDialog(
+                onOneFile = { exportFileLauncher.launch(suggestedExportFileName(context, accounts)) },
+                onPerAccount = { exportFolderLauncher.launch(null) },
+                onDismiss = { exportRequestKeys = null },
+            )
+        }
+    }
+
+    pendingImport?.let { pending ->
+        if (pending.contacts.isEmpty()) {
+            // Defensive: ContactTransfer.parseFile returns ParseOutcome.Failure (not Parsed)
+            // when zero contacts were read, so PendingImport.contacts is never actually empty
+            // today — this guards the cross-layer invariant rather than a reachable state.
+            LaunchedEffect(pending) {
+                viewModel.dismissPendingImport()
+                snackbarHostState.showSnackbar(importNoneMessage)
+            }
+        } else if (showImportPicker) {
+            ImportContactsPickerSheet(
+                pending = pending,
+                onConfirm = {
+                    showImportPicker = false
+                    viewModel.confirmPendingImportOf(it)
+                },
+                // Falls back to the confirm dialog rather than dismissing the whole import —
+                // pending is kept, only the picker step is backed out of.
+                onDismiss = { showImportPicker = false },
+            )
+        } else {
+            ImportConfirmDialog(
+                pending = pending,
+                onConfirm = {
+                    showImportPicker = false
+                    viewModel.confirmPendingImport()
+                },
+                onChoose = { showImportPicker = true },
+                onDismiss = {
+                    showImportPicker = false
+                    viewModel.dismissPendingImport()
+                },
+            )
+        }
+    }
+}
+
+// MIME types offered when picking a vCard file to import; the wildcard entry covers OEM pickers
+// that mislabel .vcf files with a generic MIME type.
+private val IMPORT_MIME_TYPES = arrayOf("text/x-vcard", "text/vcard", "text/directory", "*/*")
+
+/** Saves [TransferMode] as its enum name so `sheetMode` survives process death. */
+private val TransferModeSaver: Saver<TransferMode?, String> = Saver(
+    save = { it?.name ?: "" },
+    restore = { if (it.isEmpty()) null else TransferMode.valueOf(it) },
+)
+
+/**
+ * Saves the [ContactAccount.key]s standing in for a pending export/import selection —
+ * `ContactAccount` itself isn't Parcelable/Serializable, and SAF round-trips can outlive the
+ * process on low memory, so the raw accounts can't be stashed directly.
+ */
+private val AccountKeysSaver: Saver<List<String>?, Any> = listSaver(
+    save = { it ?: emptyList() },
+    restore = { if (it.isEmpty()) null else it },
+)
+
+private fun sanitizedFileStem(label: String): String =
+    label
+        .trim()
+        .replace(Regex("[^A-Za-z0-9]+"), "-")
+        .trim('-')
+        .ifBlank { "account" }
+
+private fun suggestedExportFileName(context: Context, accounts: List<ContactAccount>): String {
+    val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    return if (accounts.size == 1) {
+        val account = accounts.first()
+        val label = account.displayLabel ?: AccountVisuals.label(context, account.type, account.name)
+        "${sanitizedFileStem(label)}-$date.vcf"
+    } else {
+        "contacts-$date.vcf"
+    }
 }
 
 @Composable
@@ -184,11 +418,14 @@ private fun AccountRow(
     onClick: () -> Unit,
     onMoveAll: () -> Unit,
     onCopyAll: () -> Unit = {},
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
     onToggleHidden: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     val readOnly = account.capability == AccountCapability.READ_ONLY
+    val notImportTarget = !isMoveTarget(account)
     val label = account.displayLabel ?: AccountVisuals.label(context, account.type, account.name)
     // Prefer the SIM number as the subtitle; hide opaque native SIM account names.
     val subtitle = if (hidden) {
@@ -264,6 +501,32 @@ private fun AccountRow(
                         onClick = {
                             menuOpen = false
                             onCopyAll()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.accounts_export_contacts)) },
+                        onClick = {
+                            menuOpen = false
+                            onExport()
+                        },
+                    )
+                    DropdownMenuItem(
+                        enabled = !notImportTarget,
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.accounts_import_contacts))
+                                if (readOnly) {
+                                    Text(
+                                        stringResource(R.string.accounts_managed_by_app),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onImport()
                         },
                     )
                     DropdownMenuItem(

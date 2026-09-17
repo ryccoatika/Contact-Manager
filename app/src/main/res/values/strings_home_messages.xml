@@ -17,4 +17,8 @@
         <item quantity="one">Merged %1$d entry into one contact.</item>
         <item quantity="other">Merged %1$d entries into one contact.</item>
     </plurals>
+    <plurals name="home_msg_exported">
+        <item quantity="one">Exported %1$d contact.</item>
+        <item quantity="other">Exported %1$d contacts.</item>
+    </plurals>
 </resources>
