@@ -49,6 +49,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,44 +101,53 @@ fun AccountsScreen(
     val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var opRequest by remember { mutableStateOf<Pair<AccountOpMode, ContactAccount>?>(null) }
+    // Menu is transient chrome — fine to lose across process death, unlike the SAF hand-offs below.
     var transferMenuOpen by remember { mutableStateOf(false) }
-    var sheetMode by remember { mutableStateOf<TransferMode?>(null) }
-    var exportRequest by remember { mutableStateOf<List<ContactAccount>?>(null) }
-    var importTargets by remember { mutableStateOf<List<ContactAccount>?>(null) }
+    var sheetMode by rememberSaveable(stateSaver = TransferModeSaver) { mutableStateOf<TransferMode?>(null) }
+    // ContactAccount isn't Parcelable/Serializable, so SAF round-trips (which can outlive the
+    // process on low memory) persist lightweight account keys instead and re-resolve against
+    // state.accounts wherever they're consumed.
+    var exportRequestKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
+        mutableStateOf<List<String>?>(null)
+    }
+    var importTargetKeys by rememberSaveable(stateSaver = AccountKeysSaver) {
+        mutableStateOf<List<String>?>(null)
+    }
     val importNoneMessage = stringResource(R.string.accounts_msg_import_none)
 
     val exportFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/x-vcard"),
     ) { uri ->
-        val accounts = exportRequest
-        exportRequest = null
-        if (uri != null && accounts != null) viewModel.exportToFile(accounts, uri)
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        exportRequestKeys = null
+        if (uri != null && !accounts.isNullOrEmpty()) viewModel.exportToFile(accounts, uri)
     }
     val exportFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { treeUri ->
-        val accounts = exportRequest
-        exportRequest = null
-        if (treeUri != null && accounts != null) viewModel.exportToFolder(accounts, treeUri)
+        val accounts = exportRequestKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        exportRequestKeys = null
+        if (treeUri != null && !accounts.isNullOrEmpty()) viewModel.exportToFolder(accounts, treeUri)
     }
     val importFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        val targets = importTargets
-        importTargets = null
-        if (uri != null && targets != null) viewModel.requestImport(targets, uri)
+        val targets = importTargetKeys?.let { keys -> state.accounts.filter { it.key in keys } }
+        importTargetKeys = null
+        if (uri != null && !targets.isNullOrEmpty()) viewModel.requestImport(targets, uri)
     }
 
     fun startExport(accounts: List<ContactAccount>) {
-        exportRequest = accounts
+        exportRequestKeys = accounts.map { it.key }
         if (accounts.size == 1) {
             exportFileLauncher.launch(suggestedExportFileName(context, accounts))
         }
-        // Otherwise exportRequest?.let { … } below shows ExportModeDialog to pick one-file/per-account.
+        // Otherwise exportRequestKeys?.let { … } below shows ExportModeDialog to pick
+        // one-file/per-account.
     }
 
     fun startImport(targets: List<ContactAccount>) {
-        importTargets = targets
+        importTargetKeys = targets.map { it.key }
         importFileLauncher.launch(IMPORT_MIME_TYPES)
     }
 
@@ -266,18 +278,27 @@ fun AccountsScreen(
         )
     }
 
-    exportRequest?.let { accounts ->
-        if (accounts.size > 1) {
+    exportRequestKeys?.let { keys ->
+        val accounts = state.accounts.filter { it.key in keys }
+        if (accounts.isEmpty()) {
+            // Keys didn't resolve to a current account — either it was removed while the
+            // sheet/picker was open, or (on restore after process death) the account list
+            // hasn't finished loading yet. Only give up once loading has settled.
+            if (!state.loading) exportRequestKeys = null
+        } else if (accounts.size > 1) {
             ExportModeDialog(
                 onOneFile = { exportFileLauncher.launch(suggestedExportFileName(context, accounts)) },
                 onPerAccount = { exportFolderLauncher.launch(null) },
-                onDismiss = { exportRequest = null },
+                onDismiss = { exportRequestKeys = null },
             )
         }
     }
 
     pendingImport?.let { pending ->
         if (pending.contacts.isEmpty()) {
+            // Defensive: ContactTransfer.parseFile returns ParseOutcome.Failure (not Parsed)
+            // when zero contacts were read, so PendingImport.contacts is never actually empty
+            // today — this guards the cross-layer invariant rather than a reachable state.
             LaunchedEffect(pending) {
                 viewModel.dismissPendingImport()
                 snackbarHostState.showSnackbar(importNoneMessage)
@@ -295,6 +316,22 @@ fun AccountsScreen(
 // MIME types offered when picking a vCard file to import; the wildcard entry covers OEM pickers
 // that mislabel .vcf files with a generic MIME type.
 private val IMPORT_MIME_TYPES = arrayOf("text/x-vcard", "text/vcard", "text/directory", "*/*")
+
+/** Saves [TransferMode] as its enum name so `sheetMode` survives process death. */
+private val TransferModeSaver: Saver<TransferMode?, String> = Saver(
+    save = { it?.name ?: "" },
+    restore = { if (it.isEmpty()) null else TransferMode.valueOf(it) },
+)
+
+/**
+ * Saves the [ContactAccount.key]s standing in for a pending export/import selection —
+ * `ContactAccount` itself isn't Parcelable/Serializable, and SAF round-trips can outlive the
+ * process on low memory, so the raw accounts can't be stashed directly.
+ */
+private val AccountKeysSaver: Saver<List<String>?, Any> = listSaver(
+    save = { it ?: emptyList() },
+    restore = { if (it.isEmpty()) null else it },
+)
 
 private fun sanitizedFileStem(label: String): String =
     label
