@@ -4,6 +4,11 @@ All notable changes to Contact Manager are documented here. This project adheres
 to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## [1.2] - 2026-10-02
+- Fixed a crash that could hit while a screen was still loading, and made those
+  loading placeholders lighter on memory.
+- Updated the crash-reporting and analytics libraries.
+
 ## [1.1] - 2026-09-17
 - Export contacts to a file (vCard): a whole account, several accounts at
   once (as one combined file or one file per account), or just the contacts

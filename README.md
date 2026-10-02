@@ -1,6 +1,42 @@
-# ContactManager
+<div align="center">
+  <img src="art/app-logo.svg" alt="ContactManager app icon" width="108" height="108">
 
-Android contact manager that surfaces **every** contact source on the device — Google, Samsung, device-local, SIM cards, and app-managed accounts like WhatsApp or Telegram — in one unified list, and lets you organize contacts across them.
+  <h1>ContactManager</h1>
+
+  <p>
+    <strong>Every contact source on your device, in one list.</strong><br>
+    Google · Samsung · device-local · SIM · WhatsApp / Telegram / Viber / Signal
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white" alt="Platform: Android">
+    <img src="https://img.shields.io/badge/minSdk-24-0E5A51" alt="minSdk 24">
+    <img src="https://img.shields.io/badge/targetSdk-36-0E5A51" alt="targetSdk 36">
+    <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.2.10">
+    <img src="https://img.shields.io/badge/Compose-Material%203-4285F4" alt="Jetpack Compose Material 3">
+  </p>
+
+  <a href="https://play.google.com/store/apps/details?id=com.ryccoatika.contactmanager">
+    <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">
+  </a>
+</div>
+
+<p align="center">
+  <img src="art/feature-graphic.svg" alt="ContactManager — one list for every contact source" width="100%">
+</p>
+
+Android contact manager that surfaces **every** contact source on the device — Google, Samsung, device-local, SIM cards, and app-managed accounts like WhatsApp or Telegram — in one unified list, and lets you organize contacts across them. It talks directly to `ContactsContract`: no cache database, no backend, contacts never leave the device.
+
+## Screenshots
+
+<p align="center">
+  <img src="art/screenshots/phone/01-onboarding.png" alt="Onboarding: account sources discovered on the device" width="200">
+  <img src="art/screenshots/phone/02-home.png" alt="Unified contact list with account filter chips and letter headers" width="200">
+  <img src="art/screenshots/phone/06-accounts.png" alt="Accounts screen with capability tags and move-all" width="200">
+  <img src="art/screenshots/phone/07-move.png" alt="Move contacts between accounts with field-loss warning" width="200">
+</p>
+
+<p align="center"><em>Onboarding · Unified list · Accounts · Move &amp; copy</em></p>
 
 ## Features
 
@@ -31,7 +67,7 @@ Key decisions:
 - Writes via `applyBatch` chunked ≤400 ops (binder transaction limit), every operation caught into a typed `ContactOpResult` — provider errors surface as snackbars, never crashes.
 - `SimAwareContactsWriter` decorator routes CRUD between `ContactsContract` and the `icc/adn` provider transparently.
 - Long batch moves run in an application-scoped coroutine (survive rotation), with cancellable progress.
-- Pure domain logic (matching, planning, validation, classification) is JVM-unit-tested — 146 tests.
+- Pure domain logic (matching, planning, validation, classification) is JVM-unit-tested, and the suite is a merge gate in CI.
 
 ## Package map
 
@@ -51,7 +87,7 @@ Key decisions:
 
 ```bash
 ./gradlew :app:assembleDebug          # build
-./gradlew :app:testDebugUnitTest      # 146 unit tests
+./gradlew :app:testDebugUnitTest      # JVM unit tests
 ./gradlew :app:lintDebug              # lint
 ```
 
