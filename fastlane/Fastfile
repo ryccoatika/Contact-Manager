@@ -17,28 +17,35 @@ rescue Errno::ENOENT
   default
 end
 
-platform :android do
-  desc "Upload the release AAB to Internal App Sharing (merges to develop)"
-  lane :internal_sharing do
-    url = upload_to_play_store_internal_app_sharing(
-      aab: AAB_PATH,
-    )
-    UI.success("Internal App Sharing URL: #{url}")
-    # Expose the download URL to the workflow (for the Telegram notification).
-    github_output = ENV["GITHUB_OUTPUT"]
-    File.write(github_output, "ias_url=#{url}\n", mode: "a") if github_output
+# Highest versionCode currently sitting on the Internal testing track — the build
+# a promotion to Production operates on. Fails loudly: promoting nothing would
+# otherwise look like a successful release.
+def newest_internal_version_code
+  codes = google_play_track_version_codes(track: "internal")
+  if codes.nil? || codes.empty?
+    UI.user_error!("The Internal testing track has no release to promote. Push to develop first.")
   end
+  codes.map(&:to_i).max
+end
 
-  # Run manually after building the AAB (`./gradlew :app:bundleRelease`). Uploading
-  # a Billing-enabled build to a real track (internal counts) is what unlocks the
-  # Play Console in-app-products pages. release_status "completed" makes it live to
-  # internal testers immediately.
-  desc "Upload the release AAB to the Internal testing track (manual)"
+# Hand a value back to the GitHub Actions step that called this lane.
+def set_github_output(key, value)
+  path = ENV["GITHUB_OUTPUT"]
+  File.write(path, "#{key}=#{value}\n", mode: "a") if path
+end
+
+platform :android do
+  # Every push to develop lands here: the build goes live to internal testers
+  # immediately (release_status "completed"), and the same build is what main
+  # later promotes to Production — nothing is rebuilt for the production release.
+  desc "Upload the release AAB to the Internal testing track (pushes to develop)"
   lane :internal_testing do
     upload_to_play_store(
       track: "internal",
       aab: AAB_PATH,
+      # Upload the R8 mapping so Play can deobfuscate crash stack traces.
       mapping: MAPPING_PATH,
+      # In-app-update priority (0..5) for this release, from gradle.properties.
       in_app_update_priority: gradle_prop("inAppUpdatePriority", "0").to_i,
       release_status: "completed",
       skip_upload_metadata: true,
@@ -48,20 +55,47 @@ platform :android do
     )
   end
 
-  desc "Upload the release AAB to the closed 'alpha' testing track (merges to main)"
-  lane :closed_testing do
+  desc "Print the newest versionCode on the Internal testing track"
+  lane :internal_version_code do
+    code = newest_internal_version_code
+    UI.success("Internal testing newest versionCode: #{code}")
+    set_github_output("version_code", code)
+  end
+
+  # Promotes the build already on Internal testing to Production — no new upload,
+  # so Production ships the exact artifact (and mapping) testers approved. The
+  # promoted release lands as a **draft**: write the release notes in the Play
+  # Console, then hit Rollout there. Nothing reaches users until you do. Pass
+  # version_code: to pin a specific build, otherwise the newest one wins:
+  #   bundle exec fastlane android promote_to_production version_code:142
+  desc "Promote the Internal testing release to Production as a draft (pushes to main)"
+  lane :promote_to_production do |options|
+    version_code = (options[:version_code] || newest_internal_version_code).to_i
+    UI.message("Promoting versionCode #{version_code}: Internal testing -> Production (draft)")
     upload_to_play_store(
-      track: "alpha",
-      aab: AAB_PATH,
-      # Upload the R8 mapping so Play can deobfuscate crash stack traces.
-      mapping: MAPPING_PATH,
-      # In-app-update priority (0..5) for this release, from gradle.properties.
+      track: "internal",
+      track_promote_to: "production",
+      track_promote_release_status: "draft",
+      version_code: version_code,
       in_app_update_priority: gradle_prop("inAppUpdatePriority", "0").to_i,
-      release_status: "draft",
+      skip_upload_aab: true,
+      skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
     )
+    set_github_output("promoted_version_code", version_code)
+  end
+
+  # Kept for manual one-offs (quick share of a build with someone outside the
+  # testers list); no workflow calls it.
+  desc "Upload the release AAB to Internal App Sharing (manual)"
+  lane :internal_sharing do
+    url = upload_to_play_store_internal_app_sharing(
+      aab: AAB_PATH,
+    )
+    UI.success("Internal App Sharing URL: #{url}")
+    set_github_output("ias_url", url)
   end
 end

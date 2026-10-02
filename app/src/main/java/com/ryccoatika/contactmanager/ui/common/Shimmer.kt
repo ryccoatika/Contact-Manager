@@ -24,11 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
@@ -52,16 +54,26 @@ fun ShimmerBox(
     Box(
         modifier
             .clip(shape)
-            .drawBehind {
+            // The gradient is built once per size (drawWithCache), then slid across by
+            // translating the draw. Rebuilding the Brush per frame instead would allocate
+            // a fresh native shader on every frame of every box — ShaderBrush caches its
+            // shader per instance, so a new instance defeats the cache — and a screenful
+            // of skeleton rows at 120Hz churns through enough of them to OOM.
+            .drawWithCache {
                 val sweep = size.width * 1.4f
-                val x = progress * (size.width + sweep) - sweep
-                drawRect(
+                val band =
                     Brush.linearGradient(
                         colors = listOf(base, highlight, base),
-                        start = Offset(x, 0f),
-                        end = Offset(x + sweep, 0f),
-                    ),
-                )
+                        start = Offset.Zero,
+                        end = Offset(sweep, 0f),
+                    )
+                val bandSize = Size(sweep, size.height)
+                onDrawBehind {
+                    drawRect(base)
+                    translate(left = progress * (size.width + sweep) - sweep) {
+                        drawRect(band, size = bandSize)
+                    }
+                }
             },
     )
 }
