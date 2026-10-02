@@ -1,8 +1,9 @@
 name: Deploy
 
-# A merge into develop publishes to Play Internal App Sharing; a merge into main
-# publishes to the closed "alpha" testing track. (A merged PR is a push to the
-# target branch.)
+# A push to develop builds and publishes to the Play Internal testing track.
+# A push to main (i.e. develop merged into main) promotes the build already on
+# Internal testing to Production and tags the release — nothing is rebuilt, so
+# Production ships the exact artifact testers used.
 on:
   push:
     branches: [develop, main]
@@ -17,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the release + tag on main via the GITHUB_TOKEN
+      actions: read     # fetch the develop run's artifacts to attach to the release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,23 +43,29 @@ jobs:
           ENCRYPT_KEY: ${{ secrets.ENCRYPT_KEY }}
         run: ./release/decrypt-secrets.sh
 
-      - name: Compute versionCode
+      # ---------------------------------------------------------------- develop
+      - name: Compute versionCode (develop)
         id: version
+        if: github.ref == 'refs/heads/develop'
         # Derived from the workflow run number so it's simple and monotonic.
         # The 100 base keeps it above the codes already uploaded to Play
         # (last was 114) — Play requires each versionCode to strictly increase.
         run: echo "code=$(( 100 + ${{ github.run_number }} ))" >> "$GITHUB_OUTPUT"
 
-      - name: Build signed release AAB + APK
+      - name: Build signed release AAB + APK (develop)
+        if: github.ref == 'refs/heads/develop'
         env:
           ORG_GRADLE_PROJECT_CONTACTMANAGER_RELEASE_KEYSTORE_PWD: ${{ secrets.CONTACTMANAGER_RELEASE_KEYSTORE_PWD }}
           ORG_GRADLE_PROJECT_CONTACTMANAGER_RELEASE_KEY_PWD: ${{ secrets.CONTACTMANAGER_RELEASE_KEY_PWD }}
         run: ./gradlew :app:bundleRelease :app:assembleRelease -PappVersionCode=${{ steps.version.outputs.code }}
 
+      # The artifact name encodes the versionCode: the main run looks it up by
+      # that name to attach the very same files to the GitHub release.
       - name: Upload build artifacts (AAB + APK + mapping)
+        if: github.ref == 'refs/heads/develop'
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ github.ref_name }}-v${{ steps.version.outputs.code }}
+          name: release-develop-v${{ steps.version.outputs.code }}
           if-no-files-found: error
           retention-days: 90
           path: |
@@ -65,23 +73,54 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/mapping/release/mapping.txt
 
-      - name: Publish to Internal App Sharing (develop)
-        id: publish_ias
+      - name: Publish to Internal testing (develop)
         if: github.ref == 'refs/heads/develop'
-        run: bundle exec fastlane android internal_sharing
+        run: bundle exec fastlane android internal_testing
 
-      - name: Publish to Closed Testing – alpha (main)
+      # ------------------------------------------------------------------- main
+      - name: Resolve the versionCode on Internal testing (main)
+        id: internal
         if: github.ref == 'refs/heads/main'
-        run: bundle exec fastlane android closed_testing
+        run: bundle exec fastlane android internal_version_code
+
+      # Reuse the artifacts the develop run built for that versionCode instead of
+      # rebuilding: a rebuild would produce a different mapping.txt than the one
+      # Play holds for the promoted build, making the release assets misleading.
+      - name: Fetch the promoted build's artifacts (main)
+        id: assets
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODE: ${{ steps.internal.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          NAME="release-develop-v${CODE}"
+          ID=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${NAME}&per_page=100" \
+                 --jq '[.artifacts[] | select(.expired == false)] | max_by(.created_at) | .id // empty')
+          if [ -z "$ID" ]; then
+            echo "::warning::No unexpired artifact named ${NAME}; the release will have no files attached."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}/zip" > artifacts.zip
+          mkdir -p dist
+          unzip -q -j artifacts.zip -d dist
+          ls -l dist
+          echo "found=true" >> "$GITHUB_OUTPUT"
+
+      - name: Promote Internal testing to Production (main)
+        if: github.ref == 'refs/heads/main'
+        run: bundle exec fastlane android promote_to_production version_code:${{ steps.internal.outputs.version_code }}
 
       # Tag the released version and cut a GitHub Release with the matching
-      # CHANGELOG section as notes and the AAB/APK/mapping attached. Idempotent:
-      # skips if the tag's release already exists.
+      # CHANGELOG section as notes and the promoted AAB/APK/mapping attached.
+      # Idempotent: skips if the tag's release already exists.
       - name: Create GitHub release + tag (main)
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_CODE: ${{ steps.internal.outputs.version_code }}
+          HAS_ASSETS: ${{ steps.assets.outputs.found }}
         run: |
           set -euo pipefail
           VERSION_NAME=$(grep -E '^appVersionName=' gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')
@@ -97,13 +136,17 @@ jobs:
           NOTES=$(./gradlew -q :app:getChangelog --no-header --no-summary || true)
           [ -z "$NOTES" ] && NOTES="Release $TAG"
 
+          ASSETS=()
+          if [ "$HAS_ASSETS" = "true" ]; then
+            while IFS= read -r f; do ASSETS+=("$f"); done < <(find dist -type f | sort)
+          fi
+
+          # ${ASSETS[@]+...} keeps `set -u` happy when the array is empty.
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "$TAG (build ${VERSION_CODE})" \
             --notes "$NOTES" \
-            app/build/outputs/bundle/release/*.aab \
-            app/build/outputs/apk/release/*.apk \
-            app/build/outputs/mapping/release/mapping.txt
+            ${ASSETS[@]+"${ASSETS[@]}"}
 
       # Announce a successful publish to the team's Telegram topic. Only runs
       # when every prior step (including the branch's publish) succeeded.
@@ -114,8 +157,7 @@ jobs:
           # Supergroup 3958527097; the Bot API addresses it with a -100 prefix.
           TELEGRAM_CHAT_ID: "-1003958527097"
           TELEGRAM_TOPIC_ID: "3"
-          IAS_URL: ${{ steps.publish_ias.outputs.ias_url }}
-          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_CODE: ${{ steps.version.outputs.code || steps.internal.outputs.version_code }}
         run: |
           set -euo pipefail
           if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
@@ -123,9 +165,9 @@ jobs:
           fi
 
           if [ "$GITHUB_REF" = "refs/heads/develop" ]; then
-            TRACK="Internal App Sharing"
+            TRACK="Internal testing"
           else
-            TRACK="Closed testing (alpha)"
+            TRACK="Production (promoted from Internal testing)"
           fi
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -133,9 +175,6 @@ jobs:
 
           TEXT=$(printf '\xE2\x9C\x85 ContactManager deployed\nTrack: %s\nVersion: %s (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
             "$TRACK" "$VERSION_NAME" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
-          if [ -n "${IAS_URL:-}" ]; then
-            TEXT=$(printf '%s\nInstall: %s' "$TEXT" "$IAS_URL")
-          fi
           TEXT=$(printf '%s\nRun: %s' "$TEXT" "$RUN_URL")
 
           curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
