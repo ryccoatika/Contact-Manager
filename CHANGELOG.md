@@ -5,6 +5,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
 ## [1.2] - 2026-10-02
+- Fixed a crash that could hit while a screen was still loading, and made those
+  loading placeholders lighter on memory.
 - Updated the crash-reporting and analytics libraries.
 
 ## [1.1] - 2026-09-17

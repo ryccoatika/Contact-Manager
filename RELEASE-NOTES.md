@@ -6,7 +6,7 @@ Play Store release notes ("What's new"), max **500 characters** per entry.
 
 ## 1.2 — 2026-10-02
 
-Maintenance release: the crash-reporting and analytics libraries are up to date. Nothing changes in how the app works — your contacts stay on your device, as always.
+Fixed a crash that could happen while a screen was still loading, and the loading placeholders now use far less memory. The crash-reporting and analytics libraries are up to date too. Your contacts stay on your device, as always.
 
 ---
 
