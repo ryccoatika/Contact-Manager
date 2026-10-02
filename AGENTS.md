@@ -51,8 +51,9 @@ device (the privacy policy promises this — treat violations as critical).
 CI (`.github/workflows/check.yml`) runs spotless + compile + tests + lint on
 every PR. `deploy.yml` publishes: a push to develop builds and uploads to the
 Play **Internal testing** track; a push to main promotes that same build to
-**Production** (no rebuild) and cuts the tag + GitHub release from
-`CHANGELOG.md`.
+**Production as a draft** (no rebuild) and cuts the tag + GitHub release from
+`CHANGELOG.md`. The draft needs release notes and a manual rollout in the Play
+Console — nothing reaches users until you press it.
 
 - JDK 17+ (repo builds on 21). Android SDK 36. minSdk 24, targetSdk 36.
 - Compose BOM `2026.02.01`, Kotlin `2.2.10`, Hilt `2.60.1`, AGP `9.x`, KSP.

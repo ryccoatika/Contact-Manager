@@ -2,8 +2,9 @@ name: Deploy
 
 # A push to develop builds and publishes to the Play Internal testing track.
 # A push to main (i.e. develop merged into main) promotes the build already on
-# Internal testing to Production and tags the release — nothing is rebuilt, so
-# Production ships the exact artifact testers used.
+# Internal testing to Production as a *draft* and tags the release — nothing is
+# rebuilt, so Production ships the exact artifact testers used. The draft waits
+# in the Play Console for release notes and a manual rollout.
 on:
   push:
     branches: [develop, main]
@@ -108,7 +109,7 @@ jobs:
           ls -l dist
           echo "found=true" >> "$GITHUB_OUTPUT"
 
-      - name: Promote Internal testing to Production (main)
+      - name: Promote Internal testing to Production as a draft (main)
         if: github.ref == 'refs/heads/main'
         run: bundle exec fastlane android promote_to_production version_code:${{ steps.internal.outputs.version_code }}
 
@@ -167,7 +168,7 @@ jobs:
           if [ "$GITHUB_REF" = "refs/heads/develop" ]; then
             TRACK="Internal testing"
           else
-            TRACK="Production (promoted from Internal testing)"
+            TRACK="Production DRAFT (promoted from Internal testing — add notes + roll out in Play Console)"
           fi
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

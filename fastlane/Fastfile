@@ -63,17 +63,19 @@ platform :android do
   end
 
   # Promotes the build already on Internal testing to Production — no new upload,
-  # so Production ships the exact artifact (and mapping) testers approved. Pass
+  # so Production ships the exact artifact (and mapping) testers approved. The
+  # promoted release lands as a **draft**: write the release notes in the Play
+  # Console, then hit Rollout there. Nothing reaches users until you do. Pass
   # version_code: to pin a specific build, otherwise the newest one wins:
   #   bundle exec fastlane android promote_to_production version_code:142
-  desc "Promote the Internal testing release to Production (pushes to main)"
+  desc "Promote the Internal testing release to Production as a draft (pushes to main)"
   lane :promote_to_production do |options|
     version_code = (options[:version_code] || newest_internal_version_code).to_i
-    UI.message("Promoting versionCode #{version_code}: Internal testing -> Production")
+    UI.message("Promoting versionCode #{version_code}: Internal testing -> Production (draft)")
     upload_to_play_store(
       track: "internal",
       track_promote_to: "production",
-      track_promote_release_status: "completed",
+      track_promote_release_status: "draft",
       version_code: version_code,
       in_app_update_priority: gradle_prop("inAppUpdatePriority", "0").to_i,
       skip_upload_aab: true,
