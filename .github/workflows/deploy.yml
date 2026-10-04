@@ -1,10 +1,11 @@
 name: Deploy
 
 # A push to develop builds and publishes to the Play Internal testing track.
-# A push to main (i.e. develop merged into main) promotes the build already on
-# Internal testing to Production as a *draft* and tags the release — nothing is
-# rebuilt, so Production ships the exact artifact testers used. The draft waits
-# in the Play Console for release notes and a manual rollout.
+# A push to main (i.e. develop merged into main) only tags the release and cuts
+# the GitHub Release, attaching the artifacts the develop run built for the
+# build currently on Internal testing. Nothing is rebuilt and nothing is
+# promoted on Play — promoting Internal testing to Production is done by hand in
+# the Play Console (or `bundle exec fastlane android promote_to_production`).
 on:
   push:
     branches: [develop, main]
@@ -86,8 +87,8 @@ jobs:
 
       # Reuse the artifacts the develop run built for that versionCode instead of
       # rebuilding: a rebuild would produce a different mapping.txt than the one
-      # Play holds for the promoted build, making the release assets misleading.
-      - name: Fetch the promoted build's artifacts (main)
+      # Play holds for that build, making the release assets misleading.
+      - name: Fetch the released build's artifacts (main)
         id: assets
         if: github.ref == 'refs/heads/main'
         env:
@@ -109,12 +110,8 @@ jobs:
           ls -l dist
           echo "found=true" >> "$GITHUB_OUTPUT"
 
-      - name: Promote Internal testing to Production as a draft (main)
-        if: github.ref == 'refs/heads/main'
-        run: bundle exec fastlane android promote_to_production version_code:${{ steps.internal.outputs.version_code }}
-
       # Tag the released version and cut a GitHub Release with the matching
-      # CHANGELOG section as notes and the promoted AAB/APK/mapping attached.
+      # CHANGELOG section as notes and that build's AAB/APK/mapping attached.
       # Idempotent: skips if the tag's release already exists.
       - name: Create GitHub release + tag (main)
         if: github.ref == 'refs/heads/main'
@@ -149,8 +146,8 @@ jobs:
             --notes "$NOTES" \
             ${ASSETS[@]+"${ASSETS[@]}"}
 
-      # Announce a successful publish to the team's Telegram topic. Only runs
-      # when every prior step (including the branch's publish) succeeded.
+      # Announce a successful run to the team's Telegram topic. Only runs when
+      # every prior step (including the branch's publish/tag) succeeded.
       - name: Notify Telegram
         if: success()
         env:
@@ -159,23 +156,44 @@ jobs:
           TELEGRAM_CHAT_ID: "-1003958527097"
           TELEGRAM_TOPIC_ID: "3"
           VERSION_CODE: ${{ steps.version.outputs.code || steps.internal.outputs.version_code }}
+          # Internal-testing opt-in link, handed to testers in the notification.
+          # The Play Developer API does not expose it, so it comes from the repo
+          # variable INTERNAL_TEST_URL (Play Console > Testing > Internal
+          # testing > Testers > Copy link); a repo secret of the same name also
+          # works. Unset, the message falls back to the store page.
+          INTERNAL_TEST_URL: ${{ vars.INTERNAL_TEST_URL || secrets.INTERNAL_TEST_URL }}
+          PACKAGE_NAME: com.ryccoatika.contactmanager
         run: |
           set -euo pipefail
           if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
             echo "::error::TELEGRAM_BOT_TOKEN secret is not set"; exit 1
           fi
 
+          TEST_LINK=""
           if [ "$GITHUB_REF" = "refs/heads/develop" ]; then
+            HEADLINE="ContactManager deployed"
             TRACK="Internal testing"
+            if [ -n "${INTERNAL_TEST_URL:-}" ]; then
+              TEST_LINK="$INTERNAL_TEST_URL"
+            else
+              echo "::warning::INTERNAL_TEST_URL is not set; linking the store page instead."
+              TEST_LINK="https://play.google.com/store/apps/details?id=${PACKAGE_NAME}"
+            fi
           else
-            TRACK="Production DRAFT (promoted from Internal testing — add notes + roll out in Play Console)"
+            HEADLINE="ContactManager tagged"
+            TRACK="Internal testing (unchanged) — promote to Production manually in the Play Console"
           fi
           COMMIT_SUBJECT=$(git log -1 --pretty=%s)
           RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           VERSION_NAME=$(grep -E '^appVersionName=' gradle.properties | head -1 | cut -d= -f2 | tr -d '[:space:]')
 
-          TEXT=$(printf '\xE2\x9C\x85 ContactManager deployed\nTrack: %s\nVersion: %s (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
-            "$TRACK" "$VERSION_NAME" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
+          TEXT=$(printf '\xE2\x9C\x85 %s\nTrack: %s\nVersion: %s (build %s)\nBranch: %s @ %s\nBy: %s\nCommit: %s' \
+            "$HEADLINE" "$TRACK" "$VERSION_NAME" "$VERSION_CODE" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$GITHUB_ACTOR" "$COMMIT_SUBJECT")
+          if [ -n "$TEST_LINK" ]; then
+            # Play needs a few minutes to process the upload before testers see
+            # the new build on this link.
+            TEXT=$(printf '%s\nTesting link: %s' "$TEXT" "$TEST_LINK")
+          fi
           TEXT=$(printf '%s\nRun: %s' "$TEXT" "$RUN_URL")
 
           curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \

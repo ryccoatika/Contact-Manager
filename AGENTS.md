@@ -50,10 +50,14 @@ device (the privacy policy promises this — treat violations as critical).
 
 CI (`.github/workflows/check.yml`) runs spotless + compile + tests + lint on
 every PR. `deploy.yml` publishes: a push to develop builds and uploads to the
-Play **Internal testing** track; a push to main promotes that same build to
-**Production as a draft** (no rebuild) and cuts the tag + GitHub release from
-`CHANGELOG.md`. The draft needs release notes and a manual rollout in the Play
-Console — nothing reaches users until you press it.
+Play **Internal testing** track; a push to main only cuts the tag + GitHub
+release from `CHANGELOG.md` (attaching the artifacts that develop run built —
+no rebuild). **Promotion to Production is manual**: do it in the Play Console,
+or run `bundle exec fastlane android promote_to_production` yourself. Both
+branches post to the team's Telegram topic; the develop message carries the
+internal-testing opt-in link from the repo variable `INTERNAL_TEST_URL` (Play
+Console > Testing > Internal testing > Testers > Copy link) — unset, it falls
+back to the store page with a warning.
 
 - JDK 17+ (repo builds on 21). Android SDK 36. minSdk 24, targetSdk 36.
 - Compose BOM `2026.02.01`, Kotlin `2.2.10`, Hilt `2.60.1`, AGP `9.x`, KSP.
@@ -183,7 +187,7 @@ Commands in `.claude/commands/`:
 - **Conventional Commits**: `feat(ui): …`, `fix(data): …`, `perf:`, `style:`,
   `ci:`, `docs:`. Imperative subject ≤ ~72 chars; body explains the why.
 - Branch off `develop` (features) — never commit straight to `main`.
-  develop → main promotes a release.
+  develop → main tags a release (Play rollout stays manual).
 - Before committing: compile, tests, `spotlessCheck` green (and
   `/architecture-audit` clean for structural changes);
   guard against staging secrets — run
