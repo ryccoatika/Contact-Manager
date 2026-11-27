@@ -117,7 +117,7 @@ class ContactsRepository
                 ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
                 ContactsContract.Contacts.STARRED,
             )
-            val rows = ArrayList<DataRow>(1024)
+            val accumulator = ContactAccumulator()
             context.contentResolver
                 .query(
                     Data.CONTENT_URI,
@@ -141,27 +141,32 @@ class ContactsRepository
                     val iStar = c.getColumnIndexOrThrow(ContactsContract.Contacts.STARRED)
                     while (c.moveToNext()) {
                         val mimeType = c.getString(iMime)
-                        val data2 = c.getString(iData2)
-                        val data3 = c.getString(iData3)
-                        rows += DataRow(
-                            dataId = c.getLong(iId),
-                            rawContactId = c.getLong(iRaw),
-                            contactId = c.getLong(iContact),
-                            mimeType = mimeType,
-                            data1 = c.getString(iData1),
-                            data2 = data2,
-                            data3 = data3,
-                            data4 = c.getString(iData4),
-                            typeLabel = PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3),
-                            accountType = c.getString(iAccType),
-                            accountName = c.getString(iAccName),
-                            displayName = c.getString(iName),
-                            photoThumbUri = c.getString(iPhoto),
-                            starred = c.getInt(iStar) == 1,
+                        // Rows the aggregator never reads still register their raw contact +
+                        // account (membership), but skip the DATA1..4 string copies.
+                        val used = ContactAggregator.usesData(mimeType)
+                        val data2 = if (used) c.getString(iData2) else null
+                        val data3 = if (used) c.getString(iData3) else null
+                        accumulator.add(
+                            DataRow(
+                                dataId = c.getLong(iId),
+                                rawContactId = c.getLong(iRaw),
+                                contactId = c.getLong(iContact),
+                                mimeType = mimeType,
+                                data1 = if (used) c.getString(iData1) else null,
+                                data2 = data2,
+                                data3 = data3,
+                                data4 = if (used) c.getString(iData4) else null,
+                                typeLabel = if (used) PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3) else null,
+                                accountType = c.getString(iAccType),
+                                accountName = c.getString(iAccName),
+                                displayName = c.getString(iName),
+                                photoThumbUri = c.getString(iPhoto),
+                                starred = c.getInt(iStar) == 1,
+                            ),
                         )
                     }
                 }
-            return ContactAggregator.aggregate(rows)
+            return accumulator.build()
         }
 
         private companion object {
