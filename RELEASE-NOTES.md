@@ -4,6 +4,12 @@ Play Store release notes ("What's new"), max **500 characters** per entry.
 
 ---
 
+## 1.3 — 2026-11-27
+
+Fixed a crash that could happen while loading a very large contact list, and contacts now load using much less memory. Your contacts stay on your device, as always.
+
+---
+
 ## 1.2 — 2026-10-02
 
 Fixed a crash that could happen while a screen was still loading, and the loading placeholders now use far less memory. The crash-reporting and analytics libraries are up to date too. Your contacts stay on your device, as always.

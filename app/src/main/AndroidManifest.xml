@@ -9,6 +9,9 @@
     <!-- Optional: show each SIM's own phone number next to its account. -->
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
 
+    <!-- largeHeap: there is no cache database, so the whole contact list lives in
+         memory; very large address books exhausted the default heap on low-end
+         devices. Headroom only — the loader itself streams rows. -->
     <application
         android:name=".ContactManagerApp"
         android:allowBackup="true"
@@ -16,6 +19,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:largeHeap="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ContactManager">

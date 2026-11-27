@@ -3,9 +3,13 @@ package com.ryccoatika.contactmanager.di
 import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.perf.FirebasePerformance
 import com.ryccoatika.contactmanager.data.analytics.FirebaseAnalyticsImpl
+import com.ryccoatika.contactmanager.data.analytics.FirebasePerformanceTracer
 import com.ryccoatika.contactmanager.domain.analytics.Analytics
 import com.ryccoatika.contactmanager.domain.analytics.NoOpAnalytics
+import com.ryccoatika.contactmanager.domain.analytics.NoOpPerformanceTracer
+import com.ryccoatika.contactmanager.domain.analytics.PerformanceTracer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,5 +30,17 @@ object AnalyticsModule {
             FirebaseAnalyticsImpl(FirebaseAnalytics.getInstance(context))
         } else {
             NoOpAnalytics
+        }
+
+    /** Same guard as [provideAnalytics]: Firebase Performance only when FirebaseApp is initialised. */
+    @Provides
+    @Singleton
+    fun providePerformanceTracer(
+        @ApplicationContext context: Context,
+    ): PerformanceTracer =
+        if (FirebaseApp.getApps(context).isNotEmpty()) {
+            FirebasePerformanceTracer(FirebasePerformance.getInstance())
+        } else {
+            NoOpPerformanceTracer
         }
 }
