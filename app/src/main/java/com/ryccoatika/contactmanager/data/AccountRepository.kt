@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -69,8 +70,7 @@ class AccountRepository
         /** Shared app-wide (see ContactsRepository.contacts for the sharing rationale). */
         @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
         private val accounts: SharedFlow<List<ContactAccount>> =
-            contentChanges()
-                .debounce(300)
+            merge(contentChanges().debounce(300), simIntegration.cardOnlyChanges)
                 .mapLatest { getAccounts() }
                 .flowOn(ioDispatcher)
                 .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
@@ -117,7 +117,8 @@ class AccountRepository
                         name = key.second,
                         type = key.first,
                         capability = capability,
-                        contactCount = count,
+                        // Card-only SIM entries are listed under their native account too.
+                        contactCount = count + simIntegration.cardOnlyCount(key.first, key.second),
                         writable = capability != AccountCapability.READ_ONLY,
                         displayLabel = sub?.label,
                         phoneNumber = sub?.number,

@@ -13,6 +13,7 @@ import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -115,6 +116,10 @@ class SimAwareContactsWriterTest {
         override suspend fun simContacts(existingContacts: List<Contact>) = emptyList<Contact>()
 
         override fun resolveSimContact(rawContactId: Long) = resolved[rawContactId]
+
+        override fun cardOnlyCount(accountType: String?, accountName: String?) = 0
+
+        override val cardOnlyChanges: Flow<Unit> = emptyFlow()
 
         override suspend fun subscriptionsBySlot() =
             emptyMap<Int, com.ryccoatika.contactmanager.data.sim.SimSubscription>()

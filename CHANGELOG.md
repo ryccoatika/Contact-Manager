@@ -7,6 +7,8 @@ to [Keep a Changelog](https://keepachangelog.com/) and
 ## [1.3] - 2026-11-27
 - Fixed a crash that could hit while loading a very large contact list, and
   contacts now load using much less memory.
+- SIM contacts added by another app now appear without restarting the phone on
+  devices that keep their own copy of the SIM.
 
 ## [1.2] - 2026-10-02
 - Fixed a crash that could hit while a screen was still loading, and made those
