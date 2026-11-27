@@ -90,7 +90,8 @@ domain/                pure Kotlin: AccountClassifier, MovePlanner,
                        ContactAccount, AccountCapability, ThemeMode, …
 data/                  ContactsContract repositories (reads + decorated writer),
   ├ sim/               icc/adn SIM sources, capability probe/cache, subscriptions
-  └ analytics/         Analytics interface, AnalyticsEvent, Firebase/NoOp impls
+  └ analytics/         Analytics interface, AnalyticsEvent, PerformanceTracer,
+                       Firebase/NoOp impls
 di/                    Hilt modules (the only place impls are named/bound)
 ui/
   ├ home | detail | editor | accounts | duplicates |     feature packages:
@@ -155,6 +156,8 @@ UI conventions:
   on a `SharedFlow`; snackbar events go through `CollectUiEvents`.
 - Analytics: log via `AnalyticsEvent` (counts + enum labels only — **never**
   contact data); `TrackScreenView("name")` on every screen/sheet/dialog.
+- Performance: time loads through `PerformanceTracer` (`PerfTraces` names);
+  trace metrics are counts only — **never** contact data.
 - User-facing change ⇒ update `CHANGELOG.md` in the same commit (the
   `update-changelog` skill; release notes are generated from it).
 - No new dependencies without a reason; add via `libs.versions.toml`.
@@ -226,6 +229,11 @@ reference examples. Don't skip this for multi-screen features.
   build_id resource whose absence is a startup crash. CI (check.yml and
   deploy.yml) decrypts the json from its committed `.gpg` blob;
   `AnalyticsModule`'s NoOp fallback remains only as a runtime guard.
+- **Firebase Performance is SDK-only by design**: no `firebase-perf` Gradle
+  plugin — it only instruments HTTP calls and the app has none. The SDK alone
+  gives the automatic app-start / screen-rendering traces; ours are the custom
+  `PerformanceTracer` ones. Collection is off for debuggable builds (see
+  `ContactManagerApp`).
 - **In-app update/review** (`ui/update`, `ui/review`): Play-installed builds
   only; both are best-effort and silent on failure. Update flow picks
   immediate vs flexible from the release's `inAppUpdatePriority`

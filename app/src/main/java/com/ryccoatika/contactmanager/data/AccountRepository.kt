@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.di.ApplicationScope
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.analytics.PerfTraces
+import com.ryccoatika.contactmanager.domain.analytics.PerformanceTracer
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
@@ -44,6 +46,7 @@ class AccountRepository
         @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
         @ApplicationScope appScope: CoroutineScope,
         private val simIntegration: SimAccountsIntegration,
+        private val tracer: PerformanceTracer,
     ) : AccountsSource {
         /**
          * Accounts derived from RawContacts rows (catches WhatsApp-style accounts that
@@ -76,7 +79,7 @@ class AccountRepository
 
         private fun contentChanges(): Flow<Unit> = contentChangesFlow(context, RawContacts.CONTENT_URI)
 
-        private suspend fun getAccountsOrThrow(): List<ContactAccount> {
+        private suspend fun getAccountsOrThrow(): List<ContactAccount> = tracer.trace(PerfTraces.ACCOUNTS_LOAD) {
             val counts = HashMap<Pair<String?, String?>, Int>()
             context.contentResolver
                 .query(
@@ -120,7 +123,9 @@ class AccountRepository
                         phoneNumber = sub?.number,
                     )
                 }.sortedByDescending { it.contactCount }
-            return providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
+            (providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)).also {
+                metric(PerfTraces.ACCOUNTS, it.size.toLong())
+            }
         }
 
         /**

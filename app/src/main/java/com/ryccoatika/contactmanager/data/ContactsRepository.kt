@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.di.ApplicationScope
 import com.ryccoatika.contactmanager.di.IoDispatcher
+import com.ryccoatika.contactmanager.domain.analytics.PerfTraces
+import com.ryccoatika.contactmanager.domain.analytics.PerformanceTracer
 import com.ryccoatika.contactmanager.domain.model.Contact
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -35,6 +37,12 @@ interface ContactsSource {
     suspend fun snapshot(): List<Contact>
 }
 
+/** Provider query result: the aggregated contacts plus how many Data rows were read (a trace metric). */
+private class ContactQuery(
+    val contacts: List<Contact>,
+    val dataRows: Int,
+)
+
 @Singleton
 class ContactsRepository
     @Inject
@@ -44,6 +52,7 @@ class ContactsRepository
         @ApplicationScope appScope: CoroutineScope,
         private val simIntegration: SimAccountsIntegration,
         private val simRepository: SimRepository,
+        private val tracer: PerformanceTracer,
     ) : ContactsSource {
         /**
          * Emits the full contact list on subscription and again on every provider
@@ -65,8 +74,11 @@ class ContactsRepository
 
         override suspend fun snapshot(): List<Contact> = withContext(ioDispatcher) { loadContacts() }
 
-        private suspend fun loadContacts(): List<Contact> {
-            val contacts = queryAllContacts()
+        private suspend fun loadContacts(): List<Contact> = tracer.trace(PerfTraces.CONTACTS_LOAD) {
+            val query = queryAllContacts()
+            val contacts = query.contacts
+            metric(PerfTraces.DATA_ROWS, query.dataRows.toLong())
+            metric(PerfTraces.CONTACTS, contacts.size.toLong())
             val simContacts = try {
                 simIntegration.simContacts(contacts)
             } catch (e: CancellationException) {
@@ -75,7 +87,8 @@ class ContactsRepository
                 Log.w(TAG, "SIM contact read failed; skipping SIM entries", e)
                 emptyList()
             }
-            return if (simContacts.isEmpty()) {
+            metric(PerfTraces.SIM_CONTACTS, simContacts.size.toLong())
+            if (simContacts.isEmpty()) {
                 contacts
             } else {
                 (contacts + simContacts).sortedBy { it.displayName.lowercase() }
@@ -90,18 +103,18 @@ class ContactsRepository
          * permission or a provider hiccup must degrade to an empty list instead
          * of crashing every collector.
          */
-        private suspend fun queryAllContacts(): List<Contact> = withContext(ioDispatcher) {
+        private suspend fun queryAllContacts(): ContactQuery = withContext(ioDispatcher) {
             try {
                 queryAllContactsOrThrow()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Contact query failed; emitting empty list", e)
-                emptyList()
+                ContactQuery(emptyList(), 0)
             }
         }
 
-        private fun queryAllContactsOrThrow(): List<Contact> {
+        private fun queryAllContactsOrThrow(): ContactQuery {
             val projection = arrayOf(
                 Data._ID,
                 Data.RAW_CONTACT_ID,
@@ -166,7 +179,7 @@ class ContactsRepository
                         )
                     }
                 }
-            return accumulator.build()
+            return ContactQuery(accumulator.build(), accumulator.rowCount)
         }
 
         private companion object {

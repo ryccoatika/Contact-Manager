@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.os.Process
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.google.firebase.perf.FirebasePerformance
 import com.ryccoatika.contactmanager.ui.crash.CrashActivity
 import dagger.hilt.android.HiltAndroidApp
 
@@ -15,10 +16,11 @@ class ContactManagerApp : Application() {
         super.onCreate()
         // Crashlytics auto-captures uncaught crashes once Firebase is initialised
         // (i.e. google-services.json is present). Keep collection off for debuggable
-        // builds so dev crashes don't pollute the dashboard; on for release.
+        // builds so dev crashes and traces don't pollute the dashboards; on for release.
         if (FirebaseApp.getApps(this).isNotEmpty()) {
             val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!debuggable)
+            FirebasePerformance.getInstance().isPerformanceCollectionEnabled = !debuggable
         }
         installCrashScreen()
     }
