@@ -44,6 +44,14 @@ object SimRouting {
         return if (digits.isEmpty()) 0 else digits.toIntOrNull()?.minus(1)?.takeIf { it >= 0 }
     }
 
+    /**
+     * Whether a native SIM account of [accountType] is reconciled against the card
+     * (see SimCardReconciler). Samsung's `vnd.sec.contact.sim…` mirrors keep their
+     * long-standing behaviour and are left alone.
+     */
+    fun reconcilesWithCard(accountType: String?): Boolean =
+        accountType != null && !accountType.startsWith("vnd.sec.contact.sim", ignoreCase = true)
+
     /** Strips formatting (spaces, dashes, parens, dots) so stored numbers pass SIM validation. */
     fun normalizeNumber(raw: String): String =
         raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }

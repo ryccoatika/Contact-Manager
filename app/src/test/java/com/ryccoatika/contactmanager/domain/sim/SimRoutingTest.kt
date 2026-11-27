@@ -71,4 +71,17 @@ class SimRoutingTest {
         assertEquals("*123#", SimRouting.normalizeNumber("*123#"))
         assertEquals("", SimRouting.normalizeNumber("call me"))
     }
+
+    @Test fun `reconcilesWithCard is false for null and Samsung SIM types`() {
+        assertFalse(SimRouting.reconcilesWithCard(null))
+        assertFalse(SimRouting.reconcilesWithCard("vnd.sec.contact.sim"))
+        assertFalse(SimRouting.reconcilesWithCard("vnd.sec.contact.sim2"))
+        assertFalse(SimRouting.reconcilesWithCard("VND.SEC.CONTACT.SIM"))
+    }
+
+    @Test fun `reconcilesWithCard is true for other native SIM types`() {
+        assertTrue(SimRouting.reconcilesWithCard("USIM Account"))
+        assertTrue(SimRouting.reconcilesWithCard("com.android.contacts.sim"))
+        assertTrue(SimRouting.reconcilesWithCard("com.android.sim"))
+    }
 }

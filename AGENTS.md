@@ -217,6 +217,12 @@ reference examples. Don't skip this for multi-screen features.
 - **`READ_PHONE_STATE`/`READ_PHONE_NUMBERS`** are optional, offered lazily via
   an AssistChip when a SIM account is visible; they only add dual-SIM labels +
   numbers. Don't make them required; everything degrades without them.
+- **SIM card reconcile**: non-Samsung native SIM accounts (a provider-side
+  mirror of the card) are also read via `icc/adn` and card-only entries are
+  surfaced as synthetic contacts under the native account
+  (`SimCardReconciler`, `SimRouting.reconcilesWithCard`). The reconcile path
+  must only call `simSource.readAll` — never `capabilities`/`probe` (the probe
+  writes to the SIM). Samsung (`vnd.sec.contact.sim…`) is deliberately excluded.
 - **Capability probe** is cached in DataStore and can go stale after a SIM
   swap; Accounts pull-to-refresh re-probes.
 - **Crash handling**: `ContactManagerApp` installs an uncaught-exception
