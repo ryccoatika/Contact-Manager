@@ -138,7 +138,9 @@ class DefaultContactTransferTest {
 
         override suspend fun linkContacts(rawContactIds: List<Long>) = ContactOpResult.Success
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>) = ContactOpResult.Success
+        override suspend fun keepSeparate(contacts: List<List<Long>>) = ContactOpResult.Success
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>) = ContactOpResult.Success
 
         override suspend fun mergeContacts(target: RawContact, sources: List<RawContact>) = ContactOpResult.Success
     }
@@ -176,7 +178,9 @@ class DefaultContactTransferTest {
 
         override suspend fun linkContacts(rawContactIds: List<Long>) = ContactOpResult.Success
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>) = ContactOpResult.Success
+        override suspend fun keepSeparate(contacts: List<List<Long>>) = ContactOpResult.Success
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>) = ContactOpResult.Success
 
         override suspend fun mergeContacts(target: RawContact, sources: List<RawContact>) = ContactOpResult.Success
     }
