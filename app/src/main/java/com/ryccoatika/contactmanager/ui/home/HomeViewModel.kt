@@ -64,6 +64,10 @@ data class HomeUiState(
     val duplicateCount: Int = 0,
 ) {
     val selectionMode: Boolean get() = selectedContactIds.isNotEmpty()
+
+    /** Home's "possible duplicates" row: only on an unfiltered, non-selecting list. */
+    val showDuplicatesRow: Boolean
+        get() = duplicateCount > 0 && query.isBlank() && selectedAccountKey == null && selectedContactIds.isEmpty()
 }
 
 /** One account of the current selection, with its entry count — feeds the delete sheet. */

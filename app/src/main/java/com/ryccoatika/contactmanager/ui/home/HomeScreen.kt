@@ -451,6 +451,8 @@ fun HomeScreen(
                         onContactClick(contact)
                     },
                     onDeleteRequest = { pendingDeleteContact = it },
+                    duplicatesRowCount = state.duplicateCount.takeIf { state.showDuplicatesRow },
+                    onDuplicatesClick = onDuplicatesClick,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
                 )
