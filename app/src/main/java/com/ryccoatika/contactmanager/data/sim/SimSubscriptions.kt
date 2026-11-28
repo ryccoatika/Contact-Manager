@@ -28,6 +28,12 @@ data class SimSubscription(
 
 interface SimSubscriptionsSource {
     suspend fun activeSubscriptions(): List<SimSubscription>
+
+    /**
+     * How many slots hold a usable SIM/eSIM (no permission needed). 0 means
+     * "unknown" — callers must not infer a single-SIM device from it.
+     */
+    suspend fun presentSimCount(): Int
 }
 
 /**
@@ -73,6 +79,8 @@ class DefaultSimSubscriptionsSource
             }
         }
 
+        override suspend fun presentSimCount(): Int = withContext(ioDispatcher) { countPresentSims() }
+
         /**
          * The SIM's MSISDN if the platform will share it. Prefers the deprecated
          * [SubscriptionInfo.getNumber], then [SubscriptionManager.getPhoneNumber]
@@ -112,6 +120,28 @@ class DefaultSimSubscriptionsSource
             }
         } catch (e: Exception) {
             true // can't tell → don't hide a possibly-real SIM
+        }
+
+        /** Slots holding a usable SIM/eSIM; any failure → 0 ("unknown"). */
+        private fun countPresentSims(): Int = try {
+            val tm = context.getSystemService(TelephonyManager::class.java)
+            if (tm == null) {
+                0
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val slots = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    tm.activeModemCount
+                } else {
+                    @Suppress("DEPRECATION")
+                    tm.phoneCount
+                }
+                (0 until slots).count { simPresent(tm.getSimState(it)) }
+            } else if (simPresent(tm.simState)) {
+                1
+            } else {
+                0
+            }
+        } catch (e: Exception) {
+            0
         }
 
         private fun simPresent(state: Int): Boolean =

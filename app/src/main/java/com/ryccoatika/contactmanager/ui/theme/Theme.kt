@@ -32,6 +32,8 @@ private val DarkColorScheme = darkColorScheme(
     surfaceContainerHigh = SurfaceContainerHighDark,
     surfaceContainerHighest = SurfaceContainerHighestDark,
     outline = OutlineDark,
+    // Snackbar action colour: the opposite mode's pine, not Material's default purple.
+    inversePrimary = PinePrimaryLight,
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -55,6 +57,7 @@ private val LightColorScheme = lightColorScheme(
     surfaceContainerHigh = SurfaceContainerHighLight,
     surfaceContainerHighest = SurfaceContainerHighestLight,
     outline = OutlineLight,
+    inversePrimary = PinePrimaryDark,
 )
 
 /**

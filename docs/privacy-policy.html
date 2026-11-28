@@ -3,7 +3,7 @@
   BEFORE PUBLISHING — review/replace:
     • Developer / entity name ............ search "Ryccoatika"
     • Contact email ...................... search "your-email@example.com"
-    • Last-updated date .................. currently "1 August 2026"
+    • Last-updated date .................. currently "27 November 2026"
     • (optional) your website / company address
   Then host this file at a public URL and paste that URL into
   Play Console → App content → Privacy policy, and into your store listing.
@@ -50,13 +50,13 @@
 <div class="wrap">
   <header>
     <h1>Privacy Policy</h1>
-    <div class="updated">Contact Manager &middot; Last updated: 1 August 2026</div>
+    <div class="updated">Contact Manager &middot; Last updated: 27 November 2026</div>
   </header>
 
   <p class="lead">Contact Manager (&ldquo;the app&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) helps you view, organize, move, and de-duplicate the contacts already stored on your Android device. This policy explains what the app accesses, what little it collects, and how that information is handled.</p>
 
   <div class="card">
-    <strong>The short version:</strong> Your contacts stay on your device. The app reads them directly from Android to show and manage them, and <strong>never uploads, transmits, or stores your contacts on any server</strong>. We collect only anonymous usage statistics and crash reports to fix bugs and improve the app.
+    <strong>The short version:</strong> Your contacts stay on your device. The app reads them directly from Android to show and manage them, and <strong>never uploads, transmits, or stores your contacts on any server</strong>. We collect only anonymous usage statistics, crash reports, and performance measurements to fix bugs and improve the app.
   </div>
 
   <h2>1. Information the app accesses on your device</h2>
@@ -74,6 +74,12 @@
   <ul>
     <li>If the app crashes, we receive a diagnostic report: the error and stack trace, device state, OS and app version. This helps us fix the problem.</li>
   </ul>
+  <h3>Performance measurements (Firebase Performance Monitoring)</h3>
+  <ul>
+    <li>How long the app takes to start, how smoothly screens draw (slow or frozen frames), how long the app is in the foreground, and how long it takes to load your contact list and account list.</li>
+    <li><strong>Counts only, never your contacts:</strong> alongside those timings we receive how many contacts, contact data rows, SIM contacts, and accounts were loaded &mdash; but never the contacts themselves (no names, numbers, emails, or account names).</li>
+    <li>The same kind of general technical information as above (installation identifier, device model, OS version, app version, language, country based on IP address), plus basic device and network state such as memory, CPU use, and network type or carrier.</li>
+  </ul>
 
   <h2>3. Permissions we request and why</h2>
   <ul>
@@ -87,25 +93,26 @@
     <li>To provide the app&rsquo;s core features (viewing and organizing your on-device contacts).</li>
     <li>To understand which features are used so we can improve them.</li>
     <li>To identify, diagnose, and fix crashes and bugs.</li>
+    <li>To find and fix slowness, especially on low-end devices and very large contact lists.</li>
   </ul>
 
   <h2>5. Sharing and third parties</h2>
-  <p>We do not sell your data and we do not share your contacts with anyone. The anonymous analytics and crash data described above are processed by <strong>Google Firebase</strong> (Google Analytics for Firebase and Firebase Crashlytics) acting as our service provider. Their handling of that data is governed by Google&rsquo;s privacy policy:</p>
+  <p>We do not sell your data and we do not share your contacts with anyone. The anonymous analytics, crash, and performance data described above are processed by <strong>Google Firebase</strong> (Google Analytics for Firebase, Firebase Crashlytics, and Firebase Performance Monitoring) acting as our service provider. Their handling of that data is governed by Google&rsquo;s privacy policy:</p>
   <ul>
     <li><a href="https://policies.google.com/privacy" rel="noopener" target="_blank">Google Privacy Policy</a></li>
     <li><a href="https://firebase.google.com/support/privacy" rel="noopener" target="_blank">Firebase &amp; Privacy</a></li>
   </ul>
 
   <h2>6. Data retention</h2>
-  <p>Your contacts remain on your device and under your control; the app keeps no separate copy. Anonymous analytics and crash data are retained by Firebase according to Google&rsquo;s standard retention periods.</p>
+  <p>Your contacts remain on your device and under your control; the app keeps no separate copy. Anonymous analytics, crash, and performance data are retained by Firebase according to Google&rsquo;s standard retention periods.</p>
 
   <h2>7. Security</h2>
-  <p>Because your contacts never leave your device, they are protected by your device&rsquo;s own security. Analytics and crash data are transmitted to Firebase over encrypted connections.</p>
+  <p>Because your contacts never leave your device, they are protected by your device&rsquo;s own security. Analytics, crash, and performance data are transmitted to Firebase over encrypted connections.</p>
 
   <h2>8. Your choices</h2>
   <ul>
     <li>You can grant or revoke the app&rsquo;s permissions at any time in your device&rsquo;s <em>Settings &rarr; Apps &rarr; Contact Manager &rarr; Permissions</em>.</li>
-    <li>You can stop all analytics and crash collection by uninstalling the app.</li>
+    <li>You can stop all analytics, crash, and performance collection by uninstalling the app.</li>
     <li>You control your contacts directly — the app only changes them when you ask it to.</li>
   </ul>
 

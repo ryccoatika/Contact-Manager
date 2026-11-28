@@ -4,10 +4,14 @@ import com.ryccoatika.contactmanager.data.ContactOpResult
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
+import com.ryccoatika.contactmanager.domain.model.LabeledValue
 import com.ryccoatika.contactmanager.domain.model.RawContact
 import com.ryccoatika.contactmanager.domain.model.SimCapabilities
 import com.ryccoatika.contactmanager.domain.model.SimContact
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -67,8 +71,11 @@ class InMemorySimCapabilityCache : SimCapabilityCache {
 
 class FakeSimSubscriptionsSource(
     private val subscriptions: List<SimSubscription> = listOf(SimSubscription(null, "SIM")),
+    private val presentSimCount: Int = subscriptions.size,
 ) : SimSubscriptionsSource {
     override suspend fun activeSubscriptions(): List<SimSubscription> = subscriptions
+
+    override suspend fun presentSimCount(): Int = presentSimCount
 }
 
 class SimAccountsIntegrationTest {
@@ -80,8 +87,9 @@ class SimAccountsIntegrationTest {
     private fun integration(
         source: FakeSimContactSource,
         subs: List<SimSubscription> = dualSim,
+        presentSimCount: Int = subs.size,
     ) = IccSimAccountsIntegration(
-        subscriptionsSource = FakeSimSubscriptionsSource(subs),
+        subscriptionsSource = FakeSimSubscriptionsSource(subs, presentSimCount),
         simRepository = SimRepository(source, InMemorySimCapabilityCache()),
         simSource = source,
     )
@@ -261,5 +269,189 @@ class SimAccountsIntegrationTest {
         integration.simContacts(emptyList())
         integration.simPseudoAccounts(emptyList())
         assertEquals(1, source.probes)
+    }
+
+    // --- card reconcile -------------------------------------------------------
+
+    private val legacySim = listOf(SimSubscription(null, "SIM"))
+
+    private fun mirrorContact(
+        type: String,
+        accountName: String,
+        name: String,
+        number: String,
+        id: Long = 5,
+    ) = Contact(
+        contactId = id,
+        displayName = name,
+        rawContacts = listOf(
+            RawContact(
+                rawContactId = id * 10,
+                accountType = type,
+                accountName = accountName,
+                phones = listOf(LabeledValue(1, number, null)),
+            ),
+        ),
+    )
+
+    /** Legacy-path card from flat name, number, name, number… arguments. */
+    private fun legacyCard(vararg nameAndNumber: String) = FakeSimContactSource(
+        contactsBySub = mutableMapOf(
+            null to nameAndNumber
+                .toList()
+                .chunked(2)
+                .mapIndexed { i, (n, num) -> SimContact(i + 1, n, num, null) }
+                .toMutableList(),
+        ),
+    )
+
+    @Test fun `unmappable native type on a single SIM surfaces card-only entries`() = runTest {
+        val source = legacyCard("Old", "0812345678", "New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 1)
+        val mirror = listOf(mirrorContact("USIM Account", "USIM", "Old", "+62 812-345-678"))
+
+        val contacts = integration.simContacts(mirror)
+
+        assertEquals(listOf("New"), contacts.map { it.displayName })
+        val raw = contacts.single().rawContacts.single()
+        assertEquals("USIM Account", raw.accountType)
+        assertEquals("USIM", raw.accountName)
+        assertTrue(SimRouting.isSimRawContactId(raw.rawContactId))
+        assertEquals(contacts.single().contactId, raw.rawContactId)
+        val resolved = integration.resolveSimContact(raw.rawContactId)
+        assertNotNull(resolved)
+        assertNull(resolved!!.subscriptionId)
+        assertEquals("New", resolved.contact.name)
+        assertEquals(1, integration.cardOnlyCount("USIM Account", "USIM"))
+        assertEquals(0, integration.cardOnlyCount("USIM Account", "other"))
+        val account = ContactAccount("USIM", "USIM Account", AccountCapability.SIM, 1)
+        assertTrue(integration.simPseudoAccounts(listOf(account)).isEmpty())
+        assertEquals(0, source.probes)
+    }
+
+    @Test fun `two SIMs present disables the single-SIM pairing`() = runTest {
+        val source = legacyCard("New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 2)
+        val contacts = integration.simContacts(listOf(mirrorContact("USIM Account", "USIM", "Old", "0812")))
+        assertTrue(contacts.isEmpty())
+        assertEquals(0, integration.cardOnlyCount("USIM Account", "USIM"))
+        assertEquals(0, source.probes)
+    }
+
+    @Test fun `unknown present SIM count disables the single-SIM pairing`() = runTest {
+        val source = legacyCard("New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 0)
+        assertTrue(integration.simContacts(listOf(mirrorContact("USIM Account", "USIM", "Old", "0812"))).isEmpty())
+    }
+
+    @Test fun `two native SIM accounts are never paired by the single-SIM rule`() = runTest {
+        val source = legacyCard("New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 1)
+        val contacts = integration.simContacts(
+            listOf(
+                mirrorContact("USIM Account", "A", "Old", "0812", id = 5),
+                mirrorContact("USIM Account", "B", "Older", "0813", id = 6),
+            ),
+        )
+        assertTrue(contacts.isEmpty())
+    }
+
+    @Test fun `a Samsung account counts toward the single-SIM rule`() = runTest {
+        val source = legacyCard("New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 1)
+        val contacts = integration.simContacts(
+            listOf(
+                mirrorContact("USIM Account", "A", "Old", "0812", id = 5),
+                mirrorContact("vnd.sec.contact.sim", "SIM", "Older", "0813", id = 6),
+            ),
+        )
+        assertTrue(contacts.isEmpty())
+    }
+
+    @Test fun `mappable native type reconciles against the subscription in its slot`() = runTest {
+        val subs = listOf(SimSubscription(7, "SIM 1", slotIndex = 0), SimSubscription(8, "SIM 2", slotIndex = 1))
+        val source = FakeSimContactSource(
+            contactsBySub = mutableMapOf(
+                7 to mutableListOf(SimContact(1, "Old", "0812345678", 7), SimContact(2, "New", "0899887766", 7)),
+                8 to mutableListOf(SimContact(1, "Other", "0855555555", 8)),
+            ),
+        )
+        val integration = integration(source, subs, presentSimCount = 2)
+        val mirror = listOf(mirrorContact("com.android.contacts.sim", "SIM", "Old", "0812345678"))
+
+        val contacts = integration.simContacts(mirror)
+        // Slot 1 is uncovered here: it is an icc pseudo-account candidate, never reconciled.
+        assertEquals(listOf("New"), contacts.map { it.displayName })
+        assertEquals(7, integration.resolveSimContact(contacts.single().contactId)!!.subscriptionId)
+        assertEquals(1, integration.cardOnlyCount("com.android.contacts.sim", "SIM"))
+    }
+
+    @Test fun `partial native coverage keeps the uncovered SIM as icc and never reconciles it into the native account`() =
+        runTest {
+            val subs = listOf(SimSubscription(1, "SIM 1", slotIndex = 0), SimSubscription(3, "SIM 2", slotIndex = 1))
+            val source = FakeSimContactSource(
+                capsBySub = mapOf(1 to SimCapabilities(true, true), 3 to SimCapabilities(true, true)),
+                contactsBySub = mutableMapOf(
+                    1 to mutableListOf(SimContact(1, "Budi", "0812", 1)),
+                    3 to mutableListOf(SimContact(1, "EsimOnly", "0899", 3), SimContact(2, "Mirrored", "0877", 3)),
+                ),
+            )
+            val integration = integration(source, subs, presentSimCount = 2)
+            val mirror = listOf(mirrorContact("com.android.contacts.sim2", "SIM2", "Mirrored", "0877"))
+
+            val contacts = integration.simContacts(mirror)
+
+            // Slot 0 stays an icc pseudo-account; only slot 1's own card feeds the native account.
+            val typeByName = contacts.associate { it.displayName to it.rawContacts.single().accountType }
+            assertEquals(mapOf("Budi" to "icc/1", "EsimOnly" to "com.android.contacts.sim2"), typeByName)
+            assertEquals(1, integration.cardOnlyCount("com.android.contacts.sim2", "SIM2"))
+        }
+
+    @Test fun `two native accounts mapping to one slot are not reconciled`() = runTest {
+        val subs = listOf(SimSubscription(7, "SIM 1", slotIndex = 0))
+        val source = FakeSimContactSource(
+            contactsBySub = mutableMapOf(7 to mutableListOf(SimContact(1, "New", "0899887766", 7))),
+        )
+        val integration = integration(source, subs, presentSimCount = 1)
+        val contacts = integration.simContacts(
+            listOf(
+                mirrorContact("com.android.contacts.sim", "SIM", "Old", "0812", id = 5),
+                mirrorContact("com.android.sim", "SIM", "Older", "0813", id = 6),
+            ),
+        )
+        assertTrue(contacts.isEmpty())
+    }
+
+    @Test fun `Samsung native account is not reconciled and keeps its count at zero`() = runTest {
+        val source = legacyCard("New", "0899887766")
+        val integration = integration(source, legacySim, presentSimCount = 1)
+        val contacts = integration.simContacts(listOf(nativeSimContact()))
+        assertTrue(contacts.isEmpty())
+        assertEquals(0, integration.cardOnlyCount("vnd.sec.contact.sim", "SIM"))
+        assertNull(integration.resolveSimContact(SimRouting.syntheticId(0)))
+        assertEquals(0, source.probes)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `cardOnlyChanges emits when a count changes but not on an identical re-read`() = runTest {
+        val source = legacyCard("Old", "0812345678")
+        val integration = integration(source, legacySim, presentSimCount = 1)
+        val mirror = listOf(mirrorContact("USIM Account", "USIM", "Old", "0812345678"))
+        var emissions = 0
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            integration.cardOnlyChanges.collect { emissions++ }
+        }
+
+        integration.simContacts(mirror)
+        assertEquals(0, emissions)
+
+        source.contactsBySub.getValue(null) += SimContact(2, "New", "0899887766", null)
+        integration.simContacts(mirror)
+        assertEquals(1, emissions)
+
+        integration.simContacts(mirror)
+        assertEquals(1, emissions)
+        job.cancel()
     }
 }

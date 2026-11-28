@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.data.sim.SimRepository
 import com.ryccoatika.contactmanager.di.ApplicationScope
 import com.ryccoatika.contactmanager.di.IoDispatcher
+import com.ryccoatika.contactmanager.domain.analytics.PerfTraces
+import com.ryccoatika.contactmanager.domain.analytics.PerformanceTracer
 import com.ryccoatika.contactmanager.domain.model.Contact
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -35,6 +37,12 @@ interface ContactsSource {
     suspend fun snapshot(): List<Contact>
 }
 
+/** Provider query result: the aggregated contacts plus how many Data rows were read (a trace metric). */
+private class ContactQuery(
+    val contacts: List<Contact>,
+    val dataRows: Int,
+)
+
 @Singleton
 class ContactsRepository
     @Inject
@@ -44,6 +52,7 @@ class ContactsRepository
         @ApplicationScope appScope: CoroutineScope,
         private val simIntegration: SimAccountsIntegration,
         private val simRepository: SimRepository,
+        private val tracer: PerformanceTracer,
     ) : ContactsSource {
         /**
          * Emits the full contact list on subscription and again on every provider
@@ -65,8 +74,11 @@ class ContactsRepository
 
         override suspend fun snapshot(): List<Contact> = withContext(ioDispatcher) { loadContacts() }
 
-        private suspend fun loadContacts(): List<Contact> {
-            val contacts = queryAllContacts()
+        private suspend fun loadContacts(): List<Contact> = tracer.trace(PerfTraces.CONTACTS_LOAD) {
+            val query = queryAllContacts()
+            val contacts = query.contacts
+            metric(PerfTraces.DATA_ROWS, query.dataRows.toLong())
+            metric(PerfTraces.CONTACTS, contacts.size.toLong())
             val simContacts = try {
                 simIntegration.simContacts(contacts)
             } catch (e: CancellationException) {
@@ -75,7 +87,8 @@ class ContactsRepository
                 Log.w(TAG, "SIM contact read failed; skipping SIM entries", e)
                 emptyList()
             }
-            return if (simContacts.isEmpty()) {
+            metric(PerfTraces.SIM_CONTACTS, simContacts.size.toLong())
+            if (simContacts.isEmpty()) {
                 contacts
             } else {
                 (contacts + simContacts).sortedBy { it.displayName.lowercase() }
@@ -90,18 +103,18 @@ class ContactsRepository
          * permission or a provider hiccup must degrade to an empty list instead
          * of crashing every collector.
          */
-        private suspend fun queryAllContacts(): List<Contact> = withContext(ioDispatcher) {
+        private suspend fun queryAllContacts(): ContactQuery = withContext(ioDispatcher) {
             try {
                 queryAllContactsOrThrow()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Contact query failed; emitting empty list", e)
-                emptyList()
+                ContactQuery(emptyList(), 0)
             }
         }
 
-        private fun queryAllContactsOrThrow(): List<Contact> {
+        private fun queryAllContactsOrThrow(): ContactQuery {
             val projection = arrayOf(
                 Data._ID,
                 Data.RAW_CONTACT_ID,
@@ -117,7 +130,7 @@ class ContactsRepository
                 ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
                 ContactsContract.Contacts.STARRED,
             )
-            val rows = ArrayList<DataRow>(1024)
+            val accumulator = ContactAccumulator()
             context.contentResolver
                 .query(
                     Data.CONTENT_URI,
@@ -141,27 +154,32 @@ class ContactsRepository
                     val iStar = c.getColumnIndexOrThrow(ContactsContract.Contacts.STARRED)
                     while (c.moveToNext()) {
                         val mimeType = c.getString(iMime)
-                        val data2 = c.getString(iData2)
-                        val data3 = c.getString(iData3)
-                        rows += DataRow(
-                            dataId = c.getLong(iId),
-                            rawContactId = c.getLong(iRaw),
-                            contactId = c.getLong(iContact),
-                            mimeType = mimeType,
-                            data1 = c.getString(iData1),
-                            data2 = data2,
-                            data3 = data3,
-                            data4 = c.getString(iData4),
-                            typeLabel = PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3),
-                            accountType = c.getString(iAccType),
-                            accountName = c.getString(iAccName),
-                            displayName = c.getString(iName),
-                            photoThumbUri = c.getString(iPhoto),
-                            starred = c.getInt(iStar) == 1,
+                        // Rows the aggregator never reads still register their raw contact +
+                        // account (membership), but skip the DATA1..4 string copies.
+                        val used = ContactAggregator.usesData(mimeType)
+                        val data2 = if (used) c.getString(iData2) else null
+                        val data3 = if (used) c.getString(iData3) else null
+                        accumulator.add(
+                            DataRow(
+                                dataId = c.getLong(iId),
+                                rawContactId = c.getLong(iRaw),
+                                contactId = c.getLong(iContact),
+                                mimeType = mimeType,
+                                data1 = if (used) c.getString(iData1) else null,
+                                data2 = data2,
+                                data3 = data3,
+                                data4 = if (used) c.getString(iData4) else null,
+                                typeLabel = if (used) PhoneEmailTypeLabel.from(mimeType, data2?.toIntOrNull(), data3) else null,
+                                accountType = c.getString(iAccType),
+                                accountName = c.getString(iAccName),
+                                displayName = c.getString(iName),
+                                photoThumbUri = c.getString(iPhoto),
+                                starred = c.getInt(iStar) == 1,
+                            ),
                         )
                     }
                 }
-            return ContactAggregator.aggregate(rows)
+            return ContactQuery(accumulator.build(), accumulator.rowCount)
         }
 
         private companion object {

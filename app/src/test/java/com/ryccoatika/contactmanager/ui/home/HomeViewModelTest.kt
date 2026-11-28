@@ -16,6 +16,7 @@ import com.ryccoatika.contactmanager.data.ops.DefaultAccountBulkOps
 import com.ryccoatika.contactmanager.data.transfer.ContactTransfer
 import com.ryccoatika.contactmanager.data.transfer.ParseOutcome
 import com.ryccoatika.contactmanager.data.transfer.TransferResult
+import com.ryccoatika.contactmanager.domain.DuplicateAction
 import com.ryccoatika.contactmanager.domain.analytics.AnalyticsEvent
 import com.ryccoatika.contactmanager.domain.analytics.FakeAnalytics
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
@@ -138,7 +139,10 @@ class HomeViewModelTest {
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
             ContactOpResult.Success
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult =
             ContactOpResult.Success
 
         override suspend fun mergeContacts(
@@ -183,6 +187,14 @@ class HomeViewModelTest {
         override suspend fun dismiss(key: String) {
             dismissedKeys.value = dismissedKeys.value + key
         }
+
+        override suspend fun restore(key: String) {
+            dismissedKeys.value = dismissedKeys.value - key
+        }
+
+        override suspend fun isExplained(action: DuplicateAction): Boolean = false
+
+        override suspend fun markExplained(action: DuplicateAction) = Unit
     }
 
     private fun vm(

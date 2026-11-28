@@ -50,10 +50,14 @@ device (the privacy policy promises this — treat violations as critical).
 
 CI (`.github/workflows/check.yml`) runs spotless + compile + tests + lint on
 every PR. `deploy.yml` publishes: a push to develop builds and uploads to the
-Play **Internal testing** track; a push to main promotes that same build to
-**Production as a draft** (no rebuild) and cuts the tag + GitHub release from
-`CHANGELOG.md`. The draft needs release notes and a manual rollout in the Play
-Console — nothing reaches users until you press it.
+Play **Internal testing** track; a push to main only cuts the tag + GitHub
+release from `CHANGELOG.md` (attaching the artifacts that develop run built —
+no rebuild). **Promotion to Production is manual**: do it in the Play Console,
+or run `bundle exec fastlane android promote_to_production` yourself. Both
+branches post to the team's Telegram topic; the develop message carries the
+internal-testing opt-in link from the repo variable `INTERNAL_TEST_URL` (Play
+Console > Testing > Internal testing > Testers > Copy link) — unset, it falls
+back to the store page with a warning.
 
 - JDK 17+ (repo builds on 21). Android SDK 36. minSdk 24, targetSdk 36.
 - Compose BOM `2026.02.01`, Kotlin `2.2.10`, Hilt `2.60.1`, AGP `9.x`, KSP.
@@ -86,7 +90,8 @@ domain/                pure Kotlin: AccountClassifier, MovePlanner,
                        ContactAccount, AccountCapability, ThemeMode, …
 data/                  ContactsContract repositories (reads + decorated writer),
   ├ sim/               icc/adn SIM sources, capability probe/cache, subscriptions
-  └ analytics/         Analytics interface, AnalyticsEvent, Firebase/NoOp impls
+  └ analytics/         Analytics interface, AnalyticsEvent, PerformanceTracer,
+                       Firebase/NoOp impls
 di/                    Hilt modules (the only place impls are named/bound)
 ui/
   ├ home | detail | editor | accounts | duplicates |     feature packages:
@@ -151,6 +156,8 @@ UI conventions:
   on a `SharedFlow`; snackbar events go through `CollectUiEvents`.
 - Analytics: log via `AnalyticsEvent` (counts + enum labels only — **never**
   contact data); `TrackScreenView("name")` on every screen/sheet/dialog.
+- Performance: time loads through `PerformanceTracer` (`PerfTraces` names);
+  trace metrics are counts only — **never** contact data.
 - User-facing change ⇒ update `CHANGELOG.md` in the same commit (the
   `update-changelog` skill; release notes are generated from it).
 - No new dependencies without a reason; add via `libs.versions.toml`.
@@ -183,7 +190,7 @@ Commands in `.claude/commands/`:
 - **Conventional Commits**: `feat(ui): …`, `fix(data): …`, `perf:`, `style:`,
   `ci:`, `docs:`. Imperative subject ≤ ~72 chars; body explains the why.
 - Branch off `develop` (features) — never commit straight to `main`.
-  develop → main promotes a release.
+  develop → main tags a release (Play rollout stays manual).
 - Before committing: compile, tests, `spotlessCheck` green (and
   `/architecture-audit` clean for structural changes);
   guard against staging secrets — run
@@ -210,6 +217,12 @@ reference examples. Don't skip this for multi-screen features.
 - **`READ_PHONE_STATE`/`READ_PHONE_NUMBERS`** are optional, offered lazily via
   an AssistChip when a SIM account is visible; they only add dual-SIM labels +
   numbers. Don't make them required; everything degrades without them.
+- **SIM card reconcile**: non-Samsung native SIM accounts (a provider-side
+  mirror of the card) are also read via `icc/adn` and card-only entries are
+  surfaced as synthetic contacts under the native account
+  (`SimCardReconciler`, `SimRouting.reconcilesWithCard`). The reconcile path
+  must only call `simSource.readAll` — never `capabilities`/`probe` (the probe
+  writes to the SIM). Samsung (`vnd.sec.contact.sim…`) is deliberately excluded.
 - **Capability probe** is cached in DataStore and can go stale after a SIM
   swap; Accounts pull-to-refresh re-probes.
 - **Crash handling**: `ContactManagerApp` installs an uncaught-exception
@@ -222,6 +235,11 @@ reference examples. Don't skip this for multi-screen features.
   build_id resource whose absence is a startup crash. CI (check.yml and
   deploy.yml) decrypts the json from its committed `.gpg` blob;
   `AnalyticsModule`'s NoOp fallback remains only as a runtime guard.
+- **Firebase Performance is SDK-only by design**: no `firebase-perf` Gradle
+  plugin — it only instruments HTTP calls and the app has none. The SDK alone
+  gives the automatic app-start / screen-rendering traces; ours are the custom
+  `PerformanceTracer` ones. Collection is off for debuggable builds (see
+  `ContactManagerApp`).
 - **In-app update/review** (`ui/update`, `ui/review`): Play-installed builds
   only; both are best-effort and silent on failure. Update flow picks
   immediate vs flexible from the release's `inAppUpdatePriority`

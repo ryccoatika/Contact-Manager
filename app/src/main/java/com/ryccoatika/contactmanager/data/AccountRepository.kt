@@ -8,6 +8,8 @@ import com.ryccoatika.contactmanager.data.sim.SimAccountsIntegration
 import com.ryccoatika.contactmanager.di.ApplicationScope
 import com.ryccoatika.contactmanager.di.IoDispatcher
 import com.ryccoatika.contactmanager.domain.AccountClassifier
+import com.ryccoatika.contactmanager.domain.analytics.PerfTraces
+import com.ryccoatika.contactmanager.domain.analytics.PerformanceTracer
 import com.ryccoatika.contactmanager.domain.model.AccountCapability
 import com.ryccoatika.contactmanager.domain.model.ContactAccount
 import com.ryccoatika.contactmanager.domain.sim.SimRouting
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -44,6 +47,7 @@ class AccountRepository
         @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
         @ApplicationScope appScope: CoroutineScope,
         private val simIntegration: SimAccountsIntegration,
+        private val tracer: PerformanceTracer,
     ) : AccountsSource {
         /**
          * Accounts derived from RawContacts rows (catches WhatsApp-style accounts that
@@ -66,8 +70,7 @@ class AccountRepository
         /** Shared app-wide (see ContactsRepository.contacts for the sharing rationale). */
         @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
         private val accounts: SharedFlow<List<ContactAccount>> =
-            contentChanges()
-                .debounce(300)
+            merge(contentChanges().debounce(300), simIntegration.cardOnlyChanges)
                 .mapLatest { getAccounts() }
                 .flowOn(ioDispatcher)
                 .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
@@ -76,7 +79,7 @@ class AccountRepository
 
         private fun contentChanges(): Flow<Unit> = contentChangesFlow(context, RawContacts.CONTENT_URI)
 
-        private suspend fun getAccountsOrThrow(): List<ContactAccount> {
+        private suspend fun getAccountsOrThrow(): List<ContactAccount> = tracer.trace(PerfTraces.ACCOUNTS_LOAD) {
             val counts = HashMap<Pair<String?, String?>, Int>()
             context.contentResolver
                 .query(
@@ -114,13 +117,16 @@ class AccountRepository
                         name = key.second,
                         type = key.first,
                         capability = capability,
-                        contactCount = count,
+                        // Card-only SIM entries are listed under their native account too.
+                        contactCount = count + simIntegration.cardOnlyCount(key.first, key.second),
                         writable = capability != AccountCapability.READ_ONLY,
                         displayLabel = sub?.label,
                         phoneNumber = sub?.number,
                     )
                 }.sortedByDescending { it.contactCount }
-            return providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)
+            (providerAccounts + simIntegration.simPseudoAccounts(providerAccounts)).also {
+                metric(PerfTraces.ACCOUNTS, it.size.toLong())
+            }
         }
 
         /**

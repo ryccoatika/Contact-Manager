@@ -51,6 +51,12 @@ sealed class AnalyticsEvent(
 
     data object DuplicateDismiss : AnalyticsEvent("duplicate_dismiss")
 
+    /** [action] is `"link"` or `"dismiss"`; [count] is the number of contacts in the group. */
+    data class DuplicateUndo(
+        val action: String,
+        val count: Int,
+    ) : AnalyticsEvent("duplicate_undo", mapOf("action" to action, "count" to count))
+
     data object CallContact : AnalyticsEvent("call_contact")
 
     data object MessageContact : AnalyticsEvent("message_contact")

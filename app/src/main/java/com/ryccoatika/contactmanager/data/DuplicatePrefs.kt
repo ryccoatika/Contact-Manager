@@ -1,10 +1,12 @@
 package com.ryccoatika.contactmanager.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ryccoatika.contactmanager.domain.DuplicateAction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -25,6 +27,14 @@ interface DuplicatePrefs {
     suspend fun dismissedKeys(): Set<String>
 
     suspend fun dismiss(key: String)
+
+    /** Undoes [dismiss]: the group may show up again. */
+    suspend fun restore(key: String)
+
+    /** Whether the first-use explanation for [action] was already confirmed. */
+    suspend fun isExplained(action: DuplicateAction): Boolean
+
+    suspend fun markExplained(action: DuplicateAction)
 }
 
 private val Context.duplicatePrefsDataStore by preferencesDataStore(name = "duplicate_prefs")
@@ -52,7 +62,38 @@ class DataStoreDuplicatePrefs
             }
         }
 
+        override suspend fun restore(key: String) {
+            try {
+                context.duplicatePrefsDataStore.edit { prefs ->
+                    prefs[DISMISSED_KEYS] = (prefs[DISMISSED_KEYS] ?: emptySet()) - key
+                }
+            } catch (_: IOException) {
+                // Best-effort: a lost restore leaves the group hidden.
+            }
+        }
+
+        override suspend fun isExplained(action: DuplicateAction): Boolean =
+            context.duplicatePrefsDataStore.data
+                .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+                .map { it[explainedKey(action)] ?: false }
+                .first()
+
+        override suspend fun markExplained(action: DuplicateAction) {
+            try {
+                context.duplicatePrefsDataStore.edit { prefs -> prefs[explainedKey(action)] = true }
+            } catch (_: IOException) {
+                // Best-effort: a lost flag only shows the explanation once more.
+            }
+        }
+
+        private fun explainedKey(action: DuplicateAction) = when (action) {
+            DuplicateAction.LINK -> EXPLAINED_LINK
+            DuplicateAction.DISMISS -> EXPLAINED_DISMISS
+        }
+
         private companion object {
+            val EXPLAINED_LINK = booleanPreferencesKey("explained_link")
+            val EXPLAINED_DISMISS = booleanPreferencesKey("explained_dismiss")
             val DISMISSED_KEYS = stringSetPreferencesKey("dismissed_group_keys")
         }
     }
