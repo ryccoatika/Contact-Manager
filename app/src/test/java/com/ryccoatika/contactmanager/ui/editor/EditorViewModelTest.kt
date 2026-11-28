@@ -151,7 +151,9 @@ class EditorViewModelTest {
 
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult = result
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult = result
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult = result
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult = result
 
         override suspend fun mergeContacts(
             target: RawContact,

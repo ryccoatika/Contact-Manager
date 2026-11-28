@@ -9,6 +9,16 @@ to [Keep a Changelog](https://keepachangelog.com/) and
   contacts now load using much less memory.
 - SIM contacts added by another app now appear without restarting the phone on
   devices that keep their own copy of the SIM.
+- Duplicates now explain themselves: the first time you tap Link or Not
+  duplicate you get a short explanation, and a help button on the screen
+  describes every action.
+- Undo after Link and after Not duplicate, right from the message that appears.
+- A clearer warning before you merge: merging deletes the other entries and
+  can't be undone.
+- A "possible duplicates" row at the top of the contact list opens the
+  Duplicates screen.
+- Fixed "Not duplicate" separating entries that already belonged to the same
+  contact.
 
 ## [1.2] - 2026-10-02
 - Fixed a crash that could hit while a screen was still loading, and made those

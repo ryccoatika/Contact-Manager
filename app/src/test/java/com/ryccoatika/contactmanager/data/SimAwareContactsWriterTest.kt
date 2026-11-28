@@ -31,7 +31,8 @@ class SimAwareContactsWriterTest {
         val moved = mutableListOf<Long>()
         var moveTarget: Pair<String?, String?>? = null
         var linked: List<Long>? = null
-        var separated: List<Long>? = null
+        var separated: List<List<Long>>? = null
+        var reset: List<List<Long>>? = null
         var merged: Pair<RawContact, List<RawContact>>? = null
         var result: ContactOpResult = ContactOpResult.Success
 
@@ -93,8 +94,13 @@ class SimAwareContactsWriterTest {
             return result
         }
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult {
-            separated = rawContactIds
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult {
+            separated = contacts
+            return result
+        }
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult {
+            reset = contacts
             return result
         }
 
@@ -385,15 +391,28 @@ class SimAwareContactsWriterTest {
 
     @Test fun `keepSeparate with provider ids delegates`() = runTest {
         val env = Env()
-        env.writer.keepSeparate(listOf(10L, 20L))
-        assertEquals(listOf(10L, 20L), env.delegate.separated)
+        env.writer.keepSeparate(listOf(listOf(10L), listOf(20L)))
+        assertEquals(listOf(listOf(10L), listOf(20L)), env.delegate.separated)
     }
 
     @Test fun `keepSeparate with a sim id fails without touching the delegate`() = runTest {
         val env = Env()
-        val result = env.writer.keepSeparate(listOf(simId, 20L))
+        val result = env.writer.keepSeparate(listOf(listOf(simId), listOf(20L)))
         assertTrue(result is ContactOpResult.Failure)
         assertNull(env.delegate.separated)
+    }
+
+    @Test fun `resetAggregation with provider ids delegates`() = runTest {
+        val env = Env()
+        env.writer.resetAggregation(listOf(listOf(10L), listOf(20L)))
+        assertEquals(listOf(listOf(10L), listOf(20L)), env.delegate.reset)
+    }
+
+    @Test fun `resetAggregation with a sim id fails without touching the delegate`() = runTest {
+        val env = Env()
+        val result = env.writer.resetAggregation(listOf(listOf(simId), listOf(20L)))
+        assertTrue(result is ContactOpResult.Failure)
+        assertNull(env.delegate.reset)
     }
 
     @Test fun `merge with provider raw contacts delegates target and sources`() = runTest {

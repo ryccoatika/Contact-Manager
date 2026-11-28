@@ -239,11 +239,18 @@ class SimAwareContactsWriter
                 delegate.linkContacts(rawContactIds)
             }
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
-            if (rawContactIds.any(SimRouting::isSimRawContactId)) {
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult =
+            if (contacts.flatten().any(SimRouting::isSimRawContactId)) {
                 simAggregationFailure()
             } else {
-                delegate.keepSeparate(rawContactIds)
+                delegate.keepSeparate(contacts)
+            }
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult =
+            if (contacts.flatten().any(SimRouting::isSimRawContactId)) {
+                simAggregationFailure()
+            } else {
+                delegate.resetAggregation(contacts)
             }
 
         override suspend fun mergeContacts(

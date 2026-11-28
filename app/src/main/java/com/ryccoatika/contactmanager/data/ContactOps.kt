@@ -18,6 +18,7 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
 import android.provider.ContactsContract.CommonDataKinds.Website
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.RawContacts
+import com.ryccoatika.contactmanager.domain.AggregationPairs
 
 /**
  * ContentProviderOperation builders for ContactsWriteRepository — the batch
@@ -90,6 +91,17 @@ internal object ContactOps {
         }
         return ops
     }
+
+    /** One AggregationExceptions update per pair of raw contacts that belong to different [contacts]. */
+    fun aggregationOpsAcross(contacts: List<List<Long>>, type: Int): List<ContentProviderOperation> =
+        AggregationPairs.across(contacts).map { (a, b) ->
+            ContentProviderOperation
+                .newUpdate(AggregationExceptions.CONTENT_URI)
+                .withValue(AggregationExceptions.TYPE, type)
+                .withValue(AggregationExceptions.RAW_CONTACT_ID1, a)
+                .withValue(AggregationExceptions.RAW_CONTACT_ID2, b)
+                .build()
+        }
 
     fun copyDataOps(resolver: ContentResolver, sourceRawContactId: Long): List<ContentProviderOperation> {
         val ops = ArrayList<ContentProviderOperation>()

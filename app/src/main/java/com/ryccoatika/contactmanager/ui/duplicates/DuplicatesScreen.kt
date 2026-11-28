@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -92,6 +93,7 @@ fun DuplicatesScreen(
     val launchReview = rememberReviewLauncher()
     var mergePickerGroup by remember { mutableStateOf<DuplicateGroup?>(null) }
     var pendingMerge by remember { mutableStateOf<Pair<DuplicateGroup, RawContact>?>(null) }
+    var showHelp by remember { mutableStateOf(false) }
 
     CollectUiEvents(viewModel.events, snackbarHostState)
     // A completed merge is a review-worthy moment; ask Play (it decides + throttles).
@@ -115,48 +117,67 @@ fun DuplicatesScreen(
                             )
                         }
                     },
+                    actions = { HelpButton(onClick = { showHelp = true }) },
                 )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (state.loading) {
-            CardsSkeleton(Modifier.padding(padding), count = 3, height = 150.dp)
-        } else if (state.groups.isEmpty()) {
-            Column(
-                Modifier.padding(padding).fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.duplicates_empty),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            // No top bar in a tablet pane: keep help reachable in a slim row.
+            if (embedded) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) { HelpButton(onClick = { showHelp = true }) }
             }
-        } else {
-            LazyColumn(
-                Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(state.groups, key = { DuplicateFinder.groupKey(it) }) { group ->
-                    DuplicateGroupCard(
-                        group = group,
-                        onLink = { viewModel.link(group) },
-                        onMerge = { mergePickerGroup = group },
-                        onDismiss = { viewModel.dismiss(group) },
+            if (state.loading) {
+                CardsSkeleton(Modifier, count = 3, height = 150.dp)
+            } else if (state.groups.isEmpty()) {
+                Column(
+                    Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.duplicates_empty),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(state.groups, key = { DuplicateFinder.groupKey(it) }) { group ->
+                        DuplicateGroupCard(
+                            group = group,
+                            onLink = { viewModel.link(group) },
+                            onMerge = { mergePickerGroup = group },
+                            onDismiss = { viewModel.dismiss(group) },
+                        )
+                    }
                 }
             }
         }
     }
+
+    state.pendingExplain?.let { pending ->
+        ExplainActionSheet(
+            pending = pending,
+            onConfirm = viewModel::confirmExplained,
+            onDismiss = viewModel::cancelExplain,
+        )
+    }
+    if (showHelp) DuplicatesHelpSheet(onDismiss = { showHelp = false })
 
     mergePickerGroup?.let { group ->
         TrackScreenView("merge_target_picker")
@@ -228,15 +249,22 @@ fun DuplicatesScreen(
                     "${c.displayName} (${AccountVisuals.label(context, raw.accountType, raw.accountName)})"
                 }
                 val linkedLine = stringResource(R.string.duplicates_merge_linked, linkedNames)
-                Text(
-                    buildString {
-                        append(mergedLine)
-                        if (readOnly.isNotEmpty()) {
-                            append("\n\n")
-                            append(linkedLine)
-                        }
-                    },
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        buildString {
+                            append(mergedLine)
+                            if (readOnly.isNotEmpty()) {
+                                append("\n\n")
+                                append(linkedLine)
+                            }
+                        },
+                    )
+                    Text(
+                        stringResource(R.string.duplicates_merge_warning),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -249,6 +277,16 @@ fun DuplicatesScreen(
                     Text(stringResource(R.string.duplicates_cancel))
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun HelpButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            Icons.AutoMirrored.Outlined.HelpOutline,
+            contentDescription = stringResource(R.string.duplicates_help),
         )
     }
 }

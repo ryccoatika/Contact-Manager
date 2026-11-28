@@ -87,7 +87,10 @@ class DetailViewModelTest {
         override suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult =
             ContactOpResult.Success
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult =
+            ContactOpResult.Success
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult =
             ContactOpResult.Success
 
         override suspend fun mergeContacts(

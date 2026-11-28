@@ -8,9 +8,22 @@
     <string name="duplicates_link">Link</string>
     <string name="duplicates_not_duplicate">Not duplicate</string>
     <string name="duplicates_cancel">Cancel</string>
+    <string name="duplicates_undo">Undo</string>
+    <string name="duplicates_msg_dismissed">Group hidden</string>
     <string name="duplicates_confidence_high">Likely duplicate</string>
     <string name="duplicates_confidence_medium">Possible duplicate</string>
     <string name="duplicates_merge_linked">%1$s will be linked (managed by app).</string>
+    <string name="duplicates_explain_link_title">Link these contacts?</string>
+    <string name="duplicates_explain_link_body">They will show as one contact. Nothing is deleted, and you can undo it right after.</string>
+    <string name="duplicates_explain_dismiss_title">Not duplicates?</string>
+    <string name="duplicates_explain_dismiss_body">This group will be hidden from the list and the contacts stay separate. Nothing is deleted, and you can undo it right after.</string>
+    <string name="duplicates_explain_once">You\'ll only be asked this the first time.</string>
+    <string name="duplicates_scope">Duplicates are found across all your accounts.</string>
+    <string name="duplicates_merge_warning">Missing details are copied to the contact you keep, then the other entries are deleted. This can\'t be undone.</string>
+    <string name="duplicates_help">How duplicates work</string>
+    <string name="duplicates_help_dismiss_body">Hides the group and keeps the contacts separate. Nothing is deleted. You can undo it right after.</string>
+    <string name="duplicates_help_link_body">Shows the contacts as one. Nothing is deleted. You can undo it right after.</string>
+    <string name="duplicates_help_merge_body">Copies missing details into the contact you choose, then deletes the others. Contacts that belong to another app, like WhatsApp, are linked instead. This can\'t be undone.</string>
     <string name="duplicates_reason_phone">Same phone number</string>
     <string name="duplicates_reason_email">Same email</string>
     <string name="duplicates_reason_name">Similar name</string>
@@ -20,7 +33,7 @@
         <item quantity="other">Merge %1$d entries?</item>
     </plurals>
     <plurals name="duplicates_merge_body">
-        <item quantity="one">%1$d entry will be merged into %2$s (%3$s) and removed.</item>
-        <item quantity="other">%1$d entries will be merged into %2$s (%3$s) and removed.</item>
+        <item quantity="one">%1$d other entry will be merged into %2$s (%3$s) and removed.</item>
+        <item quantity="other">%1$d other entries will be merged into %2$s (%3$s) and removed.</item>
     </plurals>
 </resources>

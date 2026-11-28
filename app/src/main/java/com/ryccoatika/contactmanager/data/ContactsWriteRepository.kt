@@ -90,8 +90,18 @@ interface ContactsWriter {
     /** Aggregates all [rawContactIds] into one contact (KEEP_TOGETHER per pair, reversible). */
     suspend fun linkContacts(rawContactIds: List<Long>): ContactOpResult
 
-    /** Forces all [rawContactIds] apart (KEEP_SEPARATE per pair). */
-    suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult
+    /**
+     * Forces contacts apart (KEEP_SEPARATE). Each inner list of [contacts] is one
+     * contact's raw ids; only raw contacts of *different* lists are separated,
+     * so entries of one contact are never split.
+     */
+    suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult
+
+    /**
+     * Resets aggregation to automatic (TYPE_AUTOMATIC) between raw contacts of
+     * different inner lists of [contacts]; entries of one contact are untouched.
+     */
+    suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult
 
     /**
      * Physically merges [sources] into [target]: copies their data rows (deduped
@@ -247,12 +257,22 @@ class ContactsWriteRepository
                 }
             }
 
-        override suspend fun keepSeparate(rawContactIds: List<Long>): ContactOpResult =
+        override suspend fun keepSeparate(contacts: List<List<Long>>): ContactOpResult =
             withContext(ioDispatcher) {
                 runCatchingOp(R.string.cwr_action_separate) {
                     ContactOps.applyChunked(
                         context.contentResolver,
-                        ContactOps.aggregationOps(rawContactIds, AggregationExceptions.TYPE_KEEP_SEPARATE),
+                        ContactOps.aggregationOpsAcross(contacts, AggregationExceptions.TYPE_KEEP_SEPARATE),
+                    )
+                }
+            }
+
+        override suspend fun resetAggregation(contacts: List<List<Long>>): ContactOpResult =
+            withContext(ioDispatcher) {
+                runCatchingOp(R.string.cwr_action_undo) {
+                    ContactOps.applyChunked(
+                        context.contentResolver,
+                        ContactOps.aggregationOpsAcross(contacts, AggregationExceptions.TYPE_AUTOMATIC),
                     )
                 }
             }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.ryccoatika.contactmanager.domain.model.Contact
 import com.ryccoatika.contactmanager.ui.common.AlphabetRail
 import kotlinx.coroutines.launch
+
+private const val DUPLICATES_ROW_KEY = "duplicates-row"
 
 /** The sectioned contact list with swipe-to-delete, drag-select and the fast-scroll rail. */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
@@ -43,6 +46,9 @@ internal fun HomeContactList(
     onToggleSelect: (Long) -> Unit,
     onOpenContact: (Contact) -> Unit,
     onDeleteRequest: (Contact) -> Unit,
+    // Null hides the "possible duplicates" row; otherwise it is the list's first item.
+    duplicatesRowCount: Int?,
+    onDuplicatesClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope?,
     animatedVisibilityScope: AnimatedVisibilityScope?,
 ) {
@@ -52,15 +58,25 @@ internal fun HomeContactList(
     // claims this id and every other row closes its reveal.
     var swipedContactId by remember { mutableStateOf<Long?>(null) }
     val sections by remember(contacts) { derivedStateOf { sectionsOf(contacts) } }
-    val letterIndex by remember {
+    // The duplicates row is item 0, so every section's list index shifts by one.
+    val leadingItems = if (duplicatesRowCount != null) 1 else 0
+    val letterIndex by remember(leadingItems) {
         derivedStateOf {
             buildMap {
-                var index = 0
+                var index = leadingItems
                 sections.forEach { section ->
                     put(section.letter, index)
                     index += section.contacts.size + 1
                 }
             }
+        }
+    }
+    // A lazy list stays anchored to the row that was first before an insert, so a
+    // duplicates row appearing while the list sits at the top (e.g. after the
+    // search is cleared) would land just above the fold. Pull it into view.
+    LaunchedEffect(leadingItems) {
+        if (leadingItems == 1 && listState.firstVisibleItemIndex <= 1 && listState.firstVisibleItemScrollOffset == 0) {
+            listState.requestScrollToItem(0)
         }
     }
     val railShown = contacts.size > FAST_SCROLL_MIN_CONTACTS
@@ -91,6 +107,11 @@ internal fun HomeContactList(
             // Keep row content (incl. trailing provenance dots) clear of the rail.
             contentPadding = PaddingValues(end = if (railShown) 30.dp else 0.dp),
         ) {
+            if (duplicatesRowCount != null) {
+                item(key = DUPLICATES_ROW_KEY, contentType = "duplicates-row") {
+                    DuplicatesRow(duplicatesRowCount, onDuplicatesClick)
+                }
+            }
             sections.forEach { section ->
                 stickyHeader(key = "header-${section.letter}") {
                     SectionHeader(section.letter)
